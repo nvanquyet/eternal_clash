@@ -9,6 +9,8 @@ namespace _GAME.Scripts.Player.Locomotion
         private static readonly int ZVelocity = Animator.StringToHash("zVelocity");
         private static readonly int YVelocity = Animator.StringToHash("yVelocity");
         private static readonly int IsGrounded = Animator.StringToHash("isGrounded");
+        private static readonly int IsTurnLeft = Animator.StringToHash("isTurnLeft");
+        private static readonly int IsTurnRight = Animator.StringToHash("isTurnRight");
         private readonly Animator _animator;
 
         public PlayerLocomotionAnimator(Animator animator)

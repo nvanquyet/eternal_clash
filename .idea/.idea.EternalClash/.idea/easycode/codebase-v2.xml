@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="com.obiscr.chatgpt.settings.EasyCodeState">
+    <option name="projectFiles" value="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Camera/CameraZoomController.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Camera/PlayerCamController.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Config/PlayerLocomotionConfig.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Enum/LocomotionState.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Locomotion/States/FallingMotion.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Locomotion/States/IdleMotion.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Locomotion/States/JumpingMotion.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Locomotion/States/RunningMotion.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Locomotion/States/WalkingMotion.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Locomotion/ALocomotionState.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotionAnimator.cs;W:/Unity/EternalClash/Assets/_GAME/Scripts/Player/PlayerLocomotion.cs;W:/Unity/EternalClash/Packages/manifest.json;W:/Unity/EternalClash/Packages/packages-lock.json;W:/Unity/EternalClash/ProjectSettings/SceneTemplateSettings.json" />
+  </component>
+</project>

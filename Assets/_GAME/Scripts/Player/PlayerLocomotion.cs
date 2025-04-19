@@ -135,7 +135,7 @@ namespace _GAME.Scripts.Player
             if (!characterController.isGrounded)
             {
                 // Apply gravity when not grounded
-                _velocity.y -= Config.Gravity * Time.fixedDeltaTime;
+                _velocity.y += Physics.gravity.y * Time.fixedDeltaTime;
 
                 // Transition to Falling state if descending
                 if (_velocity.y <= 0) 
@@ -168,6 +168,10 @@ namespace _GAME.Scripts.Player
 
         #endregion
 
-        
+
+        public void Rotate(Vector3 direction)
+        {
+            //transform.Rotate(direction);
+        } 
     }
 }
