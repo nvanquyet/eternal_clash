@@ -8,12 +8,12 @@ namespace _GAME.Scripts.Player.Locomotion.States
 
         public override void OnEnter(PlayerLocomotion playerLocomotion) { }
 
-        public override void OnUpdate(PlayerLocomotion playerLocomotion)
+        protected override bool SwitchMotion(PlayerLocomotion playerLocomotion)
         {
-            if (playerLocomotion.CharacterController.isGrounded)
-            {
-                playerLocomotion.SetLocomotionState(new IdleMotion());
-            }
+            if (!playerLocomotion.CharacterController.isGrounded) return false;
+            playerLocomotion.SetLocomotionState(new IdleMotion());
+            return true;
+
         }
 
         public override void OnExit(PlayerLocomotion playerLocomotion) { }

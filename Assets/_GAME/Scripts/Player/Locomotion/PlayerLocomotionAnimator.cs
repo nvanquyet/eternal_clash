@@ -9,8 +9,6 @@ namespace _GAME.Scripts.Player.Locomotion
         private static readonly int ZVelocity = Animator.StringToHash("zVelocity");
         private static readonly int YVelocity = Animator.StringToHash("yVelocity");
         private static readonly int IsGrounded = Animator.StringToHash("isGrounded");
-        private static readonly int IsTurnLeft = Animator.StringToHash("isTurnLeft");
-        private static readonly int IsTurnRight = Animator.StringToHash("isTurnRight");
         private readonly Animator _animator;
 
         public PlayerLocomotionAnimator(Animator animator)
@@ -21,6 +19,7 @@ namespace _GAME.Scripts.Player.Locomotion
         public void OnLateUpdate(PlayerLocomotion playerLocomotion)
         {
             Vector3 velocity = playerLocomotion.Velocity;
+            Vector3 inputDirection = playerLocomotion.InputDirection;
             LocomotionState state = playerLocomotion.CurrentState.LocomotionState;
 
             switch (state)
@@ -28,7 +27,7 @@ namespace _GAME.Scripts.Player.Locomotion
                 case LocomotionState.Idle:
                 case LocomotionState.Walking:
                 case LocomotionState.Running:
-                    UpdateGroundedState(velocity, state == LocomotionState.Running ? 2 : 1);
+                    UpdateGroundedState(inputDirection, state == LocomotionState.Running ? 2 : 1);
                     break;
                 case LocomotionState.Jumping:
                 case LocomotionState.Falling:

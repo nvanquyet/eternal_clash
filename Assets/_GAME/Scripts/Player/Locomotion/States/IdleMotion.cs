@@ -7,27 +7,23 @@ namespace _GAME.Scripts.Player.Locomotion.States
     {
         public override LocomotionState LocomotionState => LocomotionState.Idle;
 
-        public override void OnEnter(PlayerLocomotion playerLocomotion)
-        {
-            
-        }
+        public override void OnEnter(PlayerLocomotion playerLocomotion) { }
 
-        public override void OnUpdate(PlayerLocomotion playerLocomotion)
-        {
-        }
+        public override void OnExit(PlayerLocomotion playerLocomotion) { }
 
-        public override void OnExit(PlayerLocomotion playerLocomotion)
-        {
-        }
-
-        public override void OnFixedUpdate(PlayerLocomotion playerLocomotion)
+        protected override bool SwitchMotion(PlayerLocomotion playerLocomotion)
         {
             if (Input.GetKey(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyUp(KeyCode.Space))
             {
                 playerLocomotion.SetLocomotionState(new JumpingMotion());
-                return;
+                return true;
             }
 
+            return false;
+        }
+
+        public override void OnFixedUpdate(PlayerLocomotion playerLocomotion)
+        {
             Vector3 move = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
             if (move.magnitude != 0)
             {
@@ -40,7 +36,7 @@ namespace _GAME.Scripts.Player.Locomotion.States
                 return;
             }
 
-            playerLocomotion.ApplyHorizontalVelocity(0, 0);
+            playerLocomotion.ApplyInputDirection(0, 0, 0);
         }
     }
 }

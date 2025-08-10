@@ -1,5 +1,6 @@
 using UnityEngine;
-namespace Player.Locomotion
+
+namespace _GAME.Scripts.Player.Config
 {
     [CreateAssetMenu(fileName = "PlayerLocomotionConfig", menuName = "Config/Player Locomotion Config")]
     public class PlayerLocomotionConfig : ScriptableObject
@@ -11,7 +12,6 @@ namespace Player.Locomotion
 
         [Header("Physics Settings")]
         [SerializeField] private float gravity = 9.81f;
-
 
         public float WalkSpeed => walkSpeed;
         public float RunSpeed => runSpeed;
