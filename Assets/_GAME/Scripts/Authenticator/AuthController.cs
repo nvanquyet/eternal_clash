@@ -1,4 +1,6 @@
-﻿using _GAME.Scripts.UI;
+﻿using _GAME.Scripts.Controller;
+using _GAME.Scripts.Data;
+using _GAME.Scripts.UI;
 using UnityEngine;
 
 namespace _GAME.Scripts.Authenticator
@@ -15,6 +17,15 @@ namespace _GAME.Scripts.Authenticator
             {
                 var (success, message) = await authManager.LoginAsync(user, pass);
                 //Show popup notification
+                if (success)
+                {
+                    LocalData.UserName = user;
+                    LocalData.UserId = authManager.UserId;
+                    LocalData.UserPassword = pass;
+                    
+                    //Change the scene or perform any other action after successful login
+                    SceneController.Instance.LoadSceneAsync((int) SceneDefinitions.Home);
+                }
                 PopupNotification.Instance.ShowPopup(success, message);
             }, async (username, email, pass, confirm) =>
             {
