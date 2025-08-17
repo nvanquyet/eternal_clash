@@ -4,276 +4,134 @@ using Unity.Services.Lobbies.Models;
 namespace _GAME.Scripts.Lobbies
 {
     /// <summary>
-    /// Static event system để giao tiếp giữa các component trong game
-    /// Sử dụng khi bạn không muốn tham chiếu trực tiếp đến LobbyManager
+    /// Centralized static event manager cho toàn bộ lobby system
+    /// Tất cả events được định nghĩa ở đây, các component khác chỉ trigger/listen
     /// </summary>
     public static class LobbyEvents
     {
-        // Lobby Events
-        public static event Action<LobbyEventData> OnLobbyCreated;
-        public static event Action<LobbyEventData> OnLobbyJoined;
-        public static event Action<LobbyEventData> OnLobbyLeft;
-        public static event Action<LobbyEventData> OnLobbyUpdated;
-        public static event Action<LobbyEventData> OnLobbyRemoved;
-        public static event Action<string> OnLobbyError;
+        // ========== LOBBY LIFECYCLE EVENTS ==========
+        
+        /// <summary>Fired when lobby is created (success/fail)</summary>
+        public static event Action<Lobby, bool, string> OnLobbyCreated;
+        
+        /// <summary>Fired when player joins a lobby (success/fail)</summary>
+        public static event Action<Lobby, bool, string> OnLobbyJoined;
+        
+        /// <summary>Fired when player leaves a lobby (success/fail)</summary>
+        public static event Action<Lobby, bool, string> OnLobbyLeft;
+        
+        /// <summary>Fired when lobby is removed/deleted (success/fail)</summary>
+        public static event Action<Lobby, bool, string> OnLobbyRemoved;
+        
+        /// <summary>Fired when lobby data changes (from polling or manual updates)</summary>
+        public static event Action<Lobby, string> OnLobbyUpdated;
 
-        // Player Events
-        public static event Action<PlayerEventData> OnPlayerJoined;
-        public static event Action<PlayerEventData> OnPlayerLeft;
-        public static event Action<PlayerEventData> OnPlayerKicked;
-        public static event Action<PlayerEventData> OnPlayerUpdated;
+        // ========== PLAYER EVENTS ==========
+        
+        /// <summary>Fired when a player joins the lobby</summary>
+        public static event Action<Unity.Services.Lobbies.Models.Player, Lobby, string> OnPlayerJoined;
+        
+        /// <summary>Fired when a player leaves the lobby</summary>
+        public static event Action<Unity.Services.Lobbies.Models.Player, Lobby, string> OnPlayerLeft;
+        
+        /// <summary>Fired when player data changes (ready status, display name, etc.)</summary>
+        public static event Action<Unity.Services.Lobbies.Models.Player, Lobby, string> OnPlayerUpdated;
+        
+        /// <summary>Fired when a player is kicked from the lobby</summary>
+        public static event Action<Unity.Services.Lobbies.Models.Player, Lobby, string> OnPlayerKicked;
 
-        // Game Events
-        public static event Action<GameEventData> OnGameStarted;
-        public static event Action<GameEventData> OnGameEnded;
-        public static event Action<string> OnGameStateChanged;
+        // ========== GAME EVENTS ==========
+        
+        /// <summary>Fired when game starts</summary>
+        public static event Action<Lobby, string> OnGameStarted;
 
-        // Connection Events
-        public static event Action OnConnected;
-        public static event Action<string> OnDisconnected;
-        public static event Action<string> OnConnectionError;
-
-        #region Trigger Methods
+        // ========== TRIGGER METHODS - Called by LobbyHandler/LobbyUpdater ==========
 
         public static void TriggerLobbyCreated(Lobby lobby, bool success, string message)
         {
-            OnLobbyCreated?.Invoke(new LobbyEventData
-            {
-                Lobby = lobby,
-                Success = success,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+            OnLobbyCreated?.Invoke(lobby, success, message);
         }
 
         public static void TriggerLobbyJoined(Lobby lobby, bool success, string message)
         {
-            OnLobbyJoined?.Invoke(new LobbyEventData
-            {
-                Lobby = lobby,
-                Success = success,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+            OnLobbyJoined?.Invoke(lobby, success, message);
         }
 
         public static void TriggerLobbyLeft(Lobby lobby, bool success, string message)
         {
-            OnLobbyLeft?.Invoke(new LobbyEventData
-            {
-                Lobby = lobby,
-                Success = success,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
-        }
-
-        public static void TriggerLobbyUpdated(Lobby lobby, bool success, string message)
-        {
-            OnLobbyUpdated?.Invoke(new LobbyEventData
-            {
-                Lobby = lobby,
-                Success = success,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+            OnLobbyLeft?.Invoke(lobby, success, message);
         }
 
         public static void TriggerLobbyRemoved(Lobby lobby, bool success, string message)
         {
-            OnLobbyRemoved?.Invoke(new LobbyEventData
-            {
-                Lobby = lobby,
-                Success = success,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+            OnLobbyRemoved?.Invoke(lobby, success, message);
         }
 
-        public static void TriggerLobbyError(string errorMessage)
+        public static void TriggerLobbyUpdated(Lobby lobby, string message)
         {
-            OnLobbyError?.Invoke(errorMessage);
+            OnLobbyUpdated?.Invoke(lobby, message);
         }
 
-        public static void TriggerPlayerJoined(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message = "")
+        public static void TriggerPlayerJoined(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
         {
-            OnPlayerJoined?.Invoke(new PlayerEventData
-            {
-                Player = player,
-                Lobby = lobby,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+            OnPlayerJoined?.Invoke(player, lobby, message);
         }
 
-        public static void TriggerPlayerLeft(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message = "")
+        public static void TriggerPlayerLeft(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
         {
-            OnPlayerLeft?.Invoke(new PlayerEventData
-            {
-                Player = player,
-                Lobby = lobby,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+            OnPlayerLeft?.Invoke(player, lobby, message);
         }
 
-        public static void TriggerPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message = "")
+        public static void TriggerPlayerUpdated(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
         {
-            OnPlayerKicked?.Invoke(new PlayerEventData
-            {
-                Player = player,
-                Lobby = lobby,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+            OnPlayerUpdated?.Invoke(player, lobby, message);
         }
 
-        public static void TriggerPlayerUpdated(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message = "")
+        public static void TriggerPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
         {
-            OnPlayerUpdated?.Invoke(new PlayerEventData
-            {
-                Player = player,
-                Lobby = lobby,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+            OnPlayerKicked?.Invoke(player, lobby, message);
         }
 
-        public static void TriggerGameStarted(Lobby lobby, string gameMode = "")
+        public static void TriggerGameStarted(Lobby lobby, string message)
         {
-            OnGameStarted?.Invoke(new GameEventData
-            {
-                Lobby = lobby,
-                GameMode = gameMode,
-                Timestamp = DateTime.Now
-            });
+            OnGameStarted?.Invoke(lobby, message);
         }
 
-        public static void TriggerGameEnded(Lobby lobby, string reason = "")
-        {
-            OnGameEnded?.Invoke(new GameEventData
-            {
-                Lobby = lobby,
-                Reason = reason,
-                Timestamp = DateTime.Now
-            });
-        }
-
-        public static void TriggerGameStateChanged(string newState)
-        {
-            OnGameStateChanged?.Invoke(newState);
-        }
-
-        public static void TriggerConnected()
-        {
-            OnConnected?.Invoke();
-        }
-
-        public static void TriggerDisconnected(string reason)
-        {
-            OnDisconnected?.Invoke(reason);
-        }
-
-        public static void TriggerConnectionError(string error)
-        {
-            OnConnectionError?.Invoke(error);
-        }
-
-        #endregion
-
-        #region Cleanup Methods
+        // ========== UTILITY ==========
 
         /// <summary>
-        /// Clear tất cả event subscriptions - sử dụng khi cần reset
+        /// Clear tất cả event subscriptions - useful khi restart game hoặc change scene
         /// </summary>
         public static void ClearAllEvents()
         {
             OnLobbyCreated = null;
             OnLobbyJoined = null;
             OnLobbyLeft = null;
-            OnLobbyUpdated = null;
             OnLobbyRemoved = null;
-            OnLobbyError = null;
-
+            OnLobbyUpdated = null;
             OnPlayerJoined = null;
             OnPlayerLeft = null;
-            OnPlayerKicked = null;
             OnPlayerUpdated = null;
-
-            OnGameStarted = null;
-            OnGameEnded = null;
-            OnGameStateChanged = null;
-
-            OnConnected = null;
-            OnDisconnected = null;
-            OnConnectionError = null;
-        }
-
-        /// <summary>
-        /// Clear lobby events only
-        /// </summary>
-        public static void ClearLobbyEvents()
-        {
-            OnLobbyCreated = null;
-            OnLobbyJoined = null;
-            OnLobbyLeft = null;
-            OnLobbyUpdated = null;
-            OnLobbyRemoved = null;
-            OnLobbyError = null;
-        }
-
-        /// <summary>
-        /// Clear player events only
-        /// </summary>
-        public static void ClearPlayerEvents()
-        {
-            OnPlayerJoined = null;
-            OnPlayerLeft = null;
             OnPlayerKicked = null;
-            OnPlayerUpdated = null;
+            OnGameStarted = null;
         }
 
         /// <summary>
-        /// Clear game events only
+        /// Debugging: log current number of subscribers for each event
         /// </summary>
-        public static void ClearGameEvents()
+        public static void LogSubscriberCounts()
         {
-            OnGameStarted = null;
-            OnGameEnded = null;
-            OnGameStateChanged = null;
+            UnityEngine.Debug.Log($"[LobbyEvents] Subscribers:" +
+                $"\n  OnLobbyCreated: {OnLobbyCreated?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnLobbyJoined: {OnLobbyJoined?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnLobbyLeft: {OnLobbyLeft?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnLobbyRemoved: {OnLobbyRemoved?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnLobbyUpdated: {OnLobbyUpdated?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnPlayerJoined: {OnPlayerJoined?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnPlayerLeft: {OnPlayerLeft?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnPlayerUpdated: {OnPlayerUpdated?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnPlayerKicked: {OnPlayerKicked?.GetInvocationList()?.Length ?? 0}" +
+                $"\n  OnGameStarted: {OnGameStarted?.GetInvocationList()?.Length ?? 0}");
         }
-
-        #endregion
     }
-
-    #region Event Data Classes
-
-    [System.Serializable]
-    public class LobbyEventData
-    {
-        public Lobby Lobby;
-        public bool Success;
-        public string Message;
-        public DateTime Timestamp;
-    }
-
-    [System.Serializable]
-    public class PlayerEventData
-    {
-        public Unity.Services.Lobbies.Models.Player Player;
-        public Lobby Lobby;
-        public string Message;
-        public DateTime Timestamp;
-    }
-
-    [System.Serializable]
-    public class GameEventData
-    {
-        public Lobby Lobby;
-        public string GameMode;
-        public string Reason;
-        public DateTime Timestamp;
-    }
-
-    #endregion
 }

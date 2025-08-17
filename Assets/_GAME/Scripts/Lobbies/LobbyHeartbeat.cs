@@ -17,6 +17,10 @@ namespace _GAME.Scripts.Lobbies
         private string _currentLobbyId;
         private CancellationTokenSource _cancellationTokenSource;
         private bool _isHeartbeatActive = false;
+        
+        public bool IsActive => _isHeartbeatActive;
+        public string ActiveLobbyId => _currentLobbyId;
+
 
         public void Initialize(LobbyHandler lobbyManager, float interval = 15f)
         {
@@ -26,11 +30,10 @@ namespace _GAME.Scripts.Lobbies
 
         public void StartHeartbeat(string lobbyId)
         {
-            if (_isHeartbeatActive)
-            {
-                StopHeartbeat();
-            }
+            // ĐÃ chạy đúng lobby rồi thì bỏ qua
+            if (_isHeartbeatActive && _currentLobbyId == lobbyId) return;
 
+            StopHeartbeat(); // đảm bảo clean trước khi start
             _currentLobbyId = lobbyId;
             _cancellationTokenSource = new CancellationTokenSource();
             _isHeartbeatActive = true;
@@ -38,7 +41,7 @@ namespace _GAME.Scripts.Lobbies
             _ = HeartbeatLoop(_cancellationTokenSource.Token);
             Debug.Log($"Started heartbeat for lobby: {lobbyId}");
         }
-
+ 
         public void StopHeartbeat()
         {
             if (_isHeartbeatActive)

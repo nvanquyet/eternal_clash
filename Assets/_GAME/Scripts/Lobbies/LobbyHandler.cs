@@ -10,216 +10,131 @@ using UnityEngine;
 
 namespace _GAME.Scripts.Lobbies
 {
-    // Event args cho các sự kiện lobby
-    public class LobbyEventArgs : EventArgs
-    {
-        public Lobby Lobby { get; set; }
-        public string Message { get; set; }
-        public bool Success { get; set; }
-    }
-
-    public class PlayerEventArgs : EventArgs
-    {
-        public Unity.Services.Lobbies.Models.Player Player { get; set; }
-        public string Message { get; set; }
-    }
-
-    // Interface cho lobby operations
     public interface ILobbyOperations
     {
-        Task<List<Lobby>> GetLobbyListAsync();
-        Task<Lobby> GetLobbyInfoAsync(string lobbyId);
         Task<Lobby> CreateLobbyAsync(string lobbyName, int maxPlayers, CreateLobbyOptions options);
         Task<bool> JoinLobbyAsync(string lobbyCode, string password);
-        Task<bool> LeaveLobbyAsync(string lobbyId, string playerId, bool isHost = false); 
+        Task<bool> LeaveLobbyAsync(string lobbyId, string playerId, bool isHost = false);
         Task<bool> RemoveLobbyAsync(string lobbyId);
         Task<bool> KickPlayerAsync(string lobbyId, string playerId);
-        Task<bool> UpdateLobbyAsync(string lobbyId, UpdateLobbyOptions updateOptions = null);
+        Task<Lobby> GetLobbyInfoAsync(string lobbyId);
+
+        // Convenience updates (khớp với UI)
+        Task<Lobby> UpdateLobbyAsync(string lobbyId, UpdateLobbyOptions updateOptions = null);
+        Task<Lobby> UpdateLobbyNameAsync(string lobbyId, string newName);
+        Task<Lobby> UpdateLobbyMaxPlayersAsync(string lobbyId, int maxPlayers);
+        Task<Lobby> UpdateLobbyPasswordInDataAsync(string lobbyId, string newPassword, bool visibleToMembers = true, bool alsoSetBuiltIn = true);
+        Task<Lobby> ToggleReadyAsync(string lobbyId, bool isReady);
+        Task<Lobby> SetDisplayNameAsync(string lobbyId, string displayName);
     }
 
-    // Main LobbyManager class với Singleton pattern
-    public class LobbyHandler : Singleton<LobbyHandler>, ILobbyOperations
+    public class LobbyHandler : SingletonDontDestroy<LobbyHandler>, ILobbyOperations
     {
         [Header("Lobby Settings")]
         [SerializeField] private float heartbeatInterval = 15f;
         [SerializeField] private float lobbyRefreshInterval = 2f;
-        [SerializeField] private int maxLobbiesQuery = 25;
 
-        // Events
-        public event EventHandler<LobbyEventArgs> OnLobbyCreated;
-        public event EventHandler<LobbyEventArgs> OnLobbyJoined;
-        public event EventHandler<LobbyEventArgs> OnLobbyLeft;
-        public event EventHandler<LobbyEventArgs> OnLobbyUpdated;
-        public event EventHandler<LobbyEventArgs> OnLobbyRemoved;
-        public event EventHandler<PlayerEventArgs> OnPlayerJoined;
-        public event EventHandler<PlayerEventArgs> OnPlayerLeft;
-        public event EventHandler<PlayerEventArgs> OnPlayerKicked;
-        public event EventHandler OnGameStarted;
+        // NO MORE EVENT DEFINITIONS HERE - All events go through LobbyEvents
 
         private LobbyHeartbeat _heartbeat;
         private LobbyUpdater _updater;
 
+        private string _currentLobbyId;
+
         protected override void OnAwake()
         {
             base.OnAwake();
-            InitializeComponents();
+            _heartbeat = gameObject.AddComponent<LobbyHeartbeat>();
+            _updater   = gameObject.AddComponent<LobbyUpdater>();
+            _heartbeat.Initialize(this, heartbeatInterval);
+            _updater.Initialize(this, lobbyRefreshInterval);
         }
 
         private async void Start()
         {
             try
             {
-                await InitializeUnityServices();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError(e);
-            }
-        }
-
-        private void InitializeComponents()
-        {
-            _heartbeat = gameObject.AddComponent<LobbyHeartbeat>();
-            _updater = gameObject.AddComponent<LobbyUpdater>();
-            
-            _heartbeat.Initialize(this, heartbeatInterval);
-            _updater.Initialize(this, lobbyRefreshInterval);
-        }
-
-        private async Task InitializeUnityServices()
-        {
-            try
-            {
                 await UnityServices.InitializeAsync();
-                Debug.Log("Unity Services initialized successfully.");
-
-                AuthenticationService.Instance.SignedIn += OnSignedIn;
-                await AuthenticationService.Instance.SignInAnonymouslyAsync();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to initialize Unity Services: {e}");
-            }
-        }
-
-        private void OnSignedIn()
-        {
-            Debug.Log($"Signed in successfully with player ID: {AuthenticationService.Instance.PlayerId}");
-        }
-
-        public async Task<List<Lobby>> GetLobbyListAsync()
-        {
-            try
-            {
-                var queryOptions = new QueryLobbiesOptions
+                AuthenticationService.Instance.SignedIn += () =>
                 {
-                    Count = maxLobbiesQuery,
-                    Filters = new List<QueryFilter>
-                    {
-                        new QueryFilter(QueryFilter.FieldOptions.AvailableSlots, "0", QueryFilter.OpOptions.GT)
-                    },
-                    Order = new List<QueryOrder>
-                    {
-                        new QueryOrder(false, QueryOrder.FieldOptions.Created)
-                    }
+                    Debug.Log($"Signed in as: {AuthenticationService.Instance.PlayerId}");
                 };
-
-                var queryResponse = await LobbyService.Instance.QueryLobbiesAsync(queryOptions);
-                var lobbies = queryResponse.Results;
-
-                if (lobbies == null || lobbies.Count == 0)
-                {
-                    Debug.Log("No lobbies found.");
-                    return new List<Lobby>();
-                }
-
-                Debug.Log($"Found {lobbies.Count} lobbies");
-                return lobbies;
+                if (!AuthenticationService.Instance.IsSignedIn)
+                    await AuthenticationService.Instance.SignInAnonymouslyAsync();
             }
             catch (Exception e)
             {
-                Debug.LogError($"Failed to get lobby list: {e}");
-                return new List<Lobby>();
+                Debug.LogError($"Failed to init Unity Services: {e}");
             }
         }
 
-        public async Task<Lobby> GetLobbyInfoAsync(string lobbyId)
-        {
-            try
-            {
-                var lobby = await LobbyService.Instance.GetLobbyAsync(lobbyId);
-                Debug.Log($"Got lobby info: {lobby.Name} ({lobby.Id})");
-                return lobby;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to get lobby info for ID {lobbyId}: {e}");
-                return null;
-            }
-        }
+        // -------- Create / Join / Leave / Remove --------
 
         public async Task<Lobby> CreateLobbyAsync(string lobbyName, int maxPlayers, CreateLobbyOptions options)
         {
             try
             {
+                // Bảo đảm Player khởi tạo có dữ liệu khớp UI
+                options ??= new CreateLobbyOptions();
+                options.Player ??= GetDefaultPlayerData();
+
                 var lobby = await LobbyService.Instance.CreateLobbyAsync(lobbyName, maxPlayers, options);
-                
-                _heartbeat.StartHeartbeat(lobby.Id);
+
+                _currentLobbyId = lobby.Id;
+
+                // Heartbeat chỉ host
+                if (lobby.HostId == AuthenticationService.Instance.PlayerId)
+                    _heartbeat.StartHeartbeat(lobby.Id);
+
                 _updater.StartUpdating(lobby.Id);
 
-                OnLobbyCreated?.Invoke(this, new LobbyEventArgs 
-                { 
-                    Lobby = lobby, 
-                    Success = true, 
-                    Message = $"Lobby '{lobby.Name}' created successfully" 
-                });
+                // Fire event through LobbyEvents
+                LobbyEvents.TriggerLobbyCreated(lobby, true, $"Lobby '{lobby.Name}' created");
 
-                Debug.Log($"Lobby created: {lobby.Name} ({lobby.Id})");
                 return lobby;
             }
             catch (Exception e)
             {
-                Debug.LogError($"Failed to create lobby: {e}");
-                OnLobbyCreated?.Invoke(this, new LobbyEventArgs 
-                { 
-                    Success = false, 
-                    Message = e.Message 
-                });
+                Debug.LogError($"CreateLobby failed: {e}");
+                LobbyEvents.TriggerLobbyCreated(null, false, e.Message);
                 return null;
             }
         }
-        
-        
+
         public async Task<bool> JoinLobbyAsync(string lobbyCode, string password)
         {
             try
             {
                 var joinOptions = new JoinLobbyByCodeOptions
                 {
-                    Player = GetPlayerData(),
-                    Password = password
+                    Player = GetDefaultPlayerData(),
+                    Password = password // built-in protect
                 };
 
                 var lobby = await LobbyService.Instance.JoinLobbyByCodeAsync(lobbyCode, joinOptions);
                 if (lobby != null)
                 {
+                    _currentLobbyId = lobby.Id;
+
+                    // Chỉ host mới heartbeat
+                    if (lobby.HostId == AuthenticationService.Instance.PlayerId)
+                        _heartbeat.StartHeartbeat(lobby.Id);
+                    else
+                        _heartbeat.StopHeartbeat();
+
                     _updater.StartUpdating(lobby.Id);
-                    
-                    Debug.Log($"Joined lobby: {lobby.Name} ({lobby.Id})");
+
+                    LobbyEvents.TriggerLobbyJoined(lobby, true, $"Joined lobby '{lobby.Name}'");
                     return true;
                 }
-                Debug.Log($"Failed to join lobby with code {lobbyCode}: Lobby not found, password incorrect or full.");
-                return false;
 
+                LobbyEvents.TriggerLobbyJoined(null, false, "Lobby not found / full / wrong password");
+                return false;
             }
             catch (Exception e)
             {
-                Debug.LogError($"Failed to join lobby with code {lobbyCode}: {e}");
-                OnLobbyJoined?.Invoke(this, new LobbyEventArgs 
-                { 
-                    Success = false, 
-                    Message = e.Message 
-                });
+                Debug.LogError($"JoinLobby failed: {e}");
+                LobbyEvents.TriggerLobbyJoined(null, false, e.Message);
                 return false;
             }
         }
@@ -228,85 +143,246 @@ namespace _GAME.Scripts.Lobbies
         {
             try
             {
+                if (string.IsNullOrEmpty(lobbyId)) lobbyId = _currentLobbyId;
+
                 if (isHost)
                 {
-                    // Host leaving = delete lobby
                     await RemoveLobbyAsync(lobbyId);
-                    return true;
                 }
                 else
                 {
-                    // Regular player leaving
                     await LobbyService.Instance.RemovePlayerAsync(lobbyId, playerId);
                     _updater.StopUpdating();
                 }
+
+                if (_currentLobbyId == lobbyId)
+                {
+                    _currentLobbyId = null;
+                    _heartbeat.StopHeartbeat();
+                    _updater.StopUpdating();
+                }
+
+                LobbyEvents.TriggerLobbyLeft(null, true, "Left lobby");
                 return true;
             }
             catch (Exception e)
             {
-                Debug.LogError($"Failed to leave lobby: {e}");
+                Debug.LogError($"LeaveLobby failed: {e}");
+                LobbyEvents.TriggerLobbyLeft(null, false, e.Message);
                 return false;
             }
         }
-        
+
         public async Task<bool> RemoveLobbyAsync(string lobbyId)
         {
             try
             {
+                if (string.IsNullOrEmpty(lobbyId)) lobbyId = _currentLobbyId;
+
                 await LobbyService.Instance.DeleteLobbyAsync(lobbyId);
-                
-                _heartbeat.StopHeartbeat();
-                _updater.StopUpdating();
+
+                if (_currentLobbyId == lobbyId)
+                {
+                    _currentLobbyId = null;
+                    _heartbeat.StopHeartbeat();
+                    _updater.StopUpdating();
+                }
+
+                LobbyEvents.TriggerLobbyRemoved(null, true, "Lobby removed");
                 return true;
             }
             catch (Exception e)
             {
-                Debug.LogError($"Failed to remove lobby: {e}");
+                Debug.LogError($"RemoveLobby failed: {e}");
+                LobbyEvents.TriggerLobbyRemoved(null, false, e.Message);
                 return false;
             }
         }
-        
+
         public async Task<bool> KickPlayerAsync(string lobbyId, string playerId)
         {
             try
             {
                 await LobbyService.Instance.RemovePlayerAsync(lobbyId, playerId);
-                Debug.Log($"Player kicked: {playerId}");
+                LobbyEvents.TriggerPlayerKicked(null, null, $"Kicked {playerId}");
                 return true;
             }
             catch (Exception e)
             {
-                Debug.LogError($"Failed to kick player {playerId}: {e}");
+                Debug.LogError($"KickPlayer failed: {e}");
+                LobbyEvents.TriggerPlayerKicked(null, null, e.Message);
                 return false;
             }
         }
 
-        public async Task<bool> UpdateLobbyAsync(string lobbyId, UpdateLobbyOptions updateOptions = null)
+        public async Task<Lobby> GetLobbyInfoAsync(string lobbyId)
         {
             try
             {
-                var updatedLobby = await LobbyService.Instance.UpdateLobbyAsync(lobbyId, updateOptions);
-                return true;
+                var lobby = await LobbyService.Instance.GetLobbyAsync(lobbyId);
+                return lobby;
             }
             catch (Exception e)
             {
-                Debug.LogError($"Failed to update lobby: {e}");
-                return false;
+                Debug.LogError($"GetLobbyInfo failed: {e}");
+                return null;
             }
         }
 
-        private Unity.Services.Lobbies.Models.Player GetPlayerData()
+        // -------- Update helpers (khớp với UI) --------
+        
+        /// <summary>
+        /// Method for LobbyUpdater to call when lobby snapshot changes
+        /// </summary>
+        public void RaiseLobbyUpdated(Lobby lobby, string message = "")
         {
+            LobbyEvents.TriggerLobbyUpdated(lobby, message);
+        }
+        
+        public async Task<Lobby> UpdateLobbyAsync(string lobbyId, UpdateLobbyOptions updateOptions = null)
+        {
+            try
+            {
+                var updated = await LobbyService.Instance.UpdateLobbyAsync(lobbyId, updateOptions ?? new UpdateLobbyOptions());
+                LobbyEvents.TriggerLobbyUpdated(updated, "Lobby updated");
+                return updated;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"UpdateLobby failed: {e}");
+                LobbyEvents.TriggerLobbyUpdated(null, e.Message);
+                return null;
+            }
+         }
+
+        public Task<Lobby> UpdateLobbyNameAsync(string lobbyId, string newName)
+        {
+            var opts = new UpdateLobbyOptions { Name = newName };
+            return UpdateLobbyAsync(lobbyId, opts);
+        }
+
+        public Task<Lobby> UpdateLobbyMaxPlayersAsync(string lobbyId, int maxPlayers)
+        {
+            var opts = new UpdateLobbyOptions { MaxPlayers = maxPlayers };
+            return UpdateLobbyAsync(lobbyId, opts);
+        }
+
+        /// <summary>
+        /// Cập nhật mật khẩu để HIỂN THỊ CHO MỌI NGƯỜI qua Lobby.Data["Password"].
+        /// alsoSetBuiltIn = true: đồng bộ luôn built-in Password (để bảo vệ join).
+        /// visibleToMembers = true: dùng Member visibility (chỉ người trong lobby thấy). Nếu false → Public.
+        /// </summary>
+        public async Task<Lobby> UpdateLobbyPasswordInDataAsync(string lobbyId, string newPassword, bool visibleToMembers = true, bool alsoSetBuiltIn = true)
+        {
+            try
+            {
+                var visibility = visibleToMembers ? DataObject.VisibilityOptions.Member : DataObject.VisibilityOptions.Public;
+
+                var data = new Dictionary<string, DataObject>
+                {
+                    { "Password", new DataObject(visibility, newPassword ?? string.Empty) }
+                };
+
+                var opts = new UpdateLobbyOptions
+                {
+                    Data = data
+                };
+
+                if (alsoSetBuiltIn)
+                {
+                    // Built-in: string.Empty để xóa pass
+                    opts.Password = newPassword ?? string.Empty;
+                }
+
+                var updated = await LobbyService.Instance.UpdateLobbyAsync(lobbyId, opts);
+                LobbyEvents.TriggerLobbyUpdated(updated, "Password updated");
+                return updated;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Update password in data failed: {e}");
+                LobbyEvents.TriggerLobbyUpdated(null, e.Message);
+                return null;
+            }
+        }
+
+        public async Task<Lobby> ToggleReadyAsync(string lobbyId, bool isReady)
+        {
+            try
+            {
+                var meId = AuthenticationService.Instance.PlayerId;
+                var playerOpts = new UpdatePlayerOptions
+                {
+                    Data = new Dictionary<string, PlayerDataObject>
+                    {
+                        { "IsReady", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, isReady.ToString().ToLower()) }
+                    }
+                };
+
+                var updated = await LobbyService.Instance.UpdatePlayerAsync(lobbyId, meId, playerOpts);
+                
+                // Find current player and trigger event
+                var currentPlayer = updated.Players.Find(p => p.Id == meId);
+                if (currentPlayer != null)
+                {
+                    LobbyEvents.TriggerPlayerUpdated(currentPlayer, updated, $"Player ready status: {isReady}");
+                }
+
+                return updated;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"ToggleReady failed: {e}");
+                return null;
+            }
+        }
+
+        public async Task<Lobby> SetDisplayNameAsync(string lobbyId, string displayName)
+        {
+            try
+            {
+                var meId = AuthenticationService.Instance.PlayerId;
+                var playerOpts = new UpdatePlayerOptions
+                {
+                    Data = new Dictionary<string, PlayerDataObject>
+                    {
+                        { "DisplayName", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, displayName ?? string.Empty) }
+                    }
+                };
+
+                var updated = await LobbyService.Instance.UpdatePlayerAsync(lobbyId, meId, playerOpts);
+                
+                // Find current player and trigger event
+                var currentPlayer = updated.Players.Find(p => p.Id == meId);
+                if (currentPlayer != null)
+                {
+                    LobbyEvents.TriggerPlayerUpdated(currentPlayer, updated, $"Display name changed: {displayName}");
+                }
+
+                return updated;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"SetDisplayName failed: {e}");
+                return null;
+            }
+        }
+
+        // -------- Defaults / Cleanup --------
+
+        private Unity.Services.Lobbies.Models.Player GetDefaultPlayerData()
+        {
+            // KEY khớp với UI: "DisplayName", "IsReady"
             return new Unity.Services.Lobbies.Models.Player
             {
                 Data = new Dictionary<string, PlayerDataObject>
                 {
-                    { "playerName", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, $"Player_{AuthenticationService.Instance.PlayerId}") },
-                    { "isReady", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, "false") }
+                    { "DisplayName", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, $"Player_{AuthenticationService.Instance.PlayerId[..6]}") },
+                    { "IsReady",    new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, "false") }
                 }
             };
         }
-        
+
         protected override void OnDestroy()
         {
             if (Instance == this)
@@ -316,6 +392,5 @@ namespace _GAME.Scripts.Lobbies
                 base.OnDestroy();
             }
         }
-        
     }
 }
