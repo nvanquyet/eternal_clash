@@ -1,0 +1,123 @@
+using _GAME.Scripts.Networking.Lobbies;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace _GAME.Scripts.UI.WaitingRoom
+{
+    public class ItemPlayerList : MonoBehaviour
+    {
+        [SerializeField] private TextMeshProUGUI playerNameText;
+        [SerializeField] private Toggle readyToggle;
+        [SerializeField] private Button kickButton;
+
+        private Unity.Services.Lobbies.Models.Player player;
+        
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            playerNameText ??= GetComponentInChildren<TMPro.TextMeshProUGUI>();
+            readyToggle ??= GetComponentInChildren<Toggle>();
+            kickButton ??= GetComponentInChildren<Button>();
+        }
+#endif
+
+
+        private void Start()
+        {
+            this.kickButton.onClick.AddListener(OnKickButtonClicked);
+            this.readyToggle.onValueChanged.AddListener(OnToggleValueChanged);
+        }
+
+        private void OnDestroy()
+        {
+            this.kickButton.onClick.RemoveListener(OnKickButtonClicked);
+            this.readyToggle.onValueChanged.RemoveListener(OnToggleValueChanged);
+        }
+
+        private void OnKickButtonClicked()
+        {
+            //Todo: Call the method to kick player from lobby
+            if (player == null)
+            {
+                Debug.LogError("Player is not initialized in ItemPlayerList.");
+                return;
+            }
+            //Disable the kick button to prevent multiple clicks
+            kickButton.interactable = false;
+            LobbyExtensions.KickPlayerFromLobby(player.Id).ContinueWith(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    Debug.LogError($"Failed to kick player {player.Id}: {task.Exception}");
+                }
+                else
+                {
+                    Debug.Log($"Player {player.Id} has been kicked from the lobby.");
+                }
+            });
+        }
+
+        private void OnToggleValueChanged(bool arg0)
+        {
+            //Todo: Call the method to set player ready state
+            if (player == null)
+            {
+                Debug.LogError("Player is not initialized in ItemPlayerList.");
+                return;
+            }
+            //Disable the toggle to prevent multiple clicks
+            LobbyExtensions.SetPlayerReadyAsync(arg0).ContinueWith(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    Debug.LogError($"Failed to set player {player.Id} ready state: {task.Exception}");
+                }
+                else
+                {
+                    Debug.Log($"Player {player.Id} ready state set to {arg0}.");
+                }
+            });
+        }
+
+        public void Initialize(Unity.Services.Lobbies.Models.Player player, bool isMe, bool isHost)
+        {
+            this.player = player;
+            
+            if(isHost && isMe) SetKickButtonActive(false);
+            else SetKickButtonActive(isHost);
+            
+            SetPlayerName(LobbyExtensions.GetPlayerName(player));
+            SetReadyState(LobbyExtensions.IsPlayerReady(player));
+        }        
+        private void SetPlayerName(string playerName)
+        {
+            if (playerNameText == null)
+            {
+                Debug.LogError("playerNameText is not assigned in ItemPlayerList.");
+                return;
+            }
+            playerNameText.text = playerName;
+        }
+        
+        private void SetReadyState(bool isReady)
+        {
+            if (readyToggle == null)
+            {
+                Debug.LogError("readyToggle is not assigned in ItemPlayerList.");
+                return;
+            }
+            readyToggle.isOn = isReady;
+        }
+        
+        private void SetKickButtonActive(bool isActive)
+        {
+            if (kickButton == null)
+            {
+                Debug.LogError("kickButton is not assigned in ItemPlayerList.");
+                return;
+            }
+            kickButton.gameObject.SetActive(isActive);
+        }
+    }
+}

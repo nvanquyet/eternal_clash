@@ -14,6 +14,20 @@ namespace _GAME.Scripts.Controller
         GamePlay = 4
     }
     
+    public static class SceneHelper
+    {
+        public static string ToSceneName(SceneDefinitions def)
+        {
+            return def switch
+            {
+                SceneDefinitions.Home        => "HomeScene",
+                SceneDefinitions.WaitingRoom => "WaitingScene",
+                SceneDefinitions.GamePlay    => "Gameplay",
+                _ => throw new ArgumentOutOfRangeException(nameof(def), def, null)
+            };
+        }
+    }
+    
     public class SceneController : SingletonDontDestroy<SceneController>
     {
         //Loading scene asynchronously with callback
@@ -57,7 +71,7 @@ namespace _GAME.Scripts.Controller
                 onSuccessful?.Invoke();
                 return;
             }
-            Debug.Log($"Loading scene '{sceneIndex}' asynchronously...");
+            Debug.Log($"[SceneCtrl] Loading scene '{sceneIndex}' asynchronously...");
             //Check if the scene index is valid
             StartCoroutine(LoadSceneCoroutine(sceneIndex, onSuccessful, onFailed));
         }
@@ -77,7 +91,7 @@ namespace _GAME.Scripts.Controller
             while (!asyncOperation.isDone)
             {
                 // Optionally, you can log the progress
-                Debug.Log($"Loading progress: {asyncOperation.progress * 100}%");
+                Debug.Log($"[SceneCtrl] Loading progress: {asyncOperation.progress * 100}%");
                 
                 // Check if the loading is complete
                 if (asyncOperation.progress >= 0.9f)
@@ -89,7 +103,7 @@ namespace _GAME.Scripts.Controller
                 yield return null; // Wait for the next frame
             }
 
-            Debug.Log($"Scene '{UnityEngine.SceneManagement.SceneManager.GetSceneByBuildIndex(sceneIndex).name}' loaded successfully.");
+            Debug.Log($"[SceneCtrl] Scene '{UnityEngine.SceneManagement.SceneManager.GetSceneByBuildIndex(sceneIndex).name}' loaded successfully.");
             onSuccessful?.Invoke();
         }
     }

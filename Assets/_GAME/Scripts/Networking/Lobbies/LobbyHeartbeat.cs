@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using _GAME.Scripts.Networking.Lobbies;
 using Unity.Services.Lobbies;
 using UnityEngine;
 
@@ -21,7 +22,6 @@ namespace _GAME.Scripts.Lobbies
         public bool IsActive => _isHeartbeatActive;
         public string ActiveLobbyId => _currentLobbyId;
 
-
         public void Initialize(LobbyHandler lobbyManager, float interval = 15f)
         {
             _lobbyManager = lobbyManager;
@@ -39,7 +39,7 @@ namespace _GAME.Scripts.Lobbies
             _isHeartbeatActive = true;
 
             _ = HeartbeatLoop(_cancellationTokenSource.Token);
-            Debug.Log($"Started heartbeat for lobby: {lobbyId}");
+            Debug.Log($"[Lobby Heartbeat]Started heartbeat for lobby: {lobbyId}");
         }
  
         public void StopHeartbeat()
@@ -48,6 +48,7 @@ namespace _GAME.Scripts.Lobbies
             {
                 _cancellationTokenSource?.Cancel();
                 _cancellationTokenSource?.Dispose();
+                _cancellationTokenSource = null;
                 _isHeartbeatActive = false;
                 _currentLobbyId = null;
                 Debug.Log("Stopped lobby heartbeat");
@@ -62,7 +63,7 @@ namespace _GAME.Scripts.Lobbies
                 {
                     await Task.Delay(TimeSpan.FromSeconds(_heartbeatInterval), cancellationToken);
                     
-                    if (cancellationToken.IsCancellationRequested) break;
+                    if (cancellationToken.IsCancellationRequested || !_isHeartbeatActive) break;
 
                     await SendHeartbeat();
                 }
@@ -89,13 +90,17 @@ namespace _GAME.Scripts.Lobbies
                 }
 
                 await LobbyService.Instance.SendHeartbeatPingAsync(_currentLobbyId);
-                Debug.Log($"Heartbeat sent for lobby: {_currentLobbyId}");
+                // Chỉ log khi debug, không spam console
+                // Debug.Log($"Heartbeat sent for lobby: {_currentLobbyId}");
             }
             catch (Exception e)
             {
                 Debug.LogError($"Failed to send heartbeat: {e}");
                 // Có thể lobby đã bị xóa hoặc có lỗi khác
                 _isHeartbeatActive = false;
+                
+                // Thông báo cho LobbyHandler biết heartbeat failed
+                LobbyEvents.TriggerLobbyRemoved(null, false, "Heartbeat failed - lobby may be removed");
             }
         }
 

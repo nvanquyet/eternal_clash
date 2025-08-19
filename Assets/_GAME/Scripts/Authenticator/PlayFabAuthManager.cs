@@ -7,7 +7,7 @@ using PlayFab.ClientModels;
 
 namespace _GAME.Scripts.Authenticator
 {
-    public class PlayFabAuthManager : Singleton<PlayFabAuthManager>, IAuthManager<PlayFabAuthManager>
+    public class PlayFabAuthManager : SingletonDontDestroy<PlayFabAuthManager>, IAuthManager<PlayFabAuthManager>
     {
         private bool isLoggedIn;
         private string userId = string.Empty;

@@ -21,7 +21,13 @@ MonoBehaviour:
   m_OverrideGlobalSceneList: 1
   m_Scenes:
   - m_enabled: 1
+    m_path: Assets/_GAME/Scenes/LoadingScene.unity
+  - m_enabled: 1
+    m_path: Assets/_GAME/Scenes/LoginScene.unity
+  - m_enabled: 1
     m_path: Assets/_GAME/Scenes/HomeScene.unity
+  - m_enabled: 1
+    m_path: Assets/_GAME/Scenes/WaitingScene.unity
   m_ScriptingDefines: []
   m_PlayerSettingsYaml:
     m_Settings:
@@ -107,7 +113,7 @@ MonoBehaviour:
     - line: '|   androidApplicationEntry: 2'
     - line: '|   defaultIsNativeResolution: 1'
     - line: '|   macRetinaSupport: 1'
-    - line: '|   runInBackground: 0'
+    - line: '|   runInBackground: 1'
     - line: '|   muteOtherAudioSources: 0'
     - line: '|   Prepare IOS For Recording: 0'
     - line: '|   Force IOS Speakers When Recording: 0'

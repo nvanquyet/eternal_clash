@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using _GAME.Scripts.Data;
+using _GAME.Scripts.Networking.Lobbies;
 using GAME.Scripts.DesignPattern;
 using Unity.Services.Authentication;
 using Unity.Services.Core;
@@ -40,7 +42,20 @@ namespace _GAME.Scripts.Lobbies
         private LobbyUpdater _updater;
 
         private string _currentLobbyId;
+        
+        public string CurrentLobbyId => _currentLobbyId;
 
+        public bool IsInLobby => !string.IsNullOrEmpty(_currentLobbyId);
+        public Lobby CachedLobby { get; private set; }
+
+        public bool IsHost()
+        {
+            if (string.IsNullOrEmpty(_currentLobbyId)) return false;
+            // You might want to cache the current lobby or check host status
+            // For now, this is a simple check - you may need to enhance this
+            return _heartbeat.IsActive; // Host is usually the one sending heartbeat
+        }
+        
         protected override void OnAwake()
         {
             base.OnAwake();
@@ -48,24 +63,6 @@ namespace _GAME.Scripts.Lobbies
             _updater   = gameObject.AddComponent<LobbyUpdater>();
             _heartbeat.Initialize(this, heartbeatInterval);
             _updater.Initialize(this, lobbyRefreshInterval);
-        }
-
-        private async void Start()
-        {
-            try
-            {
-                await UnityServices.InitializeAsync();
-                AuthenticationService.Instance.SignedIn += () =>
-                {
-                    Debug.Log($"Signed in as: {AuthenticationService.Instance.PlayerId}");
-                };
-                if (!AuthenticationService.Instance.IsSignedIn)
-                    await AuthenticationService.Instance.SignInAnonymouslyAsync();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to init Unity Services: {e}");
-            }
         }
 
         // -------- Create / Join / Leave / Remove --------
@@ -236,6 +233,11 @@ namespace _GAME.Scripts.Lobbies
         /// </summary>
         public void RaiseLobbyUpdated(Lobby lobby, string message = "")
         {
+            if (lobby != null)
+            {
+                CachedLobby = lobby;            // giữ snapshot mới nhất cho Extensions/UI
+                _currentLobbyId = lobby.Id;     // đảm bảo id nhất quán
+            }
             LobbyEvents.TriggerLobbyUpdated(lobby, message);
         }
         
@@ -280,7 +282,7 @@ namespace _GAME.Scripts.Lobbies
 
                 var data = new Dictionary<string, DataObject>
                 {
-                    { "Password", new DataObject(visibility, newPassword ?? string.Empty) }
+                    { LobbyConstants.LobbyData.PASSWORD, new DataObject(visibility, newPassword ?? string.Empty) }
                 };
 
                 var opts = new UpdateLobbyOptions
@@ -315,7 +317,7 @@ namespace _GAME.Scripts.Lobbies
                 {
                     Data = new Dictionary<string, PlayerDataObject>
                     {
-                        { "IsReady", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, isReady.ToString().ToLower()) }
+                        { LobbyConstants.PlayerData.IS_READY, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, isReady ? LobbyConstants.Defaults.READY_TRUE : LobbyConstants.Defaults.READY_FALSE) }
                     }
                 };
 
@@ -346,7 +348,7 @@ namespace _GAME.Scripts.Lobbies
                 {
                     Data = new Dictionary<string, PlayerDataObject>
                     {
-                        { "DisplayName", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, displayName ?? string.Empty) }
+                        { LobbyConstants.PlayerData.DISPLAY_NAME, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, displayName ?? string.Empty) }
                     }
                 };
 
@@ -377,8 +379,8 @@ namespace _GAME.Scripts.Lobbies
             {
                 Data = new Dictionary<string, PlayerDataObject>
                 {
-                    { "DisplayName", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, $"Player_{AuthenticationService.Instance.PlayerId[..6]}") },
-                    { "IsReady",    new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, "false") }
+                    { LobbyConstants.PlayerData.DISPLAY_NAME, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, $"{LocalData.UserName}") },
+                    { LobbyConstants.PlayerData.IS_READY, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, LobbyConstants.Defaults.READY_FALSE) }
                 }
             };
         }

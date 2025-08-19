@@ -5,27 +5,53 @@ using System.Threading.Tasks;
 using GAME.Scripts.DesignPattern;
 using UnityEngine;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 namespace _GAME.Scripts.Controller
 {
+    /// <summary>
+    /// AppExitController:
+    /// - Best-effort cleanup: chạy khi Pause/LoseFocus. Không block, không rely vào Task.Delay/CancelAfter.
+    /// - Full cleanup: chạy khi muốn thoát app (Application.wantsToQuit). Có await + timeout tổng/ từng task.
+    /// </summary>
     public class AppExitController : SingletonDontDestroy<AppExitController>
     {
+        [Header("Timeouts (seconds)")]
+        [Tooltip("Timeout cho mỗi full-cleanup task (khi Quit)")]
+        [SerializeField] private float perTaskTimeoutSeconds = 2f;
 
-        [Header("Timeouts (seconds)")] [SerializeField]
-        private float perTaskTimeoutSeconds = 2f;
+        [Tooltip("Tổng timeout cho full cleanup (khi Quit)")]
+        [SerializeField] private float totalCleanupTimeoutSeconds = 10f;
 
-        [SerializeField] private float pauseBestEffortTimeoutSeconds = 1f;
-        [SerializeField] private float totalCleanupTimeoutSeconds = 10f; // Timeout tổng
+        [Tooltip("Ngân sách tổng cho best-effort khi Pause/Focus mất (s)")]
+        [SerializeField] private float bestEffortBudgetSeconds = 1f;
 
+        [Header("Stability")]
+        [Tooltip("Debounce thời gian (s) để tránh spam focus thay đổi liên tục")]
+        [SerializeField] private float focusDebounceSeconds = 0.5f;
+
+        // Events (giữ nguyên để tương thích)
         public event Action OnBeforeCleanup;
-        public event Action<string> OnTaskDone;
-        public event Action OnCleanupSuccess;
-        public event Action<string> OnCleanupTimeout;
-        public event Action<Exception> OnCleanupError;
+        public event Action<string> OnTaskDone;            // gọi khi 1 task (full) xong
+        public event Action OnCleanupSuccess;              // kết thúc full cleanup
+        public event Action<string> OnCleanupTimeout;      // taskId bị timeout (full)
+        public event Action<Exception> OnCleanupError;     // lỗi trong quá trình full cleanup
 
-        private readonly List<CleanupTask> _tasks = new();
-        private bool _isCleaningUp;
-        private bool _hasQuitBeenRequested; // Tránh gọi Application.Quit() nhiều lần
-        
+        // Optional: phát event khi resume để subsystem tự re-init những gì đã đóng lúc best-effort
+        public event Action OnAfterResume;
+
+        // Task lists đã tách riêng
+        private readonly List<CleanupTask> _bestEffortTasks = new(); // Action nhanh, idempotent
+        private readonly List<CleanupTask> _fullTasks = new();       // Func async, có await/timeout
+
+        // State
+        private bool _isCleaningUp;            // chỉ dùng cho FULL cleanup
+        private bool _hasQuitBeenRequested;    // tránh gọi Quit nhiều lần
+        private CancellationTokenSource _bestEffortCts;
+        private float _lastFocusOrPauseTs;
+
         private void OnEnable()
         {
             Application.wantsToQuit += WantsToQuit;
@@ -36,208 +62,326 @@ namespace _GAME.Scripts.Controller
             Application.wantsToQuit -= WantsToQuit;
         }
 
-        /// <summary>
-        /// Đăng ký 1 cleanup task (async). taskId cần duy nhất để có thể hủy đăng ký sau này.
-        /// </summary>
-        public void RegisterCleanupTask(string taskId, Func<CancellationToken, Task> asyncTask, int order = 0)
+        #region Registration API
+
+        /// <summary>Đăng ký best-effort task (chạy nhanh, không await, idempotent).</summary>
+        public void RegisterBestEffortTask(string taskId, Action<CancellationToken> action, int order = 0)
         {
             if (string.IsNullOrWhiteSpace(taskId))
                 throw new ArgumentException("taskId is required");
+
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+
+            // Best-effort không phụ thuộc _isCleaningUp (vì _isCleaningUp chỉ của full cleanup)
+            _bestEffortTasks.RemoveAll(t => t.TaskId == taskId);
+            _bestEffortTasks.Add(new CleanupTask(taskId, ct => { action(ct); return Task.CompletedTask; }, order));
+            _bestEffortTasks.Sort((a, b) => a.Order.CompareTo(b.Order));
+
+            Debug.Log($"[AppExitController] Registered BEST-EFFORT task: {taskId} (order:{order})");
+        }
+
+        /// <summary>Đăng ký FULL cleanup task (chạy khi quit).</summary>
+        public void RegisterFullCleanupTask(string taskId, Func<CancellationToken, Task> asyncTask, int order = 0)
+        {
+            if (string.IsNullOrWhiteSpace(taskId))
+                throw new ArgumentException("taskId is required");
+
+            if (asyncTask == null)
+                throw new ArgumentNullException(nameof(asyncTask));
+
             if (_isCleaningUp)
             {
-                Debug.LogWarning($"[AppExitManager] Cannot register task '{taskId}' while cleanup is in progress");
+                Debug.LogWarning($"[AppExitController] Cannot register full task '{taskId}' while full cleanup is in progress");
                 return;
             }
 
-            _tasks.RemoveAll(t => t.TaskId == taskId); // replace nếu trùng
-            _tasks.Add(new CleanupTask(taskId, asyncTask, order));
-            _tasks.Sort((a, b) => a.Order.CompareTo(b.Order));
+            _fullTasks.RemoveAll(t => t.TaskId == taskId);
+            _fullTasks.Add(new CleanupTask(taskId, asyncTask, order));
+            _fullTasks.Sort((a, b) => a.Order.CompareTo(b.Order));
 
-            Debug.Log($"[AppExitManager] Registered cleanup task: {taskId} (order: {order})");
+            Debug.Log($"[AppExitController] Registered FULL task: {taskId} (order:{order})");
         }
 
-        /// <summary>
-        /// Đăng ký 1 cleanup task (sync).
-        /// </summary>
-        public void RegisterCleanupTask(string taskId, Action action, int order = 0)
+        /// <summary>Hủy đăng ký best-effort task theo id.</summary>
+        public void UnregisterBestEffortTask(string taskId)
         {
-            RegisterCleanupTask(taskId, _ =>
-            {
-                action?.Invoke();
-                return Task.CompletedTask;
-            }, order);
+            bool removed = _bestEffortTasks.RemoveAll(t => t.TaskId == taskId) > 0;
+            if (removed) Debug.Log($"[AppExitController] Unregistered BEST-EFFORT task: {taskId}");
         }
 
-        /// <summary>
-        /// Hủy đăng ký task theo id.
-        /// </summary>
-        public void UnregisterCleanupTask(string taskId)
+        /// <summary>Hủy đăng ký full task theo id.</summary>
+        public void UnregisterFullCleanupTask(string taskId)
         {
             if (_isCleaningUp)
             {
-                Debug.LogWarning($"[AppExitManager] Cannot unregister task '{taskId}' while cleanup is in progress");
+                Debug.LogWarning($"[AppExitController] Cannot unregister full task '{taskId}' while full cleanup is in progress");
                 return;
             }
 
-            bool removed = _tasks.RemoveAll(t => t.TaskId == taskId) > 0;
-            if (removed)
-                Debug.Log($"[AppExitManager] Unregistered cleanup task: {taskId}");
+            bool removed = _fullTasks.RemoveAll(t => t.TaskId == taskId) > 0;
+            if (removed) Debug.Log($"[AppExitController] Unregistered FULL task: {taskId}");
         }
 
-        /// <summary>
-        /// Thử chạy cleanup khi app vào nền (mobile).
-        /// </summary>
+        /// <summary>Thông tin các task đã đăng ký (để debug).</summary>
+        public (List<(string TaskId, int Order)> bestEffort, List<(string TaskId, int Order)> full) GetRegisteredTasks()
+        {
+            var be = new List<(string, int)>();
+            foreach (var t in _bestEffortTasks) be.Add((t.TaskId, t.Order));
+
+            var fu = new List<(string, int)>();
+            foreach (var t in _fullTasks) fu.Add((t.TaskId, t.Order));
+
+            return (be, fu);
+        }
+
+        #endregion
+
+        #region Unity lifecycle hooks (Pause/Focus)
+
         private void OnApplicationPause(bool pauseStatus)
         {
-            if (pauseStatus && !_isCleaningUp)
+            _lastFocusOrPauseTs = Time.realtimeSinceStartup;
+
+            if (pauseStatus)
             {
-                Debug.Log("[AppExitManager] App paused, running best effort cleanup...");
-                _ = RunCleanup(bestEffort: true);
+                TryRunBestEffortCleanupNonBlocking();
+            }
+            else
+            {
+                RecoverAfterResume();
             }
         }
 
-        /// <summary>
-        /// Thử chạy cleanup khi app mất focus.
-        /// </summary>
         private void OnApplicationFocus(bool hasFocus)
         {
-            if (!hasFocus && !_isCleaningUp && !_hasQuitBeenRequested)
+            _lastFocusOrPauseTs = Time.realtimeSinceStartup;
+
+            if (!hasFocus)
             {
-                Debug.Log("[AppExitManager] App lost focus, running best effort cleanup...");
-                _ = RunCleanup(bestEffort: true);
+                TryRunBestEffortCleanupNonBlocking();
+            }
+            else
+            {
+                RecoverAfterResume();
             }
         }
 
-        /// <summary>
-        /// Hook vào vòng đời quit của Unity để chạy cleanup và chỉ quit khi xong (hoặc timeout).
-        /// </summary>
-        private bool WantsToQuit()
-        {
-            if (_hasQuitBeenRequested) return true; // Đã cleanup xong rồi
-            if (_isCleaningUp) return false; // Vẫn đang cleanup
+        #endregion
 
-            Debug.Log("[AppExitManager] Application wants to quit, starting cleanup...");
-            _hasQuitBeenRequested = true;
-            _ = RunCleanup(bestEffort: false);
-            return false; // Chặn quit, sẽ gọi Application.Quit() sau
+        #region Best-effort cleanup (non-blocking)
+
+        // Không dùng _isCleaningUp, không await, không Delay. Chạy rất ngắn và có thể bị cắt ngang.
+        private void TryRunBestEffortCleanupNonBlocking()
+        {
+            if (_bestEffortCts != null) return; // đang chạy rồi
+            if (_bestEffortTasks.Count == 0) return;
+
+            Debug.Log($"[AppExitController] Best-effort cleanup START with [{_bestEffortTasks.Count}] tasks");
+
+            _bestEffortCts = new CancellationTokenSource();
+            var ct = _bestEffortCts.Token;
+
+            // Chạy nền
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    // Phân bổ ngân sách cho từng task (đều nhau)
+                    int perTaskMs = Mathf.Max(10,
+                        (int)(bestEffortBudgetSeconds * 1000f / Mathf.Max(1, _bestEffortTasks.Count)));
+
+                    foreach (var task in _bestEffortTasks)
+                    {
+                        if (ct.IsCancellationRequested) break;
+
+                        try
+                        {
+                            // Gọi task (có thể sync/async). Không chờ dài – chỉ Wait perTaskMs.
+                            var t = task.AsyncTask(ct);
+                            // Dùng Wait(milliseconds) thay vì Delay/CancelAfter (vì Delay có thể freeze khi nền).
+                            t.Wait(perTaskMs);
+                            // Nếu chưa xong đúng hạn -> bỏ qua, move next.
+                        }
+                        catch (Exception ex)
+                        {
+                            // Nuốt lỗi cho best-effort, chỉ log cảnh báo
+                            Debug.LogWarning($"[AppExitController] Best-effort task '{task.TaskId}' ignored error: {ex.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    // cleanup CTS trên main thread để an toàn
+                    UnityMainThreadDispatch(() =>
+                    {
+                        _bestEffortCts?.Dispose();
+                        _bestEffortCts = null;
+                        Debug.Log("[AppExitController] Best-effort cleanup DONE");
+                    });
+                }
+            });
         }
 
-        private async Task RunCleanup(bool bestEffort)
+        private void RecoverAfterResume()
+        {
+            // Debounce focus rung lắc
+            if (Time.realtimeSinceStartup - _lastFocusOrPauseTs < focusDebounceSeconds) return;
+
+            // Hủy mọi best-effort đang treo
+            if (_bestEffortCts != null)
+            {
+                _bestEffortCts.Cancel();
+                _bestEffortCts.Dispose();
+                _bestEffortCts = null;
+            }
+
+            // Nếu vì lý do nào đó full cleanup bị treo trong lúc app nền → ép reset
+            if (_isCleaningUp)
+            {
+                Debug.LogWarning("[AppExitController] Forcing FULL cleanup state reset after resume.");
+                _isCleaningUp = false;
+            }
+
+            // Cho subsystem biết đã quay lại để mở lại tài nguyên (socket/db/…)
+            OnAfterResume?.Invoke();
+        }
+
+        #endregion
+
+        #region Full cleanup (on quit)
+
+        private bool WantsToQuit()
+        {
+            if (_hasQuitBeenRequested) return true;   // đã gọi quit xong trước đó
+            if (_isCleaningUp) return false;          // đang full cleanup -> chặn quit
+
+            Debug.Log("[AppExitController] Application wants to quit -> FULL cleanup starting...");
+            _hasQuitBeenRequested = true;
+            _ = RunFullCleanup();
+            return false; // chặn quit, sẽ Quit() sau khi cleanup xong (hoặc hết hạn)
+        }
+
+        private async Task RunFullCleanup()
         {
             if (_isCleaningUp) return;
             _isCleaningUp = true;
-
-            var cleanupType = bestEffort ? "best-effort" : "full";
-            Debug.Log($"[AppExitManager] Starting {cleanupType} cleanup with {_tasks.Count} tasks...");
 
             try
             {
                 OnBeforeCleanup?.Invoke();
 
-                // Timeout tổng cho toàn bộ quá trình cleanup
-                using var totalCts = new CancellationTokenSource(
-                    TimeSpan.FromSeconds(bestEffort ? pauseBestEffortTimeoutSeconds * 2 : totalCleanupTimeoutSeconds));
+                using var totalCts = new CancellationTokenSource(TimeSpan.FromSeconds(totalCleanupTimeoutSeconds));
+                var totalToken = totalCts.Token;
 
-                var completedTasks = 0;
-                var timedOutTasks = 0;
-                var errorTasks = 0;
+                int completed = 0, timedout = 0, errors = 0;
 
-                // Chạy tuần tự theo order
-                foreach (var task in _tasks)
+                foreach (var task in _fullTasks)
                 {
-                    if (totalCts.Token.IsCancellationRequested)
+                    if (totalToken.IsCancellationRequested)
                     {
-                        Debug.LogWarning($"[AppExitManager] Total timeout reached, stopping cleanup");
+                        Debug.LogWarning("[AppExitController] FULL cleanup: total timeout reached, stop further tasks.");
                         break;
                     }
 
                     try
                     {
-                        var taskTimeout = bestEffort ? pauseBestEffortTimeoutSeconds : perTaskTimeoutSeconds;
-                        using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(totalCts.Token);
-                        taskCts.CancelAfter(TimeSpan.FromSeconds(taskTimeout));
+                        Debug.Log($"[AppExitController] FULL task: {task.TaskId} (timeout:{perTaskTimeoutSeconds}s)");
 
-                        Debug.Log($"[AppExitManager] Running task: {task.TaskId} (timeout: {taskTimeout}s)");
+                        using var perTaskCts = CancellationTokenSource.CreateLinkedTokenSource(totalToken);
+                        perTaskCts.CancelAfter(TimeSpan.FromSeconds(perTaskTimeoutSeconds));
 
-                        await task.AsyncTask(taskCts.Token);
+                        await task.AsyncTask(perTaskCts.Token);
 
-                        completedTasks++;
-                        Debug.Log($"[AppExitManager] Task completed: {task.TaskId}");
+                        completed++;
                         OnTaskDone?.Invoke(task.TaskId);
                     }
                     catch (OperationCanceledException)
                     {
-                        timedOutTasks++;
-                        Debug.LogWarning($"[AppExitManager] Task timed out: {task.TaskId}");
+                        timedout++;
+                        Debug.LogWarning($"[AppExitController] FULL task TIMEOUT: {task.TaskId}");
                         OnCleanupTimeout?.Invoke(task.TaskId);
-
-                        if (!bestEffort) continue; // Tiếp tục với task khác
-                        else break; // Best effort thì dừng luôn
+                        // continue sang task kế
                     }
                     catch (Exception ex)
                     {
-                        errorTasks++;
-                        Debug.LogError($"[AppExitManager] Task failed: {task.TaskId} - {ex.Message}");
+                        errors++;
+                        Debug.LogError($"[AppExitController] FULL task FAILED: {task.TaskId} - {ex.Message}");
                         OnCleanupError?.Invoke(ex);
-
-                        if (!bestEffort) continue; // Tiếp tục với task khác
-                        else break; // Best effort thì dừng luôn
+                        // continue
                     }
                 }
 
-                Debug.Log(
-                    $"[AppExitManager] Cleanup finished - Completed: {completedTasks}, Timeout: {timedOutTasks}, Errors: {errorTasks}");
+                Debug.Log($"[AppExitController] FULL cleanup finished: Completed={completed}, Timeout={timedout}, Errors={errors}");
                 OnCleanupSuccess?.Invoke();
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[AppExitManager] Fatal error during cleanup: {ex.Message}");
+                Debug.LogError($"[AppExitController] FULL cleanup FATAL: {ex.Message}");
                 OnCleanupError?.Invoke(ex);
             }
             finally
             {
                 _isCleaningUp = false;
 
-                if (!bestEffort && _hasQuitBeenRequested)
+                if (_hasQuitBeenRequested)
                 {
-                    Debug.Log("[AppExitManager] Cleanup done, quitting application...");
-                    // Kết thúc vòng đời app ở đây
+                    Debug.Log("[AppExitController] FULL cleanup done -> Quitting application...");
                     Application.Quit();
 
 #if UNITY_EDITOR
-                    // Trong editor thì quit không hoạt động, dừng play mode
-                    UnityEditor.EditorApplication.isPlaying = false;
+                    EditorApplication.isPlaying = false;
 #endif
                 }
             }
         }
 
-        /// <summary>
-        /// Manually trigger cleanup (for testing)
-        /// </summary>
-        [ContextMenu("Test Cleanup")]
-        public void TestCleanup()
-        {
-            if (!_isCleaningUp)
-            {
-                Debug.Log("[AppExitManager] Manual cleanup test started");
-                _ = RunCleanup(bestEffort: true);
-            }
-        }
+        #endregion
+
+        #region Utilities
 
         /// <summary>
-        /// Get current registered tasks info
+        /// Chạy 1 action trên main thread Unity (dùng cho ContinueWith/Task.Run cleanup phần nhỏ).
+        /// Ở đây đơn giản dùng queue qua Update; nếu bạn đã có dispatcher riêng thì thay bằng cái của bạn.
         /// </summary>
-        public List<(string TaskId, int Order)> GetRegisteredTasks()
+        private static readonly Queue<Action> _mainThreadQueue = new();
+        private void UnityMainThreadDispatch(Action a)
         {
-            var result = new List<(string, int)>();
-            foreach (var task in _tasks)
-            {
-                result.Add((task.TaskId, task.Order));
-            }
-
-            return result;
+            if (a == null) return;
+            lock (_mainThreadQueue) _mainThreadQueue.Enqueue(a);
         }
+
+        private void Update()
+        {
+            // pump queue
+            if (_mainThreadQueue.Count == 0) return;
+            Action a = null;
+            lock (_mainThreadQueue)
+            {
+                if (_mainThreadQueue.Count > 0) a = _mainThreadQueue.Dequeue();
+            }
+            a?.Invoke();
+        }
+
+        [ContextMenu("Test Best-Effort Now")]
+        private void TestBestEffort()
+        {
+            Debug.Log("[AppExitController] Manual BEST-EFFORT test");
+            TryRunBestEffortCleanupNonBlocking();
+        }
+
+        [ContextMenu("Test FULL Cleanup (simulate Quit)")]
+        private void TestFullCleanup()
+        {
+            if (_isCleaningUp) return;
+            Debug.Log("[AppExitController] Manual FULL cleanup test");
+            _hasQuitBeenRequested = true;
+            _ = RunFullCleanup();
+        }
+
+        #endregion
+
+        #region Types
 
         private readonly struct CleanupTask
         {
@@ -252,5 +396,7 @@ namespace _GAME.Scripts.Controller
                 Order = order;
             }
         }
+
+        #endregion
     }
 }

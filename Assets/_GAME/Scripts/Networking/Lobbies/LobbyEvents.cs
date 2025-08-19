@@ -1,7 +1,7 @@
 ﻿using System;
 using Unity.Services.Lobbies.Models;
 
-namespace _GAME.Scripts.Lobbies
+namespace _GAME.Scripts.Networking.Lobbies
 {
     /// <summary>
     /// Centralized static event manager cho toàn bộ lobby system

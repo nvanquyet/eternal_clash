@@ -15,6 +15,8 @@ namespace _GAME.Scripts.UI.Base
         PauseMenu,
         GameOver
     }
+    
+    [RequireComponent(typeof(CanvasGroup))]
     public class BaseUI : MonoBehaviour
     {
         [SerializeField] private CanvasGroup canvasGroup;

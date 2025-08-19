@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using DG.Tweening;
 using GAME.Scripts.DesignPattern;
 using TMPro;
 using UnityEngine;
@@ -9,21 +10,20 @@ namespace _GAME.Scripts.UI
 {
     public class LoadingUI : SingletonDontDestroy<LoadingUI>
     {
-        [Header("Refs")]
-        [SerializeField] private Slider loadingBar;
-        [SerializeField] private GameObject loadingPanel;   // root panel của loading
-        [SerializeField] private CanvasGroup canvasGroup;   // để fade
+        [Header("Refs")] [SerializeField] private Slider loadingBar;
+        [SerializeField] private GameObject loadingPanel; // root panel của loading
+        [SerializeField] private CanvasGroup canvasGroup; // để fade
         [SerializeField] private TextMeshProUGUI percentText;
         [SerializeField] private TextMeshProUGUI tipText;
 
-        [Header("Visual")]
-        [SerializeField, Range(0.05f, 1f)] private float fadeDuration = 0.25f;
-        [SerializeField] private float minDisplayTime = 0.35f; // tránh “nháy” nếu xong quá nhanh
-        [SerializeField] private bool blockRaycasts = true;     // chặn input nền khi loading
+        [Header("Visual")] [SerializeField, Range(0.05f, 1f)]
+        private float fadeDuration = 0.25f;
 
-        [Header("Tips")]
-        [TextArea]
-        [SerializeField] private string[] loadingTips = new string[]
+        [SerializeField] private float minDisplayTime = 0.35f; // tránh “nháy” nếu xong quá nhanh
+        [SerializeField] private bool blockRaycasts = true; // chặn input nền khi loading
+
+        [Header("Tips")] [TextArea] [SerializeField]
+        private string[] loadingTips = new string[]
         {
             "Loading assets...",
             "Preparing game environment...",
@@ -44,7 +44,7 @@ namespace _GAME.Scripts.UI
         {
             // Tự động “bắt” reference nếu quên drag
             if (canvasGroup == null) canvasGroup = GetComponent<CanvasGroup>();
-            if (loadingBar == null)  loadingBar  = GetComponentInChildren<Slider>(true);
+            if (loadingBar == null) loadingBar = GetComponentInChildren<Slider>(true);
         }
 #endif
 
@@ -103,7 +103,12 @@ namespace _GAME.Scripts.UI
             float elapsed = (Time.unscaledTime - _shownAt);
             float wait = Mathf.Max(0f, minDisplayTime - elapsed);
 
-            if (_runCo != null) { StopCoroutine(_runCo); _runCo = null; }
+            if (_runCo != null)
+            {
+                StopCoroutine(_runCo);
+                _runCo = null;
+            }
+
             if (_fadeCo != null) StopCoroutine(_fadeCo);
             _fadeCo = StartCoroutine(Co_DelayedHide(wait));
         }
@@ -111,27 +116,38 @@ namespace _GAME.Scripts.UI
         // =================== PUBLIC API (PUSH PROGRESS) ===================
 
         /// <summary>Đặt tiến trình [0..1]. Dùng khi bạn tự đẩy tiến độ.</summary>
-        public void SetProgress01(float p)
+        public void SetProgress01(float p, Action callback = null)
         {
             ShowIfHidden();
             p = Mathf.Clamp01(p);
-            ApplyProgressUI(p);
+            ApplyProgressUI(p, callback);
         }
 
         /// <summary>Đặt tiến trình theo current/max.</summary>
-        public void SetProgress(float current, float max, string tip = null)
+        public void SetProgress(float current, float max, string tip = null, Action callback = null)
         {
-            if (max <= 0f) { SetProgress01(0f); return; }
+            if (max <= 0f)
+            {
+                SetProgress01(0f);
+                return;
+            }
+
             if (!string.IsNullOrEmpty(tip)) SetTipText(tip);
-            SetProgress01(current / max);
+            SetProgress01(current / max, callback);
         }
+      
 
         /// <summary>Hoàn tất (đặt 100% và ẩn sau minDisplayTime).</summary>
         public void Complete(Action onHidden = null)
         {
             ShowIfHidden();
             ApplyProgressUI(1f);
-            if (_runCo != null) { StopCoroutine(_runCo); _runCo = null; }
+            if (_runCo != null)
+            {
+                StopCoroutine(_runCo);
+                _runCo = null;
+            }
+
             _runCo = StartCoroutine(Co_CompleteThenHide(onHidden));
         }
 
@@ -158,10 +174,25 @@ namespace _GAME.Scripts.UI
             }
         }
 
-        private void ApplyProgressUI(float p01)
+        private void ApplyProgressUI(float p01, Action callback = null)
         {
-            if (loadingBar != null) loadingBar.value = p01;
-            SetPercentText($"{Mathf.RoundToInt(p01 * 100f)}%");
+            if (loadingBar != null)
+            {
+                loadingBar
+                    .DOValue(p01, 0.25f)
+                    .SetEase(Ease.Linear)
+                    .OnUpdate(() =>
+                    {
+                        // đọc giá trị hiện tại của slider để hiển thị %
+                        SetPercentText($"{Mathf.RoundToInt(loadingBar.value * 100f)}%");
+                    })
+                    .OnComplete(() =>
+                    {
+                        // đảm bảo về đúng % cuối cùng
+                        SetPercentText($"{Mathf.RoundToInt(p01 * 100f)}%");
+                        callback?.Invoke();
+                    });
+            }
         }
 
         private void SetTipText(string tip)
@@ -180,8 +211,11 @@ namespace _GAME.Scripts.UI
             if (loadingTips.Length == 1) return loadingTips[0];
 
             int idx;
-            do { idx = UnityEngine.Random.Range(0, loadingTips.Length); }
-            while (idx == _lastTipIndex);
+            do
+            {
+                idx = UnityEngine.Random.Range(0, loadingTips.Length);
+            } while (idx == _lastTipIndex);
+
             _lastTipIndex = idx;
             return loadingTips[idx];
         }
@@ -198,6 +232,7 @@ namespace _GAME.Scripts.UI
                 canvasGroup.alpha = Mathf.Lerp(start, target, t / fadeDuration);
                 yield return null;
             }
+
             canvasGroup.alpha = target;
 
             if (Mathf.Approximately(target, 0f))
@@ -226,7 +261,6 @@ namespace _GAME.Scripts.UI
             float elapsed = (Time.unscaledTime - _shownAt);
             if (elapsed < minDisplayTime)
                 yield return new WaitForSecondsRealtime(minDisplayTime - elapsed);
-
             yield return FadeCanvas(0f);
             onHidden?.Invoke();
 
@@ -257,6 +291,7 @@ namespace _GAME.Scripts.UI
                     tipSwapped = true;
                     SetTipText(PickRandomTip());
                 }
+
                 yield return null;
             }
 
