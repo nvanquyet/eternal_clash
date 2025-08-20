@@ -72,17 +72,17 @@ namespace _GAME.Scripts.UI.Home
         private void OnEnable()
         {
             // Subscribe to network events for feedback
-            RelayEvent.OnRelayHostReady += OnRelayHostReady;
-            RelayEvent.OnRelayClientReady += OnRelayClientReady;
-            RelayEvent.OnRelayError += OnRelayError;
+            LobbyEvents.OnRelayHostReady += OnRelayHostReady;
+            LobbyEvents.OnRelayClientReady += OnRelayClientReady;
+            LobbyEvents.OnRelayError += OnRelayError;
         }
 
         private void OnDisable()
         {
             // Always unsubscribe to prevent memory leaks
-            RelayEvent.OnRelayHostReady -= OnRelayHostReady;
-            RelayEvent.OnRelayClientReady -= OnRelayClientReady;
-            RelayEvent.OnRelayError -= OnRelayError;
+            LobbyEvents.OnRelayHostReady -= OnRelayHostReady;
+            LobbyEvents.OnRelayClientReady -= OnRelayClientReady;
+            LobbyEvents.OnRelayError -= OnRelayError;
         }
 
         private async void OnHostButtonClicked()
@@ -94,8 +94,7 @@ namespace _GAME.Scripts.UI.Home
                 isProcessing = true;
                 
                 // Show loading with initial progress
-                LoadingUI.Instance.Show("Creating lobby...");
-                LoadingUI.Instance.SetProgress01(0.1f);
+                LoadingUI.Instance.SetProgress(0.1f, 1f, "Creating lobby..");
                 
                 // Disable buttons during processing
                 SetButtonsInteractable(false);
@@ -114,8 +113,7 @@ namespace _GAME.Scripts.UI.Home
                 };
 
                 // Update progress
-                LoadingUI.Instance.SetProgress01(0.3f);
-                
+                LoadingUI.Instance.SetProgress(0.3f, 1f, "Setting up Lobby...");
                 var lobby = await LobbyHandler.Instance.CreateLobbyAsync("MyLobby", 4, createLobbyOption);
                 
                 if (lobby != null)
@@ -166,8 +164,7 @@ namespace _GAME.Scripts.UI.Home
                     isProcessing = true;
                     
                     // Show loading
-                    LoadingUI.Instance.Show("Joining lobby...");
-                    LoadingUI.Instance.SetProgress01(0.2f);
+                    LoadingUI.Instance.SetProgress(0.2f, 1f, "Joining lobby...");
                     
                     // Disable buttons
                     SetButtonsInteractable(false);
@@ -230,32 +227,13 @@ namespace _GAME.Scripts.UI.Home
         private void OnRelayHostReady(string joinCode)
         {
             Debug.Log($"[HomeUI] Relay host ready with join code: {joinCode}");
-            //Update loading 100% progress
-            LoadingUI.Instance.SetProgress(1f, 1f, "Host setup completed, transitioning to waiting room...", () =>
-            {
-                // Complete loading - scene transition will happen
-                LoadingUI.Instance.Complete(() =>
-                {
-                    Debug.Log("Host setup completed, transitioning to waiting room...");
-                    ResetProcessingState();
-                });
-            });
-            
+            ResetProcessingState();
         }
 
         private void OnRelayClientReady()
         {
             Debug.Log("[HomeUI] Relay client connected successfully");
-            //Update loading 100% progress
-            LoadingUI.Instance.SetProgress(1f, 1f, "Client connected, waiting for scene sync...", () =>
-            {
-                // Complete loading - scene will be synced by NGO
-                LoadingUI.Instance.Complete(() =>
-                {
-                    Debug.Log("[HomeUI] Client connected, waiting for scene sync...");
-                    ResetProcessingState();
-                });
-            });
+            ResetProcessingState();
         }
 
         private void OnRelayError(string errorMessage)

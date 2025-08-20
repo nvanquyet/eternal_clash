@@ -6,6 +6,7 @@ namespace _GAME.Scripts.Player.Enum
         Walking,
         Running,
         Jumping,
-        Falling
+        Falling,
+        Dashing,
     }
 }

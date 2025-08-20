@@ -1,28 +1,29 @@
 using _GAME.Scripts.Player.Enum;
 using UnityEngine;
-
 namespace _GAME.Scripts.Player.Locomotion.States
 {
     public class RunningMotion : WalkingMotion
     {
         public override LocomotionState LocomotionState => LocomotionState.Running;
-        
-        protected override float GetSpeed(PlayerLocomotion playerLocomotion) => playerLocomotion.Config.RunSpeed;
 
-        protected override bool SwitchMotion(PlayerLocomotion playerLocomotion)
+        public override void ProcessInput(PlayerInputData input, PlayerLocomotion locomotion)
         {
-            if (Input.GetKey(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyUp(KeyCode.Space))
+            // Try dash first
+            if (DashingMotion.TryStartDash(input, locomotion)) return;
+
+            if (input.jumpPressed && locomotion.IsGrounded)
             {
-                playerLocomotion.SetLocomotionState(new JumpingMotion());
-                return true;
-            }
-            if (Input.GetKeyUp(KeyCode.LeftShift))
-            {
-                playerLocomotion.SetLocomotionState(new WalkingMotion());
-                return true;
+                TransitionTo(locomotion, new JumpingMotion());
+                return;
             }
 
-            return false;
+            if (!input.sprintHeld)
+            {
+                TransitionTo(locomotion, new WalkingMotion());
+                return;
+            }
         }
+
+        protected override float GetSpeed(PlayerLocomotion locomotion) => locomotion.Config.RunSpeed;
     }
 }

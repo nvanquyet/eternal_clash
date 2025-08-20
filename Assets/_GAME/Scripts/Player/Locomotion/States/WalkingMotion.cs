@@ -7,44 +7,36 @@ namespace _GAME.Scripts.Player.Locomotion.States
     {
         public override LocomotionState LocomotionState => LocomotionState.Walking;
 
-        public override void OnEnter(PlayerLocomotion playerLocomotion)
+        public override void ProcessInput(PlayerInputData input, PlayerLocomotion locomotion)
         {
-        }
+            // Try dash first
+            if (DashingMotion.TryStartDash(input, locomotion)) return;
 
-
-        public override void OnExit(PlayerLocomotion playerLocomotion)
-        {
-        }
-
-        public override void OnFixedUpdate(PlayerLocomotion playerLocomotion)
-        {
-            Vector3 inputDirection = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
-            if (inputDirection.magnitude == 0)
+            if (input.jumpPressed && locomotion.IsGrounded)
             {
-                playerLocomotion.SetLocomotionState(new IdleMotion());
+                TransitionTo(locomotion, new JumpingMotion());
                 return;
             }
 
-            playerLocomotion.ApplyInputDirection(inputDirection.x,  inputDirection.z, GetSpeed(playerLocomotion));
+            if (input.sprintHeld)
+            {
+                TransitionTo(locomotion, new RunningMotion());
+                return;
+            }
         }
 
-        protected virtual float GetSpeed(PlayerLocomotion playerLocomotion) => playerLocomotion.Config.WalkSpeed;
-
-        protected override bool SwitchMotion(PlayerLocomotion playerLocomotion)
+        public override void OnFixedUpdate(PlayerInputData input, PlayerLocomotion locomotion)
         {
-            if (Input.GetKey(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyUp(KeyCode.Space))
+            if (input.moveInput.magnitude < 0.1f)
             {
-                playerLocomotion.SetLocomotionState(new JumpingMotion());
-                return true;
+                TransitionTo(locomotion, new IdleMotion());
+                return;
             }
 
-            if (Input.GetKey(KeyCode.LeftShift))
-            {
-                playerLocomotion.SetLocomotionState(new RunningMotion());
-                return true;
-            }
-
-            return false;
+            Vector3 inputDirection = new Vector3(input.moveInput.x, 0, input.moveInput.y);
+            locomotion.ApplyMovement(inputDirection, GetSpeed(locomotion));
         }
+
+        protected virtual float GetSpeed(PlayerLocomotion locomotion) => locomotion.Config.WalkSpeed;
     }
 }

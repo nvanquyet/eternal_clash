@@ -126,6 +126,7 @@ namespace _GAME.Scripts.UI
         /// <summary>Đặt tiến trình theo current/max.</summary>
         public void SetProgress(float current, float max, string tip = null, Action callback = null)
         {
+            Debug.Log("[LoadingUI] SetProgress: " + current + "/" + max);
             if (max <= 0f)
             {
                 SetProgress01(0f);

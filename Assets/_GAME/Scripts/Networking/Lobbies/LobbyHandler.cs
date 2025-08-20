@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using _GAME.Scripts.Data;
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using GAME.Scripts.DesignPattern;
 using Unity.Services.Authentication;
@@ -41,20 +42,9 @@ namespace _GAME.Scripts.Lobbies
         private LobbyHeartbeat _heartbeat;
         private LobbyUpdater _updater;
 
-        private string _currentLobbyId;
-        
-        public string CurrentLobbyId => _currentLobbyId;
+        public string CurrentLobbyId => Networking.NetIdHub.LobbyId;
 
-        public bool IsInLobby => !string.IsNullOrEmpty(_currentLobbyId);
         public Lobby CachedLobby { get; private set; }
-
-        public bool IsHost()
-        {
-            if (string.IsNullOrEmpty(_currentLobbyId)) return false;
-            // You might want to cache the current lobby or check host status
-            // For now, this is a simple check - you may need to enhance this
-            return _heartbeat.IsActive; // Host is usually the one sending heartbeat
-        }
         
         protected override void OnAwake()
         {
@@ -76,8 +66,7 @@ namespace _GAME.Scripts.Lobbies
                 options.Player ??= GetDefaultPlayerData();
 
                 var lobby = await LobbyService.Instance.CreateLobbyAsync(lobbyName, maxPlayers, options);
-
-                _currentLobbyId = lobby.Id;
+                Networking.NetIdHub.BindLobby(lobby);
 
                 // Heartbeat chỉ host
                 if (lobby.HostId == AuthenticationService.Instance.PlayerId)
@@ -111,7 +100,7 @@ namespace _GAME.Scripts.Lobbies
                 var lobby = await LobbyService.Instance.JoinLobbyByCodeAsync(lobbyCode, joinOptions);
                 if (lobby != null)
                 {
-                    _currentLobbyId = lobby.Id;
+                    Networking.NetIdHub.BindLobby(lobby);
 
                     // Chỉ host mới heartbeat
                     if (lobby.HostId == AuthenticationService.Instance.PlayerId)
@@ -140,7 +129,7 @@ namespace _GAME.Scripts.Lobbies
         {
             try
             {
-                if (string.IsNullOrEmpty(lobbyId)) lobbyId = _currentLobbyId;
+                if (string.IsNullOrEmpty(lobbyId)) lobbyId = CurrentLobbyId;;
 
                 if (isHost)
                 {
@@ -152,9 +141,8 @@ namespace _GAME.Scripts.Lobbies
                     _updater.StopUpdating();
                 }
 
-                if (_currentLobbyId == lobbyId)
+                if (CurrentLobbyId == lobbyId)
                 {
-                    _currentLobbyId = null;
                     _heartbeat.StopHeartbeat();
                     _updater.StopUpdating();
                 }
@@ -174,13 +162,12 @@ namespace _GAME.Scripts.Lobbies
         {
             try
             {
-                if (string.IsNullOrEmpty(lobbyId)) lobbyId = _currentLobbyId;
+                if (string.IsNullOrEmpty(lobbyId)) lobbyId = CurrentLobbyId;
 
                 await LobbyService.Instance.DeleteLobbyAsync(lobbyId);
 
-                if (_currentLobbyId == lobbyId)
+                if (CurrentLobbyId == lobbyId)
                 {
-                    _currentLobbyId = null;
                     _heartbeat.StopHeartbeat();
                     _updater.StopUpdating();
                 }
@@ -236,7 +223,7 @@ namespace _GAME.Scripts.Lobbies
             if (lobby != null)
             {
                 CachedLobby = lobby;            // giữ snapshot mới nhất cho Extensions/UI
-                _currentLobbyId = lobby.Id;     // đảm bảo id nhất quán
+                Networking.NetIdHub.BindLobby(lobby);     // đảm bảo id nhất quán
             }
             LobbyEvents.TriggerLobbyUpdated(lobby, message);
         }
@@ -312,7 +299,7 @@ namespace _GAME.Scripts.Lobbies
         {
             try
             {
-                var meId = AuthenticationService.Instance.PlayerId;
+                var meId = NetIdHub.PlayerId;
                 var playerOpts = new UpdatePlayerOptions
                 {
                     Data = new Dictionary<string, PlayerDataObject>
@@ -323,7 +310,7 @@ namespace _GAME.Scripts.Lobbies
 
                 var updated = await LobbyService.Instance.UpdatePlayerAsync(lobbyId, meId, playerOpts);
                 
-                // Find current player and trigger event
+                //Find current player and trigger event
                 var currentPlayer = updated.Players.Find(p => p.Id == meId);
                 if (currentPlayer != null)
                 {

@@ -22,6 +22,8 @@ namespace _GAME.Scripts.Networking.Relay
             var maxClients = Math.Max(0, maxPlayers - 1);
             var (_, joinCode) = await RelayConnector.AllocateHostAsync(maxClients);
 
+            NetIdHub.SetRelayJoinCode(joinCode);
+            
             if (onJoinCodeReady != null)
                 await onJoinCodeReady(joinCode);
 

@@ -7,36 +7,28 @@ namespace _GAME.Scripts.Player.Locomotion.States
     {
         public override LocomotionState LocomotionState => LocomotionState.Idle;
 
-        public override void OnEnter(PlayerLocomotion playerLocomotion) { }
-
-        public override void OnExit(PlayerLocomotion playerLocomotion) { }
-
-        protected override bool SwitchMotion(PlayerLocomotion playerLocomotion)
+        public override void ProcessInput(PlayerInputData input, PlayerLocomotion locomotion)
         {
-            if (Input.GetKey(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyUp(KeyCode.Space))
-            {
-                playerLocomotion.SetLocomotionState(new JumpingMotion());
-                return true;
-            }
+            // Try dash first (highest priority)
+            if (DashingMotion.TryStartDash(input, locomotion)) return;
 
-            return false;
+            if (input.jumpPressed && locomotion.IsGrounded)
+            {
+                TransitionTo(locomotion, new JumpingMotion());
+                return;
+            }
         }
 
-        public override void OnFixedUpdate(PlayerLocomotion playerLocomotion)
+        public override void OnFixedUpdate(PlayerInputData input, PlayerLocomotion locomotion)
         {
-            Vector3 move = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
-            if (move.magnitude != 0)
+            if (input.moveInput.magnitude > 0.1f)
             {
-                if (Input.GetKey(KeyCode.LeftShift))
-                {
-                    playerLocomotion.SetLocomotionState(new RunningMotion());
-                    return;
-                }
-                playerLocomotion.SetLocomotionState(new WalkingMotion());
+                var nextState = input.sprintHeld ? new RunningMotion() : new WalkingMotion();
+                TransitionTo(locomotion, nextState);
                 return;
             }
 
-            playerLocomotion.ApplyInputDirection(0, 0, 0);
+            locomotion.ApplyMovement(Vector3.zero, 0);
         }
     }
 }

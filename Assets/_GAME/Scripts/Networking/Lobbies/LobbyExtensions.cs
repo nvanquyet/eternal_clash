@@ -6,6 +6,7 @@ using Unity.Services.Authentication;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using _GAME.Scripts.Lobbies;
+using Unity.Services.Core;
 using UnityEngine;
 
 namespace _GAME.Scripts.Networking.Lobbies
@@ -13,7 +14,6 @@ namespace _GAME.Scripts.Networking.Lobbies
     public static class LobbyExtensions
     {
         private static LobbyHandler LobbyHandler => LobbyHandler.Instance;
-        private static string CurrentPlayerId => AuthenticationService.Instance.PlayerId;
         
         // Cached lobby data - updated from LobbyEvents
         private static Lobby _cachedLobby;
@@ -266,7 +266,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                 }
 
                 // Don't allow kicking yourself
-                if (playerId == CurrentPlayerId)
+                if (playerId == NetIdHub.PlayerId)
                 {
                     Debug.LogWarning("Cannot kick yourself");
                     return;
@@ -300,7 +300,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                 }
 
                 bool isHost = IsHost();
-                await LobbyHandler.LeaveLobbyAsync(_cachedLobby.Id, CurrentPlayerId, isHost);
+                await LobbyHandler.LeaveLobbyAsync(_cachedLobby.Id, NetIdHub.PlayerId, isHost);
             }
             catch (Exception e)
             {
@@ -362,7 +362,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// </summary>
         public static bool IsHost()
         {
-            return _cachedLobby != null && _cachedLobby.HostId == CurrentPlayerId;
+            return _cachedLobby != null && _cachedLobby.HostId == NetIdHub.PlayerId;
         }
 
         /// <summary>
@@ -370,7 +370,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// </summary>
         public static bool IsMe(string playerId)
         {
-            return playerId == CurrentPlayerId;
+            return playerId == NetIdHub.PlayerId;
         }
 
         /// <summary>
@@ -464,38 +464,15 @@ namespace _GAME.Scripts.Networking.Lobbies
             }
             return string.Empty;
         }
-
-        /// <summary>
-        /// Check if all players are ready
-        /// </summary>
-        public static bool AreAllPlayersReady()
-        {
-            if (_cachedLobby?.Players == null || _cachedLobby.Players.Count == 0)
-                return false;
-
-            return _cachedLobby.Players.All(IsPlayerReady);
-        }
-
-        /// <summary>
-        /// Find player by ID
-        /// </summary>
-        public static Unity.Services.Lobbies.Models.Player FindPlayerById(string playerId)
-        {
-            return _cachedLobby?.Players?.FirstOrDefault(p => p.Id == playerId);
-        }
+        
 
         // LobbyExtensions.cs (private helpers)
         private static async Task<Lobby> GetCurrentLobbyAsync()
         {
-            var id = LobbyHandler?.CurrentLobbyId;
+            var id = NetIdHub.LobbyId;
             if (string.IsNullOrEmpty(id)) return null;
             // dùng SDK wrapper để lấy snapshot mới nhất
             return await LobbyHandler.GetLobbyInfoAsync(id);
-        }
-
-        private static Lobby GetCachedLobby()
-        {
-            return LobbyHandler?.CachedLobby;   // đọc nhanh cho các check đồng bộ
         }
         
         /// <summary>
@@ -505,31 +482,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         {
             return _cachedLobby;
         }
-
-        /// <summary>
-        /// Get current lobby ID
-        /// </summary>
-        public static string GetCurrentLobbyId()
-        {
-            return _cachedLobby?.Id;
-        }
-
-        /// <summary>
-        /// Get current lobby code
-        /// </summary>
-        public static string GetCurrentLobbyCode()
-        {
-            return _cachedLobby?.LobbyCode;
-        }
-
-        /// <summary>
-        /// Check if currently in a lobby
-        /// </summary>
-        public static bool IsInLobby()
-        {
-            return _cachedLobby != null;
-        }
-
+        
         // ========== PHASE UTILITIES ==========
 
         /// <summary>
@@ -625,5 +578,6 @@ namespace _GAME.Scripts.Networking.Lobbies
             LobbyEvents.OnLobbyLeft -= (lobby, success, message) => { if (success) _cachedLobby = null; };
             LobbyEvents.OnLobbyRemoved -= (lobby, success, message) => { if (success) _cachedLobby = null; };
         }
+
     }
 }

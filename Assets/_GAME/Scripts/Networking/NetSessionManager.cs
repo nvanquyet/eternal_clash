@@ -20,10 +20,12 @@ namespace _GAME.Scripts.Networking
 
         private bool _hostFlowStarting = false;   // set = true ngay khi vào HandleLobbyCreated
         private bool _clientFlowStarting = false; // set = true ngay khi vào TryJoinRelay
-
+        
+        
 
         private void OnEnable()
         {
+            NetIdHub.Wire();
             LobbyEvents.OnLobbyCreated += HandleLobbyCreated;
             LobbyEvents.OnLobbyJoined += HandleLobbyJoined;
             LobbyEvents.OnLobbyUpdated += HandleLobbyUpdated; // Listen for relay code updates
@@ -69,13 +71,13 @@ namespace _GAME.Scripts.Networking
             try
             {
                 // Set connecting status
-                await RelayExtension.SetNetworkStatusAsync(lobby.Id, LobbyConstants.NetworkStatus.CONNECTING);
+                await LobbyDataExtensions.SetNetworkStatusAsync(lobby.Id, LobbyConstants.NetworkStatus.CONNECTING);
 
                 bool started = await NetworkStarter.HostWithRelayAsync(
                     lobby.MaxPlayers,
                     async (joinCode) =>
                     {
-                        await RelayExtension.SetRelayJoinCodeAsync(lobby.Id, joinCode);
+                        await LobbyDataExtensions.SetRelayJoinCodeAsync(lobby.Id, joinCode);
                         Debug.Log($"[NetSessionManager] Relay join code set: {joinCode}");
                     }
                 );
@@ -90,8 +92,8 @@ namespace _GAME.Scripts.Networking
             {
                 Debug.LogError($"[NetSessionManager] Host flow failed: {e.Message}");
                 _hostFlowStarting = false;
-                await RelayExtension.SetNetworkStatusAsync(lobby.Id, LobbyConstants.NetworkStatus.FAILED);
-                RelayEvent.TriggerRelayError(e.Message);
+                await LobbyDataExtensions.SetNetworkStatusAsync(lobby.Id, LobbyConstants.NetworkStatus.FAILED);
+                LobbyEvents.TriggerRelayError(e.Message);
                 NetworkManager.Singleton?.Shutdown();
             }
         }
@@ -109,11 +111,10 @@ namespace _GAME.Scripts.Networking
             }
             
             // Check if relay code is already available
-            if (lobby.HasValidRelayCode())
+            if (!string.IsNullOrEmpty(NetIdHub.RelayJoinCode))
             {
                 await TryJoinRelay(lobby);
             }
-            // Otherwise wait for lobby updates
         }
 
         // Handle lobby updates - check for new relay join code
@@ -130,7 +131,7 @@ namespace _GAME.Scripts.Networking
             // ⛔️ Đang chạy client/server hoặc đang khởi động -> bỏ qua
             if (nm.IsClient || nm.IsServer || _clientFlowStarting) return;
 
-            if (lobby.HasValidRelayCode())
+            if (!string.IsNullOrEmpty(NetIdHub.RelayJoinCode))
             {
                 await TryJoinRelay(lobby);
             }
@@ -154,7 +155,7 @@ namespace _GAME.Scripts.Networking
             _clientFlowStarting = true;
             try
             {
-                var code = lobby.GetRelayJoinCode();
+                var code = NetIdHub.RelayJoinCode;
                 Debug.Log($"[NetSessionManager] Attempting to join relay with code: {code}");
 
                 bool started = await NetworkStarter.ClientWithRelayAsync(code);
@@ -167,7 +168,7 @@ namespace _GAME.Scripts.Networking
             {
                 _clientFlowStarting = false;
                 Debug.LogError($"[NetSessionManager] Client relay join failed: {e.Message}");
-                RelayEvent.TriggerRelayError(e.Message);
+                LobbyEvents.TriggerRelayError(e.Message);
 
                 // Optionally retry
                 await RetryJoinRelay(lobby);
@@ -199,13 +200,13 @@ namespace _GAME.Scripts.Networking
         private async void OnServerStarted()
         {
             Debug.Log("[NetSessionManager] Server started successfully");
-            var lobbyId = LobbyExtensions.GetCurrentLobbyId();
+            var lobbyId = NetIdHub.LobbyId;
             if (!string.IsNullOrEmpty(lobbyId))
             {
-                await RelayExtension.SetNetworkStatusAsync(lobbyId, LobbyConstants.NetworkStatus.READY);
+                await LobbyDataExtensions.SetNetworkStatusAsync(lobbyId, LobbyConstants.NetworkStatus.READY);
             }
 
-            RelayEvent.TriggerRelayHostReady(LobbyExtensions.GetCurrentLobby()?.GetRelayJoinCode() ?? "");
+            LobbyEvents.TriggerRelayHostReady(NetIdHub.RelayJoinCode ?? "");
 
             // Load waiting room scene
             NetworkManager.Singleton.SceneManager.LoadScene(
@@ -215,14 +216,15 @@ namespace _GAME.Scripts.Networking
         private void OnClientConnected(ulong clientId)
         {
             Debug.Log($"[NetSessionManager] Client {clientId} connected");
-            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            if (NetworkManager.Singleton == null)
             {
                 Debug.LogWarning("[NetSessionManager] OnClientConnected called but not a server instance.");
                 return;
             }
+            Debug.Log($"[NetSessionManager] Client {clientId} connected {NetworkManager.Singleton.LocalClientId}, waiting for relay setup...");
             if (clientId == NetworkManager.Singleton.LocalClientId)
             {
-                RelayEvent.TriggerRelayClientReady();
+                LobbyEvents.TriggerRelayClientReady();
             }
         }
 

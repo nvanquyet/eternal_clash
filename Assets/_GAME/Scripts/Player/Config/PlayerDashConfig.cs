@@ -2,31 +2,54 @@
 
 namespace _GAME.Scripts.Player.Config
 {
-    [CreateAssetMenu(fileName = "PlayerDashConfig", menuName = "Config/Player Dash Config")]
+    [CreateAssetMenu(fileName = "PlayerDashConfig", menuName = "Player/Dash Config")]
     public class PlayerDashConfig : ScriptableObject
     {
-        [Header("Dash Settings")]
-        [SerializeField] private float dashSpeed = 10f;
-        [SerializeField] private float dashDuration = 0.5f;
-        [SerializeField] private float dashCooldown = 1f;
-        [SerializeField] private float dashDistance = 5f;
+        [Header("Input")]
+        public KeyCode DashKeyCode = KeyCode.LeftControl;
 
-        [Header("Physics Settings")]
-        [SerializeField] private float dashGravity = 2f;
-        [SerializeField] private float dashAngle = 45f;
-        [SerializeField] private float dashFriction = 0.5f;
+        [Header("Ground Dash")]
+        [Tooltip("Speed of ground dash")]
+        public float GroundDashSpeed = 25f;
+        
+        [Tooltip("Duration of ground dash in seconds")]
+        public float GroundDashDuration = 0.3f;
+        
+        [Tooltip("Should ground dash ignore gravity?")]
+        public bool GroundDashIgnoreGravity = true;
 
-        [Header("Input Settings")]
-        [SerializeField] private KeyCode dashKeyCode = KeyCode.E;
+        [Header("Air Dash")]
+        [Tooltip("Speed of air dash")]
+        public float AirDashSpeed = 20f;
+        
+        [Tooltip("Duration of air dash in seconds")]
+        public float AirDashDuration = 0.25f;
+        
+        [Tooltip("Should air dash reset Y velocity?")]
+        public bool AirDashResetYVelocity = true;
+        
+        [Tooltip("Y velocity applied during air dash (0 = horizontal only)")]
+        public float AirDashYVelocity = 0f;
 
-        // Public properties for accessing private fields
-        public float DashSpeed => dashSpeed;
-        public float DashDuration => dashDuration;
-        public float DashCooldown => dashCooldown;
-        public float DashDistance => dashDistance;
-        public float DashGravity => dashGravity;
-        public float DashAngle => dashAngle;
-        public float DashFriction => dashFriction;
-        public KeyCode DashKeyCode => dashKeyCode;
+        [Header("General Settings")]
+        [Tooltip("Cooldown between dashes in seconds")]
+        public float DashCooldown = 1.5f;
+        
+        [Tooltip("Maximum number of air dashes before landing")]
+        public int MaxAirDashes = 1;
+        
+        [Tooltip("Should dash direction use input or forward?")]
+        public bool UseDashInputDirection = true;
+        
+        [Header("Animation Curve")]
+        [Tooltip("Speed curve for smooth dash (0-1 over duration)")]
+        public AnimationCurve DashSpeedCurve = AnimationCurve.EaseInOut(0, 1, 1, 0);
+        
+        [Header("Effects")]
+        [Tooltip("Should freeze player briefly at start of dash?")]
+        public bool DashStartFreeze = true;
+        
+        [Tooltip("Duration of start freeze in seconds")]
+        public float DashStartFreezeDuration = 0.05f;
     }
 }

@@ -1,21 +1,21 @@
 using _GAME.Scripts.Player.Enum;
+using UnityEngine;
 
 namespace _GAME.Scripts.Player.Locomotion
 {
     public abstract class ALocomotionState
     {
         public abstract LocomotionState LocomotionState { get; }
-        public abstract void OnEnter(PlayerLocomotion playerLocomotion);
-
         
-        public abstract void OnFixedUpdate(PlayerLocomotion playerLocomotion);
-        public abstract void OnExit(PlayerLocomotion playerLocomotion);
+        public virtual void OnEnter(PlayerLocomotion locomotion) { }
+        public virtual void OnExit(PlayerLocomotion locomotion) { }
+        public virtual void ProcessInput(PlayerInputData input, PlayerLocomotion locomotion) { }
+        public virtual void ProcessInput(PlayerInputData input, PlayerLocomotion locomotion, Vector3 forward, Vector3 right) { }
+        public abstract void OnFixedUpdate(PlayerInputData input, PlayerLocomotion locomotion);
         
-        public virtual void OnUpdate(PlayerLocomotion playerLocomotion)
+        protected void TransitionTo(PlayerLocomotion locomotion, ALocomotionState newState)
         {
-            SwitchMotion(playerLocomotion);
+            locomotion.SetState(newState);
         }
-
-        protected abstract bool SwitchMotion(PlayerLocomotion playerLocomotion);
     }
 }

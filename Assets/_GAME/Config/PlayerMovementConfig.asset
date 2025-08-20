@@ -10,9 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0607c0c7e7264274ab026bdd8772dee4, type: 3}
-  m_Name: PlayerLocomotionConfig
+  m_Name: PlayerMovementConfig
   m_EditorClassIdentifier: 
   walkSpeed: 2
   runSpeed: 5
   jumpForce: 5
+  dashConfig: {fileID: 11400000, guid: f6c07d6e121ed1241aea7960377dce19, type: 2}
+  jumpAirControlMultiplier: 0.8
+  fallAirControlMultiplier: 0.8
+  useLastGroundSpeedForAirControl: 1
+  rotationSpeed: 10
   gravity: 9.81

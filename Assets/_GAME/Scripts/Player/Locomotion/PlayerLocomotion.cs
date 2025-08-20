@@ -1,203 +1,232 @@
 using _GAME.Scripts.Player.Config;
-using _GAME.Scripts.Player.Locomotion;
+using _GAME.Scripts.Player.Enum;
 using _GAME.Scripts.Player.Locomotion.States;
 using UnityEngine;
 
-namespace _GAME.Scripts.Player
+namespace _GAME.Scripts.Player.Locomotion
 {
     public class PlayerLocomotion
     {
-        // Configuration for movement settings
         private readonly Transform _playerTransform;
-        private readonly PlayerLocomotionConfig _playerLocomotionConfig;
+        private readonly PlayerMovementConfig _config;
         private readonly CharacterController _characterController;
         private readonly Animator _animator;
+        private readonly PlayerController _playerController;
 
-        public PlayerLocomotion(PlayerLocomotionConfig playerLocomotionConfig, CharacterController characterController, Animator animator)
-        {
-            this._playerTransform = characterController ? characterController.transform : null;
-            this._playerLocomotionConfig = playerLocomotionConfig;
-            this._characterController = characterController;
-            this._animator = animator;
-            
-            InitializeLocomotion();
-        }
-        
-        // Internal state and velocity tracking
+        // Internal state
         private Vector3 _velocity;
         private Vector3 _inputDirection;
         private ALocomotionState _currentState;
-        private PlayerLocomotionAnimator _playerLocomotionAnimator;
+        
+        // Air control
+        private float _lastGroundSpeed;
+        private bool _wasSprintingBeforeAirborne;
+        
+        // Dash system
+        private float _dashCooldown = 0f;
+        private int _airDashesUsed = 0;
+        private bool _lastFrameGrounded = true;
 
         #region Properties
-        // Expose key properties for external access
         public CharacterController CharacterController => _characterController;
-        public PlayerLocomotionConfig Config => _playerLocomotionConfig;
+        public PlayerMovementConfig Config => _config;
         public ALocomotionState CurrentState => _currentState;
         public Vector3 Velocity => _velocity;
         public Vector3 InputDirection => _inputDirection;
+        public bool IsGrounded => _characterController != null && _characterController.isGrounded;
+        public float LastGroundSpeed => _lastGroundSpeed;
+        public bool WasSprintingBeforeAirborne => _wasSprintingBeforeAirborne;
+        
+        public float DashCooldown => _dashCooldown;
+        public int AirDashesUsed => _airDashesUsed;
+        public int AirDashesRemaining => Mathf.Max(0, _config.DashConfig.MaxAirDashes - _airDashesUsed);
         #endregion
 
-        #region Unity Methods
-        /// <summary>
-        /// Updates the current locomotion state every frame.
-        /// </summary>
-        public void OnUpdate()
+        public PlayerLocomotion(PlayerMovementConfig config, CharacterController characterController, 
+            Animator animator, PlayerController playerController)
         {
-            _currentState?.OnUpdate(this);
+            _playerTransform = characterController.transform;
+            _config = config;
+            _characterController = characterController;
+            _animator = animator;
+            _playerController = playerController;
+            
+            SetState(new IdleMotion());
         }
 
-        /// <summary>
-        /// Handles physics-based updates and applies gravity.
-        /// </summary>
-        public void OnFixedUpdate()
+        #region Update Methods
+        public void OnUpdate(PlayerInputData inputData, Vector3 forward, Vector3 right)
         {
-            _currentState?.OnFixedUpdate(this);
+            // Chỉ owner/server xử lý logic
+            if (!_playerController.IsOwner && !_playerController.IsServer) return;
+            
+            UpdateDashSystem();
+            _currentState?.ProcessInput(inputData, this, forward, right);
+        }
+        
+        public void OnUpdate(PlayerInputData inputData)
+        {
+            // Prediction: owner xử lý logic
+            if (!_playerController.IsOwner) return;
+            UpdateDashSystem();
+            _currentState?.ProcessInput(inputData, this);
+        }
+
+        public void OnFixedUpdate(PlayerInputData inputData)
+        {
+            // Chỉ server xử lý physics
+            if (!_playerController.IsServer) return;
+            
+            _currentState?.OnFixedUpdate(inputData, this);
             ApplyGravity();
-                   
-            // Apply movement
-            _characterController.Move(_velocity * Time.fixedDeltaTime);
+            
+            // CHỈ server move CharacterController
+            if (_characterController != null && _characterController.enabled)
+            {
+                _characterController.Move(_velocity * Time.fixedDeltaTime);
+            }
         }
-
-        /// <summary>
-        /// Updates the animator with the latest locomotion data.
-        /// </summary>
-        public void OnLateUpdate()
-        {
-            _playerLocomotionAnimator?.OnLateUpdate(this);
-        }
-
         #endregion
 
         #region State Management
-
-        /// <summary>
-        /// Switches to a new locomotion state if it's different from the current one.
-        /// </summary>
-        /// <param name="newState">The new locomotion state to switch to.</param>
-        public void SetLocomotionState(ALocomotionState newState)
+        public void SetState(ALocomotionState newState)
         {
-            if (newState == null || IsSameState(newState)) return;
+            if (newState == null || IsSameStateType(newState)) return;
 
-            _currentState?.OnExit(this); // Exit the current state
+            _currentState?.OnExit(this);
             _currentState = newState;
-            _currentState.OnEnter(this); // Enter the new state
+            _currentState.OnEnter(this);
         }
 
-        /// <summary>
-        /// Checks if the new state is the same as the current state.
-        /// </summary>
-        /// <param name="newState">The new state to compare.</param>
-        /// <returns>True if the states are the same, false otherwise.</returns>
-        private bool IsSameState(ALocomotionState newState)
+        private bool IsSameStateType(ALocomotionState newState)
         {
-            return _currentState != null && newState != null && newState.GetType() == _currentState.GetType();
+            return _currentState?.GetType() == newState?.GetType();
         }
-
         #endregion
 
         #region Movement Logic
+        public void SetVelocity(Vector3 velocity)
+        {
+            _velocity = velocity;
+        }
 
-        /// <summary>
-        /// Updates the vertical velocity (used for jumping and gravity).
-        /// </summary>
-        /// <param name="yVelocity">The new vertical velocity value.</param>
         public void ApplyVerticalVelocity(float yVelocity)
         {
             _velocity.y = yVelocity;
         }
-        
-       
-        /// <summary>
-        /// Updates the horizontal velocity (used for movement along the X and Z axes).
-        /// </summary>
-        /// <param name="x">The new velocity along the X-axis.</param>
-        /// <param name="z">The new velocity along the Z-axis.</param>
-        private void ApplyHorizontalVelocity(float x, float z)
+
+        public void ApplyMovement(Vector3 inputDirection, float speed)
         {
-            _velocity.x = x;
-            _velocity.z = z;
-        }
-        
-        /// <summary>
-        /// Calculates the movement direction based on camera orientation and input values, 
-        /// updates the horizontal velocity, and adjusts the player's rotation accordingly.
-        /// </summary>
-        /// <param name="horizontal">The horizontal input value (X-axis).</param>
-        /// <param name="vertical">The vertical input value (Z-axis).</param>
-        /// <param name="speed">The movement speed multiplier.</param>
-        public void ApplyInputDirection(float horizontal, float vertical, float speed)
-        {
-            // Update input direction
-            _inputDirection = new Vector3(horizontal, 0, vertical) * speed;
-            
-            if (Camera.main != null)
+            _inputDirection = inputDirection * speed;
+
+            // Track ground speed
+            if (IsGrounded && inputDirection.magnitude > 0)
             {
-                var cam = Camera.main.transform;
-                Vector3 moveDir = Vector3.Normalize(cam.forward * vertical + cam.right * horizontal);
-                moveDir.y = 0;
-                // Update horizontal velocity
-                ApplyHorizontalVelocity(
-                    moveDir.x * speed,
-                    moveDir.z * speed
-                );
+                _lastGroundSpeed = speed;
+                _wasSprintingBeforeAirborne = speed >= _config.RunSpeed;
+            }
+
+            if (inputDirection.magnitude > 0)
+            {
+                // Camera relative movement
+                Vector3 camForward = _playerController.GetCameraForward();
+                Vector3 camRight = _playerController.GetCameraRight();
                 
-                //Check rotation
+                Vector3 moveDir = Vector3.Normalize(camForward * inputDirection.z + camRight * inputDirection.x);
+                moveDir.y = 0;
+
+                _velocity.x = moveDir.x * speed;
+                _velocity.z = moveDir.z * speed;
+
+                // Rotation
                 if (moveDir != Vector3.zero)
                 {
-                    Quaternion toRot = Quaternion.LookRotation(moveDir);
-                    if (_playerTransform)
+                    Quaternion toRotation = Quaternion.LookRotation(moveDir);
+
+                    // Chỉ xoay khi là server (loại bỏ xoay client-prediction)
+                    if (_playerController.IsServer)
                     {
-                        _playerTransform.rotation = Quaternion.Slerp(_playerTransform.rotation, toRot, 10f * Time.deltaTime);
+                        _playerTransform.rotation = Quaternion.Slerp(
+                            _playerTransform.rotation, toRotation, _config.RotationSpeed * Time.deltaTime);
                     }
                 }
             }
+            else
+            {
+                _velocity.x = 0;
+                _velocity.z = 0;
+            }
         }
-        /// <summary>
-        /// Applies gravity to the player when not grounded and handles falling state transitions.
-        /// </summary>
+
+        public void ApplyAirMovement(Vector3 inputDirection, float baseSpeed, float airControlMultiplier)
+        {
+            _inputDirection = inputDirection * baseSpeed * airControlMultiplier;
+
+            if (inputDirection.magnitude > 0)
+            {
+                Vector3 camForward = _playerController.GetCameraForward();
+                Vector3 camRight = _playerController.GetCameraRight();
+                
+                Vector3 moveDir = Vector3.Normalize(camForward * inputDirection.z + camRight * inputDirection.x);
+                moveDir.y = 0;
+
+                float finalSpeed = baseSpeed * airControlMultiplier;
+                
+                _velocity.x = Mathf.Lerp(_velocity.x, moveDir.x * finalSpeed, Time.fixedDeltaTime * 5f);
+                _velocity.z = Mathf.Lerp(_velocity.z, moveDir.z * finalSpeed, Time.fixedDeltaTime * 5f);
+
+                // Slower air rotation
+                if (moveDir != Vector3.zero)
+                {
+                    Quaternion toRotation = Quaternion.LookRotation(moveDir);
+                    _playerTransform.rotation = Quaternion.Slerp(_playerTransform.rotation, toRotation, 
+                        _config.RotationSpeed * 0.5f * Time.deltaTime);
+                }
+            }
+        }
+
         private void ApplyGravity()
         {
-            if (!_characterController.isGrounded)
+            if (!IsGrounded)
             {
-                // Apply gravity when not grounded
                 _velocity.y += Physics.gravity.y * Time.fixedDeltaTime;
-
-                // Transition to Falling state if descending
-                if (_velocity.y <= 0) 
-                {
-                    TransitionToFallingState();
-                }
-            }     
+            }
         }
-
-        /// <summary>
-        /// Transitions the player to the Falling state.
-        /// </summary>
-        private void TransitionToFallingState()
-        {
-            SetLocomotionState(new FallingMotion());
-        }
-
         #endregion
 
-        #region Initialization
-
-        /// <summary>
-        /// Initializes the locomotion system and sets the initial state.
-        /// </summary>
-        private void InitializeLocomotion()
+        #region Dash System
+        public void UpdateDashSystem()
         {
-            SetLocomotionState(new IdleMotion()); // Start with Idle state
-            _playerLocomotionAnimator = new PlayerLocomotionAnimator(_animator);
+            if (_dashCooldown > 0)
+                _dashCooldown -= Time.deltaTime;
+
+            bool currentlyGrounded = IsGrounded;
+            if (currentlyGrounded && !_lastFrameGrounded)
+            {
+                _airDashesUsed = 0;
+            }
+
+            _lastFrameGrounded = currentlyGrounded;
         }
 
+        public bool CanGroundDash() => _dashCooldown <= 0 && IsGrounded;
+        public bool CanAirDash() => _dashCooldown <= 0 && !IsGrounded && _airDashesUsed < _config.DashConfig.MaxAirDashes;
+        public bool CanDash() => CanGroundDash() || CanAirDash();
+
+        public void StartDashCooldown() => _dashCooldown = _config.DashConfig.DashCooldown;
+        public void ConsumeAirDash() => _airDashesUsed++;
+        public void ResetAirDashes() => _airDashesUsed = 0;
+        public void ResetDashCooldown() => _dashCooldown = 0f;
         #endregion
 
-
-        public void Rotate(Vector3 direction)
+        public void UpdateAnimationFromNetwork(Vector3 valueVelocity)
         {
-            //transform.Rotate(direction);
-        } 
+            throw new System.NotImplementedException();
+        }
+
+        public void UpdateGroundedFromNetwork(bool valueIsGrounded)
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }

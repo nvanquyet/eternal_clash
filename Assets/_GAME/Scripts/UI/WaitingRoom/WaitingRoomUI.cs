@@ -1,6 +1,7 @@
 using System;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Lobbies;
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.UI.Base;
 using TMPro;
@@ -61,6 +62,26 @@ namespace _GAME.Scripts.UI.WaitingRoom
             LobbyEvents.OnPlayerUpdated += OnPlayerUpdated;
             LobbyEvents.OnLobbyLeft += OnLobbyLeft;
             LobbyEvents.OnLobbyRemoved += OnLobbyRemoved;
+            LobbyEvents.OnPlayerKicked += OnPlayerKicked;
+        }
+
+        private void OnPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
+        {
+            //Check null and id
+            if (player == null || lobby == null || string.IsNullOrEmpty(player.Id) || player.Id != NetIdHub.PlayerId)
+            {
+                Debug.LogError("Player kicked event received with invalid data.");
+                return;
+            }
+
+            if (player.Id != NetIdHub.PlayerId) return;
+            
+            LoadingUI.Instance.RunTimed(1f, () =>
+            {
+                //After loading time is over, initialize services and personal information
+                Debug.Log("[FirstCtrl] Fake loading done!");
+            });
+            SceneController.Instance.LoadSceneAsync((int) SceneDefinitions.Home);
         }
 
         private void OnLobbyRemoved(Lobby arg1, bool arg2, string arg3)
@@ -90,6 +111,9 @@ namespace _GAME.Scripts.UI.WaitingRoom
 
         private void OnPlayerUpdated(Unity.Services.Lobbies.Models.Player p, Lobby arg2, string arg3)
         {
+            //Check isMe 
+            if (p == null) return;
+            if (p.Id != NetIdHub.PlayerId) return;
             isReady = LobbyExtensions.IsPlayerReady(p);
             // Update the ready button state
             if (btnReady != null)

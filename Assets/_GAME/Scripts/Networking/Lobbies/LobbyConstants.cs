@@ -18,6 +18,7 @@
         // Thêm Network status constants
         public static class NetworkStatus
         {
+            public const string NONE = "None";
             public const string READY = "Ready";
             public const string CONNECTING = "Connecting"; 
             public const string CONNECTED = "Connected";
