@@ -3,14 +3,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using _GAME.Scripts.Networking.Lobbies;
 using Unity.Services.Lobbies;
+using Unity.Services.Lobbies.Models;
 using UnityEngine;
 
 namespace _GAME.Scripts.Lobbies
 {
-    /// <summary>
-    /// Component để duy trì kết nối với lobby thông qua heartbeat
-    /// Chỉ host mới cần gửi heartbeat
-    /// </summary>
     public class LobbyHeartbeat : MonoBehaviour
     {
         private LobbyHandler _lobbyManager;
@@ -18,41 +15,50 @@ namespace _GAME.Scripts.Lobbies
         private string _currentLobbyId;
         private CancellationTokenSource _cancellationTokenSource;
         private bool _isHeartbeatActive = false;
-        
+
         public bool IsActive => _isHeartbeatActive;
+        public bool IsRunning => _isHeartbeatActive; // <<< NEW
         public string ActiveLobbyId => _currentLobbyId;
 
         public void Initialize(LobbyHandler lobbyManager, float interval = 15f)
         {
             _lobbyManager = lobbyManager;
             _heartbeatInterval = interval;
+
         }
+        
 
         public void StartHeartbeat(string lobbyId)
         {
-            // ĐÃ chạy đúng lobby rồi thì bỏ qua
             if (_isHeartbeatActive && _currentLobbyId == lobbyId) return;
 
-            StopHeartbeat(); // đảm bảo clean trước khi start
+            StopHeartbeat();
             _currentLobbyId = lobbyId;
             _cancellationTokenSource = new CancellationTokenSource();
             _isHeartbeatActive = true;
 
             _ = HeartbeatLoop(_cancellationTokenSource.Token);
-            Debug.Log($"[Lobby Heartbeat]Started heartbeat for lobby: {lobbyId}");
+            Debug.Log($"[LobbyHeartbeat] Started heartbeat for lobby: {lobbyId}"); // <<< spacing fix
         }
- 
+
         public void StopHeartbeat()
         {
-            if (_isHeartbeatActive)
+            if (!_isHeartbeatActive) return;
+
+            try
             {
                 _cancellationTokenSource?.Cancel();
+            }
+            catch { /* no-op */ }
+            finally
+            {
                 _cancellationTokenSource?.Dispose();
                 _cancellationTokenSource = null;
-                _isHeartbeatActive = false;
-                _currentLobbyId = null;
-                Debug.Log("Stopped lobby heartbeat");
             }
+
+            _isHeartbeatActive = false;
+            _currentLobbyId = null;
+            Debug.Log("[LobbyHeartbeat] Stopped lobby heartbeat");
         }
 
         private async Task HeartbeatLoop(CancellationToken cancellationToken)
@@ -62,7 +68,6 @@ namespace _GAME.Scripts.Lobbies
                 while (!cancellationToken.IsCancellationRequested && _isHeartbeatActive)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(_heartbeatInterval), cancellationToken);
-                    
                     if (cancellationToken.IsCancellationRequested || !_isHeartbeatActive) break;
 
                     await SendHeartbeat();
@@ -70,11 +75,11 @@ namespace _GAME.Scripts.Lobbies
             }
             catch (OperationCanceledException)
             {
-                Debug.Log("Heartbeat loop cancelled");
+                Debug.Log("[LobbyHeartbeat] Heartbeat loop cancelled");
             }
             catch (Exception e)
             {
-                Debug.LogError($"Heartbeat loop error: {e}");
+                Debug.LogError($"[LobbyHeartbeat] Heartbeat loop error: {e}");
                 _isHeartbeatActive = false;
             }
         }
@@ -85,21 +90,20 @@ namespace _GAME.Scripts.Lobbies
             {
                 if (string.IsNullOrEmpty(_currentLobbyId))
                 {
-                    Debug.LogWarning("No lobby ID for heartbeat");
+                    Debug.LogWarning("[LobbyHeartbeat] No lobby ID for heartbeat");
                     return;
                 }
 
                 await LobbyService.Instance.SendHeartbeatPingAsync(_currentLobbyId);
-                // Chỉ log khi debug, không spam console
-                // Debug.Log($"Heartbeat sent for lobby: {_currentLobbyId}");
+                // Debug: tắt log spam
+                // Debug.Log($"[LobbyHeartbeat] Heartbeat sent for lobby: {_currentLobbyId}");
             }
             catch (Exception e)
             {
-                Debug.LogError($"Failed to send heartbeat: {e}");
-                // Có thể lobby đã bị xóa hoặc có lỗi khác
+                Debug.LogError($"[LobbyHeartbeat] Failed to send heartbeat: {e}");
                 _isHeartbeatActive = false;
-                
-                // Thông báo cho LobbyHandler biết heartbeat failed
+
+                // Thông báo cho hệ thống biết lobby có thể đã bị remove
                 LobbyEvents.TriggerLobbyRemoved(null, false, "Heartbeat failed - lobby may be removed");
             }
         }
@@ -113,11 +117,13 @@ namespace _GAME.Scripts.Lobbies
         {
             if (pauseStatus)
             {
+                // dừng khi app pause để tiết kiệm và an toàn
                 StopHeartbeat();
             }
-            else if (_lobbyManager != null && !string.IsNullOrEmpty(_currentLobbyId))
+            else
             {
-                StartHeartbeat(_currentLobbyId);
+                // KHÔNG tự start lại ở đây.
+                // Updater sẽ kiểm tra vai trò host và chủ động bật/tắt.
             }
         }
     }

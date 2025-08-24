@@ -6,372 +6,303 @@ using Unity.Services.Authentication;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using _GAME.Scripts.Lobbies;
-using Unity.Services.Core;
+using _GAME.Scripts.Networking;
 using UnityEngine;
 
 namespace _GAME.Scripts.Networking.Lobbies
 {
+    /// <summary>
+    /// Simplified extension methods for common lobby operations
+    /// Acts as a facade over LobbyHandler with additional convenience methods
+    /// </summary>
     public static class LobbyExtensions
     {
-        private static LobbyHandler LobbyHandler => LobbyHandler.Instance;
-        
-        // Cached lobby data - updated from LobbyEvents
-        private static Lobby _cachedLobby;
-        
-        // ========== INITIALIZATION ==========
-        
+        private static LobbyHandler Handler => LobbyHandler.Instance;
+        private static Lobby CachedLobby => Handler?.CachedLobby;
+
+        #region Initialization
+
         /// <summary>
-        /// Initialize LobbyExtensions - call this once at game start
+        /// Initialize extensions - should be called once at startup
         /// </summary>
         public static void Initialize()
         {
-            // Subscribe to lobby events to keep cached data updated
+            // Subscribe to events for logging/debugging
             LobbyEvents.OnLobbyCreated += OnLobbyEvent;
             LobbyEvents.OnLobbyJoined += OnLobbyEvent;
-            LobbyEvents.OnLobbyUpdated += (lobby, message) => _cachedLobby = lobby;
-            LobbyEvents.OnLobbyLeft += (lobby, success, message) => { if (success) _cachedLobby = null; };
-            LobbyEvents.OnLobbyRemoved += (lobby, success, message) => { if (success) _cachedLobby = null; };
+            LobbyEvents.OnLeftLobby += (lobby, success, message) => LogEvent("Lobby Left", success, message);
+            LobbyEvents.OnLobbyRemoved += (lobby, success, message) => LogEvent("Lobby Removed", success, message);
         }
-        
+
         private static void OnLobbyEvent(Lobby lobby, bool success, string message)
         {
-            if (lobby == null)
-            {
-                Debug.LogWarning("[LobbyEvent] Lobby event received with null lobby");
-                return;
-            }
-            if (success) _cachedLobby = lobby;
-            Debug.Log($"[LobbyEvent] {message} - Lobby ID: {lobby.Id}, Name: {lobby.Name}, Players: {lobby.Players.Count}");
-        }
-        
-        // ========== LOBBY OPERATIONS ==========
-        
-        /// <summary>
-        /// Update lobby name
-        /// </summary>
-        public static async Task OnLobbyNameChanged(string newName)
-        {
-            try
-            {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
-
-                if (_cachedLobby == null || !IsHost())
-                {
-                    Debug.LogWarning("Cannot update lobby name: Not host or lobby not found");
-                    return;
-                }
-
-                // Validate lobby name length
-                if (!string.IsNullOrEmpty(newName) && newName.Length > LobbyConstants.Validation.MAX_LOBBY_NAME_LENGTH)
-                {
-                    Debug.LogWarning($"Lobby name too long. Maximum length: {LobbyConstants.Validation.MAX_LOBBY_NAME_LENGTH}");
-                    return;
-                }
-
-                await LobbyHandler.UpdateLobbyNameAsync(_cachedLobby.Id, newName);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to update lobby name: {e.Message}");
-            }
+            LogEvent($"Lobby Event - {message}", success, lobby?.Name ?? "Unknown");
         }
 
-        /// <summary>
-        /// Update lobby password
-        /// </summary>
-        public static async Task OnPasswordChanged(string newPassword)
+        private static void LogEvent(string eventName, bool success, string details)
         {
-            try
-            {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
-
-                if (_cachedLobby == null || !IsHost())
-                {
-                    Debug.LogWarning("Cannot update password: Not host or lobby not found");
-                    return;
-                }
-
-                // Validate password length
-                if (!string.IsNullOrEmpty(newPassword) && newPassword.Length < LobbyConstants.Validation.MIN_PASSWORD_LENGTH)
-                {
-                    Debug.LogWarning($"Password must be at least {LobbyConstants.Validation.MIN_PASSWORD_LENGTH} characters long");
-                    return;
-                }
-
-                await LobbyHandler.UpdateLobbyPasswordInDataAsync(_cachedLobby.Id, newPassword, true, true);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to update password: {e.Message}");
-            }
+            if (success)
+                Debug.Log($"[LobbyExtensions] {eventName}: {details}");
+            else
+                Debug.LogWarning($"[LobbyExtensions] {eventName} Failed: {details}");
         }
 
-        /// <summary>
-        /// Update max players in lobby
-        /// </summary>
-        public static async Task OnMaxPlayersChanged(int maxPlayers)
-        {
-            try
-            {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
+        #endregion
 
-                if (_cachedLobby == null || !IsHost())
-                {
-                    Debug.LogWarning("Cannot update max players: Not host or lobby not found");
-                    return;
-                }
-
-                // Validate that we're not reducing below current player count
-                if (maxPlayers < _cachedLobby.Players.Count)
-                {
-                    Debug.LogWarning($"Cannot reduce max players to {maxPlayers} while lobby has {_cachedLobby.Players.Count} players");
-                    return;
-                }
-
-                await LobbyHandler.UpdateLobbyMaxPlayersAsync(_cachedLobby.Id, maxPlayers);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to update max players: {e.Message}");
-            }
-        }
+        #region Lobby Operations
 
         /// <summary>
-        /// Set lobby phase (Waiting/Playing/etc.)
+        /// Create a new lobby
         /// </summary>
-        public static async Task SetPhaseAsync(string phase)
+        public static async Task<bool> CreateLobbyAsync(string lobbyName, int maxPlayers = 4, string password = null)
         {
-            try
+            if (Handler == null)
             {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
+                Debug.LogError("[LobbyExtensions] LobbyHandler not available");
+                return false;
+            }
 
-                if (_cachedLobby == null || !IsHost())
+            var options = new CreateLobbyOptions();
+            
+            if (!string.IsNullOrEmpty(password))
+            {
+                options.IsPrivate = true;
+                options.Password = password;
+                options.Data = new Dictionary<string, DataObject>
                 {
-                    Debug.LogWarning("Cannot set phase: Not host or lobby not found");
-                    return;
-                }
-
-                var updateOptions = new UpdateLobbyOptions
-                {
-                    Data = new Dictionary<string, DataObject>
-                    {
-                        { LobbyConstants.LobbyData.PHASE, new DataObject(DataObject.VisibilityOptions.Member, phase ?? LobbyConstants.Phases.WAITING) }
-                    }
+                    { LobbyConstants.LobbyData.PASSWORD, new DataObject(DataObject.VisibilityOptions.Member, password) }
                 };
-
-                await LobbyHandler.UpdateLobbyAsync(_cachedLobby.Id, updateOptions);
             }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to set phase: {e.Message}");
-            }
-        }
 
-        // ========== PLAYER OPERATIONS ==========
-
-        /// <summary>
-        /// Set player ready status
-        /// </summary>
-        public static async Task SetPlayerReadyAsync(bool ready)
-        {
-            try
-            {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
-
-                if (_cachedLobby == null)
-                {
-                    Debug.LogWarning("Cannot set ready status: Lobby not found");
-                    return;
-                }
-
-                await LobbyHandler.ToggleReadyAsync(_cachedLobby.Id, ready);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to set player ready status: {e.Message}");
-            }
+            var lobby = await Handler.CreateLobbyAsync(lobbyName, maxPlayers, options);
+            return lobby != null;
         }
 
         /// <summary>
-        /// Set player name/display name
+        /// Join lobby by code
         /// </summary>
-        public static async Task SetPlayerNameAsync(string playerName)
+        public static async Task<bool> JoinLobbyAsync(string lobbyCode, string password = null)
         {
-            try
+            if (Handler == null)
             {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
-
-                if (_cachedLobby == null)
-                {
-                    Debug.LogWarning("Cannot set player name: Lobby not found");
-                    return;
-                }
-
-                // Validate display name length
-                if (!string.IsNullOrEmpty(playerName) && playerName.Length > LobbyConstants.Validation.MAX_DISPLAY_NAME_LENGTH)
-                {
-                    Debug.LogWarning($"Display name too long. Maximum length: {LobbyConstants.Validation.MAX_DISPLAY_NAME_LENGTH}");
-                    return;
-                }
-
-                await LobbyHandler.SetDisplayNameAsync(_cachedLobby.Id, playerName);
+                Debug.LogError("[LobbyExtensions] LobbyHandler not available");
+                return false;
             }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to set player name: {e.Message}");
-            }
-        }
 
-        /// <summary>
-        /// Kick player from lobby (host only)
-        /// </summary>
-        public static async Task KickPlayerFromLobby(string playerId)
-        {
-            try
-            {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
-
-                if (_cachedLobby == null || !IsHost())
-                {
-                    Debug.LogWarning("Cannot kick player: Not host or lobby not found");
-                    return;
-                }
-
-                // Don't allow kicking yourself
-                if (playerId == NetIdHub.PlayerId)
-                {
-                    Debug.LogWarning("Cannot kick yourself");
-                    return;
-                }
-
-                await LobbyHandler.KickPlayerAsync(_cachedLobby.Id, playerId);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to kick player: {e.Message}");
-            }
+            return await Handler.JoinLobbyAsync(lobbyCode, password);
         }
 
         /// <summary>
         /// Leave current lobby
         /// </summary>
-        public static async Task LeaveLobby()
+        public static async Task<bool> LeaveLobbyAsync()
         {
-            try
+            if (Handler == null)
             {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
-
-                if (_cachedLobby == null)
-                {
-                    Debug.LogWarning("No lobby to leave");
-                    return;
-                }
-
-                bool isHost = IsHost();
-                await LobbyHandler.LeaveLobbyAsync(_cachedLobby.Id, NetIdHub.PlayerId, isHost);
+                Debug.LogError("[LobbyExtensions] LobbyHandler not available");
+                return false;
             }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to leave lobby: {e.Message}");
-            }
+
+            return await Handler.LeaveLobbyAsync();
         }
-        
-        
+
         /// <summary>
-        /// Remove/Delete current lobby (host only)
+        /// Remove current lobby (host only)
         /// </summary>
-        public static async Task RemoveLobby()
+        public static async Task<bool> RemoveLobbyAsync()
         {
-            try
+            if (Handler == null)
             {
-                if (LobbyHandler == null)
-                {
-                    Debug.LogError("LobbyHandler is not available");
-                    return;
-                }
-
-                if (_cachedLobby == null)
-                {
-                    Debug.LogWarning("No lobby to remove");
-                    return;
-                }
-
-                if (!IsHost())
-                {
-                    Debug.LogWarning("Cannot remove lobby: Only host can remove lobby");
-                    return;
-                }
-
-                await LobbyHandler.RemoveLobbyAsync(_cachedLobby.Id);
+                Debug.LogError("[LobbyExtensions] LobbyHandler not available");
+                return false;
             }
-            catch (Exception e)
+
+            if (!IsHost())
             {
-                Debug.LogError($"Failed to remove lobby: {e.Message}");
+                Debug.LogWarning("[LobbyExtensions] Only host can remove lobby");
+                return false;
             }
+
+            return await Handler.RemoveLobbyAsync();
         }
 
-        // ========== UTILITY METHODS ==========
+        #endregion
+
+        #region Lobby Updates
+
+        /// <summary>
+        /// Update lobby name (host only)
+        /// </summary>
+        public static async Task<bool> UpdateLobbyNameAsync(string newName)
+        {
+            if (!ValidateHostOperation()) return false;
+            if (!ValidateInput(newName, "Lobby name", LobbyConstants.Validation.MAX_LOBBY_NAME_LENGTH)) return false;
+
+            var options = new UpdateLobbyOptions { Name = newName };
+            var updated = await Handler.UpdateLobbyAsync(CachedLobby.Id, options);
+            return updated != null;
+        }
+
+        /// <summary>
+        /// Update lobby password (host only)
+        /// </summary>
+        public static async Task<bool> UpdateLobbyPasswordAsync(string newPassword)
+        {
+            if (!ValidateHostOperation()) return false;
+            
+            if (!string.IsNullOrEmpty(newPassword) && newPassword.Length < LobbyConstants.Validation.MIN_PASSWORD_LENGTH)
+            {
+                Debug.LogWarning($"[LobbyExtensions] Password must be at least {LobbyConstants.Validation.MIN_PASSWORD_LENGTH} characters");
+                return false;
+            }
+
+            return await LobbyDataExtensions.SetLobbyPasswordAsync(CachedLobby.Id, newPassword);
+        }
+
+        /// <summary>
+        /// Update max players (host only)
+        /// </summary>
+        public static async Task<bool> UpdateMaxPlayersAsync(int maxPlayers)
+        {
+            if (!ValidateHostOperation()) return false;
+            
+            if (maxPlayers < CachedLobby.Players.Count)
+            {
+                Debug.LogWarning($"[LobbyExtensions] Cannot reduce max players below current count ({CachedLobby.Players.Count})");
+                return false;
+            }
+
+            var options = new UpdateLobbyOptions { MaxPlayers = maxPlayers };
+            var updated = await Handler.UpdateLobbyAsync(CachedLobby.Id, options);
+            return updated != null;
+        }
+
+        /// <summary>
+        /// Set lobby phase (host only)
+        /// </summary>
+        public static async Task<bool> SetLobbyPhaseAsync(string phase)
+        {
+            if (!ValidateHostOperation()) return false;
+
+            return await LobbyDataExtensions.SetLobbyPhaseAsync(CachedLobby.Id, phase);
+        }
+
+        #endregion
+
+        #region Player Operations
+
+        /// <summary>
+        /// Set player ready status
+        /// </summary>
+        public static async Task<bool> SetPlayerReadyAsync(bool isReady)
+        {
+            if (!ValidatePlayerOperation()) return false;
+
+            return await LobbyDataExtensions.SetPlayerReadyAsync(CachedLobby.Id, isReady);
+        }
+
+        /// <summary>
+        /// Set player display name
+        /// </summary>
+        public static async Task<bool> SetPlayerNameAsync(string displayName)
+        {
+            if (!ValidatePlayerOperation()) return false;
+            if (!ValidateInput(displayName, "Display name", LobbyConstants.Validation.MAX_DISPLAY_NAME_LENGTH)) return false;
+
+            return await LobbyDataExtensions.SetPlayerNameAsync(CachedLobby.Id, displayName);
+        }
+
+        /// <summary>
+        /// Kick player from lobby (host only)
+        /// </summary>
+        public static async Task<bool> KickPlayerAsync(string playerId)
+        {
+            if (!ValidateHostOperation()) return false;
+            
+            if (playerId == NetIdHub.PlayerId)
+            {
+                Debug.LogWarning("[LobbyExtensions] Cannot kick yourself");
+                return false;
+            }
+
+            return await Handler.KickPlayerAsync(playerId);
+        }
+
+        #endregion
+
+        #region Utility Methods
+
+        /// <summary>
+        /// Get current lobby info
+        /// </summary>
+        public static Lobby GetCurrentLobby() => CachedLobby;
 
         /// <summary>
         /// Get all players in current lobby
         /// </summary>
-        public static List<Unity.Services.Lobbies.Models.Player> GetAllPlayersInLobby()
+        public static List<Unity.Services.Lobbies.Models.Player> GetAllPlayers()
         {
-            if (_cachedLobby == null || _cachedLobby.Players == null)
-            {
-                Debug.LogWarning("No players found in current lobby");
-                return new List<Unity.Services.Lobbies.Models.Player>();
-            }
-            return _cachedLobby?.Players?.ToList() ?? new List<Unity.Services.Lobbies.Models.Player>();
+            return CachedLobby?.Players?.ToList() ?? new List<Unity.Services.Lobbies.Models.Player>();
         }
 
         /// <summary>
-        /// Check if current player is the host
+        /// Check if current player is host
         /// </summary>
-        public static bool IsHost()
-        {
-            return _cachedLobby != null && _cachedLobby.HostId == NetIdHub.PlayerId;
-        }
+        public static bool IsHost() => NetIdHub.IsLocalHost();
 
         /// <summary>
-        /// Check if player ID belongs to current user
+        /// Check if player ID is current player
         /// </summary>
-        public static bool IsMe(string playerId)
-        {
-            return playerId == NetIdHub.PlayerId;
-        }
+        public static bool IsMe(string playerId) => playerId == NetIdHub.PlayerId;
+
+        /// <summary>
+        /// Get lobby name
+        /// </summary>
+        public static string GetLobbyName() => CachedLobby?.Name ?? LobbyConstants.Defaults.DEFAULT_LOBBY_NAME;
+
+        /// <summary>
+        /// Get lobby max players
+        /// </summary>
+        public static int GetMaxPlayers() => CachedLobby?.MaxPlayers ?? LobbyConstants.Defaults.MAX_PLAYERS;
+
+        /// <summary>
+        /// Get lobby player count
+        /// </summary>
+        public static int GetPlayerCount() => CachedLobby?.Players?.Count ?? 0;
+
+        /// <summary>
+        /// Get lobby code
+        /// </summary>
+        public static string GetLobbyCode() => CachedLobby?.LobbyCode ?? "";
+
+        /// <summary>
+        /// Check if lobby has password
+        /// </summary>
+        public static bool HasPassword() => !string.IsNullOrEmpty(GetLobbyPassword());
+
+        /// <summary>
+        /// Get lobby password (visible to members only)
+        /// </summary>
+        public static string GetLobbyPassword() => CachedLobby?.GetDataValue(LobbyConstants.LobbyData.PASSWORD) ?? "";
+
+        /// <summary>
+        /// Get lobby phase
+        /// </summary>
+        public static string GetLobbyPhase() => CachedLobby?.GetDataValue(LobbyConstants.LobbyData.PHASE, LobbyConstants.Phases.WAITING) ?? LobbyConstants.Phases.WAITING;
+
+        /// <summary>
+        /// Check if lobby is in waiting phase
+        /// </summary>
+        public static bool IsWaitingPhase() => GetLobbyPhase() == LobbyConstants.Phases.WAITING;
+
+        /// <summary>
+        /// Check if lobby is in playing phase
+        /// </summary>
+        public static bool IsPlayingPhase() => GetLobbyPhase() == LobbyConstants.Phases.PLAYING;
+
+        #endregion
+
+        #region Player Utility Methods
 
         /// <summary>
         /// Check if player is ready
@@ -379,18 +310,12 @@ namespace _GAME.Scripts.Networking.Lobbies
         public static bool IsPlayerReady(Unity.Services.Lobbies.Models.Player player)
         {
             if (player?.Data == null) return false;
-            
-            // Check both new format and legacy format
-            if (player.Data.TryGetValue(LobbyConstants.PlayerData.IS_READY, out var readyData))
+
+            if (player.Data.TryGetValue(LobbyConstants.PlayerData.IS_READY, out var data))
             {
-                return bool.TryParse(readyData.Value, out var isReady) && isReady;
+                return bool.TryParse(data.Value, out var isReady) && isReady;
             }
-            
-            if (player.Data.TryGetValue(LobbyConstants.PlayerData.LEGACY_READY, out var legacyReadyData))
-            {
-                return legacyReadyData.Value == LobbyConstants.Defaults.LEGACY_READY_TRUE;
-            }
-            
+
             return false;
         }
 
@@ -401,183 +326,121 @@ namespace _GAME.Scripts.Networking.Lobbies
         {
             if (player?.Data == null) return LobbyConstants.Defaults.UNKNOWN_PLAYER;
 
-            // Check both new format and legacy format
-            if (player.Data.TryGetValue(LobbyConstants.PlayerData.DISPLAY_NAME, out var displayNameData))
+            if (player.Data.TryGetValue(LobbyConstants.PlayerData.DISPLAY_NAME, out var data))
             {
-                return displayNameData.Value ?? LobbyConstants.Defaults.UNKNOWN_PLAYER;
-            }
-            
-            if (player.Data.TryGetValue(LobbyConstants.PlayerData.LEGACY_NAME, out var nameData))
-            {
-                return nameData.Value ?? LobbyConstants.Defaults.UNKNOWN_PLAYER;
+                return data.Value ?? LobbyConstants.Defaults.UNKNOWN_PLAYER;
             }
 
-            return $"Player_{player.Id?[..6] ?? "Unknown"}";
+            return $"Player_{player.Id?[..Math.Min(6, player.Id.Length)] ?? "Unknown"}";
         }
 
         /// <summary>
-        /// Get lobby phase
+        /// Get current player from lobby
         /// </summary>
-        public static string GetLobbyPhase()
+        public static Unity.Services.Lobbies.Models.Player GetCurrentPlayer()
         {
-            if (_cachedLobby?.Data != null && _cachedLobby.Data.TryGetValue(LobbyConstants.LobbyData.PHASE, out var phaseData))
+            var myId = NetIdHub.PlayerId;
+            return GetAllPlayers().FirstOrDefault(p => p.Id == myId);
+        }
+
+        /// <summary>
+        /// Check if current player is ready
+        /// </summary>
+        public static bool IsCurrentPlayerReady()
+        {
+            var currentPlayer = GetCurrentPlayer();
+            return currentPlayer != null && IsPlayerReady(currentPlayer);
+        }
+
+        /// <summary>
+        /// Check if all players are ready
+        /// </summary>
+        public static bool AreAllPlayersReady()
+        {
+            var players = GetAllPlayers();
+            return players.Count > 0 && players.All(IsPlayerReady);
+        }
+
+        #endregion
+
+        #region Validation
+
+        private static bool ValidateHostOperation()
+        {
+            if (Handler == null)
             {
-                return phaseData.Value ?? LobbyConstants.Phases.WAITING;
+                Debug.LogError("[LobbyExtensions] LobbyHandler not available");
+                return false;
             }
-            return LobbyConstants.Phases.WAITING;
-        }
 
-        /// <summary>
-        /// Get lobby name
-        /// </summary>
-        /// <returns></returns>
-        public static string GetLobbyName()
-        {
-            if(_cachedLobby != null && !string.IsNullOrEmpty(_cachedLobby.Name))
+            if (CachedLobby == null)
             {
-                return _cachedLobby.Name;
+                Debug.LogWarning("[LobbyExtensions] No active lobby");
+                return false;
             }
-            return LobbyConstants.Defaults.DEFAULT_LOBBY_NAME;
-        }
-        
-        /// <summary>
-        /// Get lobby max player
-        /// </summary>
-        /// <returns></returns>
-        public static int GetLobbyMaxPlayer()
-        {
-            if (_cachedLobby != null && _cachedLobby.MaxPlayers > 0)
+
+            if (!IsHost())
             {
-                return _cachedLobby.MaxPlayers;
+                Debug.LogWarning("[LobbyExtensions] Only host can perform this operation");
+                return false;
             }
-            return LobbyConstants.Defaults.MAX_PLAYERS;
+
+            return true;
         }
 
-        /// <summary>
-        /// Get lobby password from data
-        /// </summary>
-        public static string GetLobbyPassword()
+        private static bool ValidatePlayerOperation()
         {
-            if (_cachedLobby?.Data != null && _cachedLobby.Data.TryGetValue(LobbyConstants.LobbyData.PASSWORD, out var passwordData))
+            if (Handler == null)
             {
-                return passwordData.Value ?? string.Empty;
+                Debug.LogError("[LobbyExtensions] LobbyHandler not available");
+                return false;
             }
-            return string.Empty;
-        }
-        
 
-        // LobbyExtensions.cs (private helpers)
-        private static async Task<Lobby> GetCurrentLobbyAsync()
-        {
-            var id = NetIdHub.LobbyId;
-            if (string.IsNullOrEmpty(id)) return null;
-            // dùng SDK wrapper để lấy snapshot mới nhất
-            return await LobbyHandler.GetLobbyInfoAsync(id);
-        }
-        
-        /// <summary>
-        /// Get current lobby info
-        /// </summary>
-        public static Lobby GetCurrentLobby()
-        {
-            return _cachedLobby;
-        }
-        
-        // ========== PHASE UTILITIES ==========
+            if (CachedLobby == null)
+            {
+                Debug.LogWarning("[LobbyExtensions] No active lobby");
+                return false;
+            }
 
-        /// <summary>
-        /// Check if lobby is in waiting phase
-        /// </summary>
-        public static bool IsWaitingPhase()
-        {
-            return GetLobbyPhase() == LobbyConstants.Phases.WAITING;
+            return true;
         }
 
-        /// <summary>
-        /// Check if lobby is in playing phase
-        /// </summary>
-        public static bool IsPlayingPhase()
+        private static bool ValidateInput(string input, string fieldName, int maxLength = int.MaxValue)
         {
-            return GetLobbyPhase() == LobbyConstants.Phases.PLAYING;
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                Debug.LogWarning($"[LobbyExtensions] {fieldName} cannot be empty");
+                return false;
+            }
+
+            if (input.Length > maxLength)
+            {
+                Debug.LogWarning($"[LobbyExtensions] {fieldName} too long (max {maxLength} characters)");
+                return false;
+            }
+
+            return true;
         }
+
+        #endregion
+
+        #region Cleanup
 
         /// <summary>
-        /// Check if lobby is in finished phase
-        /// </summary>
-        public static bool IsFinishedPhase()
-        {
-            return GetLobbyPhase() == LobbyConstants.Phases.FINISHED;
-        }
-
-        /// <summary>
-        /// Set lobby to waiting phase
-        /// </summary>
-        public static async Task SetWaitingPhaseAsync()
-        {
-            await SetPhaseAsync(LobbyConstants.Phases.WAITING);
-        }
-
-        /// <summary>
-        /// Set lobby to playing phase
-        /// </summary>
-        public static async Task SetPlayingPhaseAsync()
-        {
-            await SetPhaseAsync(LobbyConstants.Phases.PLAYING);
-        }
-
-        /// <summary>
-        /// Set lobby to finished phase
-        /// </summary>
-        public static async Task SetFinishedPhaseAsync()
-        {
-            await SetPhaseAsync(LobbyConstants.Phases.FINISHED);
-        }
-
-        // ========== VALIDATION UTILITIES ==========
-
-        /// <summary>
-        /// Validate lobby name
-        /// </summary>
-        public static bool IsValidLobbyName(string name)
-        {
-            return !string.IsNullOrWhiteSpace(name) && 
-                   name.Length <= LobbyConstants.Validation.MAX_LOBBY_NAME_LENGTH;
-        }
-
-        /// <summary>
-        /// Validate player display name
-        /// </summary>
-        public static bool IsValidDisplayName(string displayName)
-        {
-            return !string.IsNullOrWhiteSpace(displayName) && 
-                   displayName.Length <= LobbyConstants.Validation.MAX_DISPLAY_NAME_LENGTH;
-        }
-
-        /// <summary>
-        /// Validate password
-        /// </summary>
-        public static bool IsValidPassword(string password)
-        {
-            return string.IsNullOrEmpty(password) || 
-                   password.Length >= LobbyConstants.Validation.MIN_PASSWORD_LENGTH;
-        }
-
-        // ========== CLEANUP ==========
-
-        /// <summary>
-        /// Clean up cached data and unsubscribe from events
+        /// Cleanup extensions
         /// </summary>
         public static void Cleanup()
         {
-            _cachedLobby = null;
-            
-            // Unsubscribe from events
             LobbyEvents.OnLobbyCreated -= OnLobbyEvent;
             LobbyEvents.OnLobbyJoined -= OnLobbyEvent;
-            LobbyEvents.OnLobbyUpdated -= (lobby, message) => _cachedLobby = lobby;
-            LobbyEvents.OnLobbyLeft -= (lobby, success, message) => { if (success) _cachedLobby = null; };
-            LobbyEvents.OnLobbyRemoved -= (lobby, success, message) => { if (success) _cachedLobby = null; };
         }
 
+        #endregion
+
+        public static void ShutdownLobbyAsync()
+        {
+            Handler.StopHeartbeat();
+            Handler.StopUpdater();
+        }
     }
 }

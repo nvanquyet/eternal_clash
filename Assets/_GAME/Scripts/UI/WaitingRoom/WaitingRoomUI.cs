@@ -43,7 +43,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             if (lobbyCodeText == null)
             {
-                Debug.LogError("roomCodeText is not assigned in WaitingRoomUI.");
+                Debug.LogError("[WaitingRoomUI] roomCodeText is not assigned in WaitingRoomUI.");
                 return;
             }
             lobbyCodeText.text = string.IsNullOrEmpty(roomCode) ? "" : $"{roomCode}";
@@ -51,6 +51,28 @@ namespace _GAME.Scripts.UI.WaitingRoom
         
         
         private void Start()
+        {
+            RegisterEvent();
+            
+            //Initial UI state
+            if (LobbyExtensions.GetCurrentLobby() != null)
+            {
+                OnLobbyUpdated(LobbyExtensions.GetCurrentLobby(), "Initial update");
+            }
+            else
+            {
+                Debug.LogWarning("[WaitingRoomUI] No current lobby found on start.");
+            }
+        }
+
+        
+        
+        private void OnDestroy()
+        {
+            UnregisterEvent();
+        }
+
+        private void RegisterEvent()
         {
             btnStartGame.onClick.AddListener(OnClickStartGame);
             btnLeaveRoom.onClick.AddListener(OnClickLeaveRoom);
@@ -60,53 +82,33 @@ namespace _GAME.Scripts.UI.WaitingRoom
             //Register event lobby Update
             LobbyEvents.OnLobbyUpdated += OnLobbyUpdated;
             LobbyEvents.OnPlayerUpdated += OnPlayerUpdated;
-            LobbyEvents.OnLobbyLeft += OnLobbyLeft;
-            LobbyEvents.OnLobbyRemoved += OnLobbyRemoved;
             LobbyEvents.OnPlayerKicked += OnPlayerKicked;
         }
-
+        
+        private void UnregisterEvent()
+        {
+            btnStartGame.onClick.RemoveListener(OnClickStartGame);
+            btnLeaveRoom.onClick.RemoveListener(OnClickLeaveRoom);
+            btnRoomInformation.onClick.RemoveListener(OnClickRoomInformation);
+            btnReady.onClick.RemoveListener(OnClickReady);
+            
+            LobbyEvents.OnLobbyUpdated -= OnLobbyUpdated;
+            LobbyEvents.OnPlayerUpdated -= OnPlayerUpdated;
+            LobbyEvents.OnPlayerKicked -= OnPlayerKicked;
+        }
+        
+        
+        
         private void OnPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
         {
             //Check null and id
             if (player == null || lobby == null || string.IsNullOrEmpty(player.Id) || player.Id != NetIdHub.PlayerId)
             {
-                Debug.LogError("Player kicked event received with invalid data.");
+                Debug.LogError("[WaitingRoomUI] Player kicked event received with invalid data.");
                 return;
             }
-
-            if (player.Id != NetIdHub.PlayerId) return;
-            
-            LoadingUI.Instance.RunTimed(1f, () =>
-            {
-                //After loading time is over, initialize services and personal information
-                Debug.Log("[FirstCtrl] Fake loading done!");
-            });
-            SceneController.Instance.LoadSceneAsync((int) SceneDefinitions.Home);
-        }
-
-        private void OnLobbyRemoved(Lobby arg1, bool arg2, string arg3)
-        {
-            //Swtich to the home scene
-            Debug.Log("Lobby has been removed.");
-            //Fake loading
-            LoadingUI.Instance.RunTimed(1f, () =>
-            {
-                //After loading time is over, initialize services and personal information
-                Debug.Log("[FirstCtrl] Fake loading done!");
-            });
-            SceneController.Instance.LoadSceneAsync((int) SceneDefinitions.Home);
-        }
-
-        private void OnLobbyLeft(Lobby arg1, bool arg2, string arg3)
-        {
-            //Switch to the home scene
-            Debug.Log("You left lobby");
-            LoadingUI.Instance.RunTimed(1f, () =>
-            {
-                //After loading time is over, initialize services and personal information
-                Debug.Log("[FirstCtrl] Fake loading done!");
-            });
-            SceneController.Instance.LoadSceneAsync((int) SceneDefinitions.Home);
+            Debug.Log("You have been kicked from the lobby.");
+            NetSessionManager.Instance.ForceShutdown();
         }
 
         private void OnPlayerUpdated(Unity.Services.Lobbies.Models.Player p, Lobby arg2, string arg3)
@@ -123,7 +125,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
             }
             else
             {
-                Debug.LogError("btnReady is not assigned in WaitingRoomUI.");
+                Debug.LogError("[WaitingRoomUI] btnReady is not assigned in WaitingRoomUI.");
             }
         }
 
@@ -148,7 +150,6 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 
             // Update the lobby UI setting
             lobbySetting.Initialized();
-            
         }
 
         private void OnClickRoomInformation()
@@ -161,26 +162,14 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             //Todo: Leave Room
             //Remove lobby
-            _ = LobbyExtensions.IsHost() ? LobbyExtensions.RemoveLobby() : LobbyExtensions.LeaveLobby();
+            _ = LobbyExtensions.IsHost() ? LobbyExtensions.RemoveLobbyAsync() : LobbyExtensions.LeaveLobbyAsync();
         }
 
         private void OnClickStartGame()
         {
             //Todo: Start Game
-            Debug.Log("Start Game button clicked. Implement game start logic here.");
+            Debug.Log("[WaitingRoomUI] Start Game button clicked. Implement game start logic here.");
         }
 
-        private void OnDestroy()
-        {
-            btnStartGame.onClick.RemoveListener(OnClickStartGame);
-            btnLeaveRoom.onClick.RemoveListener(OnClickLeaveRoom);
-            btnRoomInformation.onClick.RemoveListener(OnClickRoomInformation);
-            btnReady.onClick.RemoveListener(OnClickReady);
-            
-            LobbyEvents.OnLobbyUpdated -= OnLobbyUpdated;
-            LobbyEvents.OnPlayerUpdated -= OnPlayerUpdated;
-            LobbyEvents.OnLobbyLeft -= OnLobbyLeft;
-            LobbyEvents.OnLobbyRemoved -= OnLobbyRemoved;
-        }
     }
 }

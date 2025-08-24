@@ -8,7 +8,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         // ===== LOBBY LIFECYCLE =====
         public static event Action<Lobby, bool, string> OnLobbyCreated;
         public static event Action<Lobby, bool, string> OnLobbyJoined;
-        public static event Action<Lobby, bool, string> OnLobbyLeft;
+        public static event Action<Lobby, bool, string> OnLeftLobby;
         public static event Action<Lobby, bool, string> OnLobbyRemoved;
         public static event Action<Lobby, string>       OnLobbyUpdated;
 
@@ -29,7 +29,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         // ===== TRIGGERS =====
         public static void TriggerLobbyCreated(Lobby lobby, bool success, string message) => OnLobbyCreated?.Invoke(lobby, success, message);
         public static void TriggerLobbyJoined (Lobby lobby, bool success, string message) => OnLobbyJoined?.Invoke(lobby, success, message);
-        public static void TriggerLobbyLeft   (Lobby lobby, bool success, string message) => OnLobbyLeft?.Invoke(lobby, success, message);
+        public static void TriggerLobbyLeft   (Lobby lobby, bool success, string message) => OnLeftLobby?.Invoke(lobby, success, message);
         public static void TriggerLobbyRemoved(Lobby lobby, bool success, string message) => OnLobbyRemoved?.Invoke(lobby, success, message);
         public static void TriggerLobbyUpdated(Lobby lobby, string message)               => OnLobbyUpdated?.Invoke(lobby, message);
 
@@ -50,7 +50,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         {
             OnLobbyCreated = null;
             OnLobbyJoined  = null;
-            OnLobbyLeft    = null;
+            OnLeftLobby    = null;
             OnLobbyRemoved = null;
             OnLobbyUpdated = null;
 
@@ -64,24 +64,6 @@ namespace _GAME.Scripts.Networking.Lobbies
             OnRelayHostReady  = null;
             OnRelayClientReady= null;
             OnRelayError      = null;
-        }
-
-        public static void LogSubscriberCounts()
-        {
-            UnityEngine.Debug.Log($"[LobbyEvents] Subscribers:" +
-                $"\n  OnLobbyCreated: {OnLobbyCreated?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnLobbyJoined: {OnLobbyJoined?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnLobbyLeft: {OnLobbyLeft?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnLobbyRemoved: {OnLobbyRemoved?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnLobbyUpdated: {OnLobbyUpdated?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnPlayerJoined: {OnPlayerJoined?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnPlayerLeft: {OnPlayerLeft?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnPlayerUpdated: {OnPlayerUpdated?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnPlayerKicked: {OnPlayerKicked?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnGameStarted: {OnGameStarted?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnRelayHostReady: {OnRelayHostReady?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnRelayClientReady: {OnRelayClientReady?.GetInvocationList()?.Length ?? 0}" +
-                $"\n  OnRelayError: {OnRelayError?.GetInvocationList()?.Length ?? 0}");
         }
     }
 }

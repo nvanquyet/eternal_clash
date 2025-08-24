@@ -40,20 +40,20 @@ namespace _GAME.Scripts.UI.WaitingRoom
             //Todo: Call the method to kick player from lobby
             if (player == null)
             {
-                Debug.LogError("Player is not initialized in ItemPlayerList.");
+                Debug.LogError("[ItemPlayerList] Player is not initialized in ItemPlayerList.");
                 return;
             }
             //Disable the kick button to prevent multiple clicks
             kickButton.interactable = false;
-            LobbyExtensions.KickPlayerFromLobby(player.Id).ContinueWith(task =>
+            LobbyExtensions.KickPlayerAsync(player.Id).ContinueWith(task =>
             {
                 if (task.IsFaulted)
                 {
-                    Debug.LogError($"Failed to kick player {player.Id}: {task.Exception}");
+                    Debug.LogError($"[ItemPlayerList] Failed to kick player {player.Id}: {task.Exception}");
                 }
                 else
                 {
-                    Debug.Log($"Player {player.Id} has been kicked from the lobby.");
+                    Debug.Log($"[ItemPlayerList] Player {player.Id} has been kicked from the lobby.");
                 }
             });
         }
@@ -63,7 +63,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
             //Todo: Call the method to set player ready state
             if (player == null)
             {
-                Debug.LogError("Player is not initialized in ItemPlayerList.");
+                Debug.LogError("[ItemPlayerList] Player is not initialized in ItemPlayerList.");
                 return;
             }
             //Disable the toggle to prevent multiple clicks
@@ -71,11 +71,11 @@ namespace _GAME.Scripts.UI.WaitingRoom
             {
                 if (task.IsFaulted)
                 {
-                    Debug.LogError($"Failed to set player {player.Id} ready state: {task.Exception}");
+                    Debug.LogError($"[ItemPlayerList] Failed to set player {player.Id} ready state: {task.Exception}");
                 }
                 else
                 {
-                    Debug.Log($"Player {player.Id} ready state set to {arg0}.");
+                    Debug.Log($"[ItemPlayerList] Player {player.Id} ready state set to {arg0}.");
                 }
             });
         }
@@ -94,7 +94,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             if (playerNameText == null)
             {
-                Debug.LogError("playerNameText is not assigned in ItemPlayerList.");
+                Debug.LogError("[ItemPlayerList] playerNameText is not assigned in ItemPlayerList.");
                 return;
             }
             playerNameText.text = playerName;
@@ -104,7 +104,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             if (readyToggle == null)
             {
-                Debug.LogError("readyToggle is not assigned in ItemPlayerList.");
+                Debug.LogError("[ItemPlayerList] readyToggle is not assigned in ItemPlayerList.");
                 return;
             }
             readyToggle.isOn = isReady;
@@ -114,7 +114,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             if (kickButton == null)
             {
-                Debug.LogError("kickButton is not assigned in ItemPlayerList.");
+                Debug.LogError("[ItemPlayerList] kickButton is not assigned in ItemPlayerList.");
                 return;
             }
             kickButton.gameObject.SetActive(isActive);

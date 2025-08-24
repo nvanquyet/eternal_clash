@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
@@ -5,7 +6,6 @@ using Unity.Netcode;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using Random = UnityEngine.Random;
 
 namespace _GAME.Scripts.Core.WaitingRoom
 {
@@ -16,234 +16,479 @@ namespace _GAME.Scripts.Core.WaitingRoom
 
         [Header("Spawn Points")]
         [SerializeField] private Transform[] spawnPoints;
+        
+        [Header("Settings")]
+        [SerializeField] private float spawnDelay = 0.5f;
+        [SerializeField] private float clientReadyTimeout = 2.5f;
+        [SerializeField] private bool debugMode = false;
 
-        // Quản lý slot
+        // Spawn point management
         private readonly List<Transform> available = new();
         private readonly List<Transform> usedSpawnPoints = new();
-        private readonly Dictionary<ulong, Transform> slotByClient = new();     // NEW: clientId -> spawnPoint
+        private readonly Dictionary<ulong, Transform> slotByClient = new();
 
-        // Lưu player đã spawn theo clientId
-        private readonly Dictionary<ulong, NetworkObject> spawned = new();
+        // Player tracking
+        private readonly Dictionary<ulong, NetworkObject> spawnedPlayers = new();
+        private readonly HashSet<ulong> pendingSpawns = new();
+        private readonly Dictionary<ulong, float> clientConnectTimes = new();
+
+        // State
+        private bool _isInitialized = false;
 
         private void Awake()
         {
-            if (spawnPoints == null || spawnPoints.Length == 0)
-            {
-                Debug.LogError("[WaitingRoomSpawner] No spawn points assigned.");
-                return;
-            }
-            RefreshAvailableSpawnPoints();
+            ValidateSetup();
+            InitializeSpawnPoints();
         }
 
-        public override void OnNetworkSpawn()
+        private void ValidateSetup()
         {
-            if (!IsServer) return;
-
-            var nm = NetworkManager.Singleton;
-            if (nm == null) return;
-
-            nm.OnClientConnectedCallback += OnClientConnected;
-            nm.OnClientDisconnectCallback += OnClientDisconnected;
-            nm.SceneManager.OnLoadEventCompleted += OnSceneLoadCompleted;
-
-            LobbyEvents.OnPlayerKicked += OnPlayerKicked;
-        }
-
-        public override void OnNetworkDespawn()
-        {
-            if (!IsServer) return;
-
-            var nm = NetworkManager.Singleton;
-            if (nm == null) return;
-
-            nm.OnClientConnectedCallback -= OnClientConnected;
-            nm.OnClientDisconnectCallback -= OnClientDisconnected;
-            nm.SceneManager.OnLoadEventCompleted -= OnSceneLoadCompleted;
-
-            LobbyEvents.OnPlayerKicked -= OnPlayerKicked;
-        }
-
-        // ===== Relay/Lobby kick -> disconnect, cleanup sẽ chạy qua OnClientDisconnected
-        private void OnPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string _)
-        {
-            if (!IsServer || player == null) return;
-
-            if (!ClientIdentityRegistry.Instance.TryGetClientId(player.Id, out var clientId))
-            {
-                Debug.LogWarning($"[WaitingRoomSpawner] Kick: no clientId mapped for UGS {player.Id}");
-                return;
-            }
-
-            Debug.Log($"[WaitingRoomSpawner] Kicking client {clientId} (UGS {player.Id})");
-            NetworkManager.Singleton.DisconnectClient(clientId);
-        }
-
-        // ===== Scene load xong mới spawn (chuẩn nhất)
-        private void OnSceneLoadCompleted(string sceneName, LoadSceneMode mode,
-                                          List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
-        {
-            if (!IsServer) return;
-            if (sceneName != gameObject.scene.name) return;
-
-            Debug.Log($"[WaitingRoomSpawner] Scene {sceneName} loaded. Spawning clientsCompleted...");
-
-            foreach (var clientId in clientsCompleted)
-            {
-                TrySpawnFor(clientId);
-            }
-        }
-
-        private void OnClientConnected(ulong clientId)
-        {
-            if (!IsServer) return;
-            // Không spawn ở đây để tránh spawn trước khi client vào scene.
-            Debug.Log($"[WaitingRoomSpawner] Player {clientId} connected.");
-            TrySpawnFor(clientId);
-        }
-
-        private void OnClientDisconnected(ulong clientId)
-        {
-            if (!IsServer) return;
-
-            Debug.Log($"[WaitingRoomSpawner] Player {clientId} disconnected. Cleaning up...");
-
-            if (spawned.TryGetValue(clientId, out var player) && player != null)
-            {
-                RestoreSpawnPoint(clientId, player.transform.position);
-
-                if (player.IsSpawned)
-                {
-                    player.Despawn(true);
-                }
-            }
-
-            spawned.Remove(clientId);
-            slotByClient.Remove(clientId);
-            ClientIdentityRegistry.Instance?.UnregisterByClient(clientId);
-        }
-
-        // ===== Core Spawn Logic =====
-        private void TrySpawnFor(ulong clientId)
-        {
-            var nm = NetworkManager.Singleton;
-            if (nm == null) return;
-
-            // Client còn kết nối không?
-            if (!nm.ConnectedClients.ContainsKey(clientId))
-            {
-                Debug.LogWarning($"[WaitingRoomSpawner] Client {clientId} not connected, skip spawning.");
-                return;
-            }
-
-            // Đã spawn trong spawner này?
-            if (spawned.ContainsKey(clientId))
-            {
-                Debug.LogWarning($"[WaitingRoomSpawner] Player {clientId} already spawned (local dict).");
-                return;
-            }
-
-            // Client đã có PlayerObject ở nơi khác?
-            var client = nm.ConnectedClients[clientId];
-            if (client.PlayerObject != null && client.PlayerObject.IsSpawned)
-            {
-                Debug.LogWarning($"[WaitingRoomSpawner] Client {clientId} already has PlayerObject; syncing handle.");
-                spawned[clientId] = client.PlayerObject;
-                return;
-            }
-
             if (playerPrefab == null)
             {
-                Debug.LogError("[WaitingRoomSpawner] playerPrefab is null.");
+                Debug.LogError("[WaitingRoomSpawner] Player prefab is not assigned!");
                 return;
             }
 
-            var (pos, rot, spawnPoint) = GetSpawnTR();
-
-            var instance = Instantiate(playerPrefab, pos, rot);
-            instance.SpawnAsPlayerObject(clientId);
-
-            spawned[clientId] = instance;
-
-            if (spawnPoint != null)
+            if (spawnPoints == null || spawnPoints.Length == 0)
             {
-                usedSpawnPoints.Add(spawnPoint);
-                slotByClient[clientId] = spawnPoint;   // NEW: ghi lại chỗ của client
-            }
-
-            Debug.Log($"[WaitingRoomSpawner] Spawned player {clientId} at {pos}");
-
-            var receiver = instance.GetComponent<IReceiveSpawnChoice>();
-            receiver?.OnSpawnWithChoice(default);
-        }
-
-        private (Vector3 position, Quaternion rotation, Transform spawnPoint) GetSpawnTR()
-        {
-            if (available.Count == 0)
-            {
-                Debug.LogWarning("[WaitingRoomSpawner] No available spawn points! Using random position.");
-                var pos = new Vector3(Random.Range(-3f, 3f), 0f, Random.Range(-3f, 3f));
-                return (pos, Quaternion.identity, null);
-            }
-
-            var idx = Random.Range(0, available.Count);
-            var sp = available[idx];
-            available.RemoveAt(idx);
-            return (sp.position, sp.rotation, sp);
-        }
-
-        // Trả đúng slot theo map; fallback “gần nhất” nếu mất map
-        private void RestoreSpawnPoint(ulong clientId, Vector3 playerPosition)
-        {
-            // Trả về đúng slot nếu có
-            if (slotByClient.TryGetValue(clientId, out var exact))
-            {
-                if (exact != null && !available.Contains(exact))
-                {
-                    usedSpawnPoints.Remove(exact);
-                    available.Add(exact);
-                    Debug.Log($"[WaitingRoomSpawner] Restored slot for {clientId}: {exact.name}");
-                }
+                Debug.LogError("[WaitingRoomSpawner] No spawn points assigned!");
                 return;
             }
 
-            // Fallback: tìm gần nhất
-            Transform closest = null;
-            float closestDist = float.MaxValue;
-            foreach (var sp in usedSpawnPoints)
-            {
-                if (sp == null) continue;
-                var d = Vector3.Distance(playerPosition, sp.position);
-                if (d < closestDist) { closestDist = d; closest = sp; }
-            }
-            if (closest != null && closestDist < 1f)
-            {
-                usedSpawnPoints.Remove(closest);
-                available.Add(closest);
-                Debug.Log($"[WaitingRoomSpawner] Restored nearest slot: {closest.name}");
-            }
+            _isInitialized = true;
         }
 
-        private void RefreshAvailableSpawnPoints()
+        private void InitializeSpawnPoints()
         {
             available.Clear();
             usedSpawnPoints.Clear();
             slotByClient.Clear();
 
             if (spawnPoints != null)
+            {
                 available.AddRange(spawnPoints);
+                if (debugMode) Debug.Log($"[WaitingRoomSpawner] Initialized {available.Count} spawn points");
+            }
         }
 
-        [ContextMenu("Debug Spawn Info")]
-        private void DebugSpawnInfo()
+        public override void OnNetworkSpawn()
         {
-            Debug.Log($"Available spawn points: {available.Count}");
-            Debug.Log($"Used spawn points: {usedSpawnPoints.Count}");
-            Debug.Log($"Spawned players: {spawned.Count}");
+            if (!_isInitialized)
+            {
+                Debug.LogError("[WaitingRoomSpawner] Not properly initialized!");
+                return;
+            }
+
+            if (!IsServer)
+            {
+                if (debugMode) Debug.Log("[WaitingRoomSpawner] Client instance spawned");
+                return;
+            }
+
+            if (debugMode) Debug.Log("[WaitingRoomSpawner] Server instance spawned, registering events");
+
+            RegisterEvents();
+            
+            // Handle any clients that connected before we spawned
+            HandleExistingClients();
+
+            // Start timeout monitor
+            StartCoroutine(MonitorClientReadyTimeout());
         }
+
+        public override void OnNetworkDespawn()
+        {
+            if (IsServer)
+            {
+                UnregisterEvents();
+                CleanupAllPlayers();
+            }
+        }
+
+        private void RegisterEvents()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm != null)
+            {
+                nm.OnClientConnectedCallback += OnClientConnected;
+                nm.OnClientDisconnectCallback += OnClientDisconnected;
+                nm.SceneManager.OnLoadEventCompleted += OnSceneLoadCompleted;
+            }
+
+            // Lobby events for kick handling
+            LobbyEvents.OnPlayerKicked += OnPlayerKicked;
+            LobbyEvents.OnLobbyRemoved += OnLobbyRemoved;
+        }
+
+        private void UnregisterEvents()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm != null)
+            {
+                nm.OnClientConnectedCallback -= OnClientConnected;
+                nm.OnClientDisconnectCallback -= OnClientDisconnected;
+                nm.SceneManager.OnLoadEventCompleted -= OnSceneLoadCompleted;
+            }
+
+            LobbyEvents.OnPlayerKicked -= OnPlayerKicked;
+            LobbyEvents.OnLobbyRemoved -= OnLobbyRemoved;
+        }
+
+        private void HandleExistingClients()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm?.ConnectedClients == null) return;
+
+            foreach (var clientId in nm.ConnectedClients.Keys)
+            {
+                if (!spawnedPlayers.ContainsKey(clientId))
+                {
+                    if (debugMode) Debug.Log($"[WaitingRoomSpawner] Handling existing client: {clientId}");
+                    OnClientConnected(clientId);
+                }
+            }
+        }
+
+        #region Event Handlers
+
+        private void OnClientConnected(ulong clientId)
+        {
+            if (!IsServer) return;
+
+            if (debugMode) Debug.Log($"[WaitingRoomSpawner] Client {clientId} connected");
+            
+            clientConnectTimes[clientId] = Time.time;
+
+            // Don't spawn immediately - wait for scene load completion
+            if (debugMode) Debug.Log($"[WaitingRoomSpawner] Waiting for scene load completion for client {clientId}");
+        }
+
+        private void OnClientDisconnected(ulong clientId)
+        {
+            if (!IsServer) return;
+
+            if (debugMode) Debug.Log($"[WaitingRoomSpawner] Client {clientId} disconnected, cleaning up");
+
+            CleanupClient(clientId);
+        }
+
+        private void OnSceneLoadCompleted(string sceneName, LoadSceneMode mode, 
+                                        List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
+        {
+            if (!IsServer) return;
+            
+            // Only handle our scene
+            if (sceneName != gameObject.scene.name) return;
+
+            if (debugMode) Debug.Log($"[WaitingRoomSpawner] Scene '{sceneName}' loaded. Clients completed: {clientsCompleted.Count}, timed out: {clientsTimedOut.Count}");
+
+            // Spawn for clients that completed scene load
+            foreach (var clientId in clientsCompleted)
+            {
+                StartCoroutine(SpawnPlayerWithDelay(clientId, spawnDelay));
+            }
+
+            // Handle timed out clients
+            foreach (var clientId in clientsTimedOut)
+            {
+                Debug.LogWarning($"[WaitingRoomSpawner] Client {clientId} timed out during scene load");
+            }
+        }
+
+        private void OnPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
+        {
+            if (!IsServer || player == null) return;
+
+            if (debugMode) Debug.Log($"[WaitingRoomSpawner] Player kicked from lobby: {player.Id}");
+
+            // Find and disconnect the corresponding network client
+            var registry = ClientIdentityRegistry.Instance;
+            if (registry != null && registry.TryGetClientId(player.Id, out var clientId))
+            {
+                if (debugMode) Debug.Log($"[WaitingRoomSpawner] Disconnecting kicked player: UGS({player.Id}) -> Client({clientId})");
+                NetworkManager.Singleton.DisconnectClient(clientId);
+            }
+            else
+            {
+                Debug.LogWarning($"[WaitingRoomSpawner] Could not find network client for kicked player: {player.Id}");
+            }
+        }
+
+        private void OnLobbyRemoved(Lobby lobby, bool success, string message)
+        {
+            if (!IsServer || !success) return;
+
+            Debug.Log("[WaitingRoomSpawner] Lobby removed, cleaning up all players");
+            CleanupAllPlayers();
+        }
+
+        #endregion
+
+        #region Spawning Logic
+
+        private IEnumerator SpawnPlayerWithDelay(ulong clientId, float delay)
+        {
+            if (delay > 0)
+            {
+                yield return new WaitForSeconds(delay);
+            }
+
+            TrySpawnPlayer(clientId);
+        }
+
+        private void TrySpawnPlayer(ulong clientId)
+        {
+            if (!IsServer) return;
+
+            // Validate client is still connected
+            var nm = NetworkManager.Singleton;
+            if (nm == null || !nm.ConnectedClients.ContainsKey(clientId))
+            {
+                if (debugMode) Debug.LogWarning($"[WaitingRoomSpawner] Client {clientId} no longer connected, skipping spawn");
+                return;
+            }
+
+            // Check if already spawned
+            if (spawnedPlayers.ContainsKey(clientId))
+            {
+                if (debugMode) Debug.LogWarning($"[WaitingRoomSpawner] Player {clientId} already spawned");
+                return;
+            }
+
+            // Check if spawn is pending
+            if (pendingSpawns.Contains(clientId))
+            {
+                if (debugMode) Debug.LogWarning($"[WaitingRoomSpawner] Spawn already pending for client {clientId}");
+                return;
+            }
+
+            // Check if client already has a player object
+            var client = nm.ConnectedClients[clientId];
+            if (client.PlayerObject != null && client.PlayerObject.IsSpawned)
+            {
+                if (debugMode) Debug.Log($"[WaitingRoomSpawner] Client {clientId} already has player object, registering locally");
+                spawnedPlayers[clientId] = client.PlayerObject;
+                return;
+            }
+
+            pendingSpawns.Add(clientId);
+
+            try
+            {
+                var (position, rotation, spawnPoint) = GetSpawnTransform();
+                
+                if (debugMode) Debug.Log($"[WaitingRoomSpawner] Spawning player for client {clientId} at {position}");
+
+                var playerInstance = Instantiate(playerPrefab, position, rotation);
+                
+                // Add identity sync component if not present
+                if (playerInstance.GetComponent<IdentitySyncComponent>() == null)
+                {
+                    playerInstance.gameObject.AddComponent<IdentitySyncComponent>();
+                }
+
+                playerInstance.SpawnAsPlayerObject(clientId);
+
+                spawnedPlayers[clientId] = playerInstance;
+
+                if (spawnPoint != null)
+                {
+                    usedSpawnPoints.Add(spawnPoint);
+                    slotByClient[clientId] = spawnPoint;
+                }
+
+                if (debugMode) Debug.Log($"[WaitingRoomSpawner] Successfully spawned player for client {clientId}");
+
+                // Notify spawn choice if supported
+                var receiver = playerInstance.GetComponent<IReceiveSpawnChoice>();
+                receiver?.OnSpawnWithChoice(new SpawnChoice { Position = position, Rotation = rotation });
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[WaitingRoomSpawner] Failed to spawn player for client {clientId}: {e.Message}");
+            }
+            finally
+            {
+                pendingSpawns.Remove(clientId);
+            }
+        }
+
+        private (Vector3 position, Quaternion rotation, Transform spawnPoint) GetSpawnTransform()
+        {
+            if (available.Count == 0)
+            {
+                Debug.LogWarning("[WaitingRoomSpawner] No available spawn points, using fallback position");
+                var fallbackPos = new Vector3(
+                    Random.Range(-3f, 3f), 
+                    0f, 
+                    Random.Range(-3f, 3f)
+                );
+                return (fallbackPos, Quaternion.identity, null);
+            }
+
+            var index = Random.Range(0, available.Count);
+            var spawnPoint = available[index];
+            available.RemoveAt(index);
+
+            return (spawnPoint.position, spawnPoint.rotation, spawnPoint);
+        }
+
+        #endregion
+
+        #region Cleanup Logic
+
+        private void CleanupClient(ulong clientId)
+        {
+            // Remove from pending spawns
+            pendingSpawns.Remove(clientId);
+            
+            // Remove connect time tracking
+            clientConnectTimes.Remove(clientId);
+
+            // Cleanup spawned player
+            if (spawnedPlayers.TryGetValue(clientId, out var playerObject))
+            {
+                RestoreSpawnPoint(clientId, playerObject.transform.position);
+
+                if (playerObject != null && playerObject.IsSpawned)
+                {
+                    playerObject.Despawn(destroy: true);
+                }
+
+                spawnedPlayers.Remove(clientId);
+            }
+
+            // Cleanup slot tracking
+            slotByClient.Remove(clientId);
+
+            // Cleanup from identity registry
+            var registry = ClientIdentityRegistry.Instance;
+            registry?.UnregisterByClient(clientId);
+
+            if (debugMode) Debug.Log($"[WaitingRoomSpawner] Cleaned up client {clientId}");
+        }
+
+        private void CleanupAllPlayers()
+        {
+            if (debugMode) Debug.Log($"[WaitingRoomSpawner] Cleaning up all {spawnedPlayers.Count} players");
+
+            var clientsToCleanup = new List<ulong>(spawnedPlayers.Keys);
+            foreach (var clientId in clientsToCleanup)
+            {
+                CleanupClient(clientId);
+            }
+
+            // Reset spawn point availability
+            InitializeSpawnPoints();
+        }
+
+        private void RestoreSpawnPoint(ulong clientId, Vector3 playerLastPos)
+        {
+            if (slotByClient.TryGetValue(clientId, out var used))
+            {
+                usedSpawnPoints.Remove(used);
+                if (used != null && !available.Contains(used))
+                {
+                    available.Add(used);
+                }
+
+                if (debugMode)
+                {
+                    Debug.Log($"[WaitingRoomSpawner] Restored spawn point for client {clientId} at {used.position} (player last at {playerLastPos})");
+                }
+            }
+            else
+            {
+                if (debugMode) Debug.Log($"[WaitingRoomSpawner] No reserved spawn point to restore for client {clientId}");
+            }
+        }
+
+        #endregion
+
+        #region Timeouts & Utilities
+
+        private IEnumerator MonitorClientReadyTimeout()
+        {
+            var wait = new WaitForSeconds(1f);
+            while (IsServer)
+            {
+                var now = Time.time;
+                // Copy keys to avoid enumeration issues
+                var ids = new List<ulong>(clientConnectTimes.Keys);
+                foreach (var clientId in ids)
+                {
+                    if (spawnedPlayers.ContainsKey(clientId) || pendingSpawns.Contains(clientId))
+                        continue;
+
+                    if (now - clientConnectTimes[clientId] > clientReadyTimeout)
+                    {
+                        Debug.LogWarning($"[WaitingRoomSpawner] Client {clientId} exceeded ready timeout ({clientReadyTimeout}s). Forcing spawn.");
+                        TrySpawnPlayer(clientId);
+                    }
+                }
+
+                yield return wait;
+            }
+        }
+        
+        #endregion
+
+        [ContextMenu("Force Respawn All")]
+        private void ForceRespawnAll()
+        {
+            if (!IsServer) return;
+
+            foreach (var kvp in new List<KeyValuePair<ulong, NetworkObject>>(spawnedPlayers))
+            {
+                CleanupClient(kvp.Key);
+                StartCoroutine(SpawnPlayerWithDelay(kvp.Key, 0.1f));
+            }
+        }
+
+        [ContextMenu("Debug Dump State")]
+        private void DebugDumpState()
+        {
+            Debug.Log($"[WaitingRoomSpawner] State:\n  available: {available.Count}\n  used: {usedSpawnPoints.Count}\n  spawned: {spawnedPlayers.Count}\n  pending: {pendingSpawns.Count}");
+        }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            if (spawnPoints == null || spawnPoints.Length == 0)
+            {
+                // Try to auto-fill from children named "SpawnPoints" or any direct children
+                var container = transform.Find("SpawnPoints");
+                if (container != null)
+                {
+                    var list = new List<Transform>();
+                    foreach (Transform t in container)
+                        list.Add(t);
+                    spawnPoints = list.ToArray();
+                }
+                else
+                {
+                    // Fallback: collect direct children
+                    var list = new List<Transform>();
+                    foreach (Transform t in transform)
+                        list.Add(t);
+                    spawnPoints = list.ToArray();
+                }
+            }
+        }
+#endif
     }
 
+    /// <summary>
+    /// Optional interface for spawn receivers to know about the chosen transform
+    /// </summary>
     public interface IReceiveSpawnChoice
     {
-        void OnSpawnWithChoice(object choice);
+        void OnSpawnWithChoice(SpawnChoice choice);
+    }
+
+    public struct SpawnChoice
+    {
+        public Vector3 Position;
+        public Quaternion Rotation;
     }
 }

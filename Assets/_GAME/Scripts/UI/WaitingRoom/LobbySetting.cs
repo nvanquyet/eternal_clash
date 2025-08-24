@@ -1,7 +1,7 @@
-﻿using _GAME.Scripts.Config;
+﻿using System;
+using _GAME.Scripts.Config;
 using _GAME.Scripts.Networking.Lobbies;
 using TMPro;
-using Unity.Services.Lobbies.Models;
 using UnityEngine;
 
 namespace _GAME.Scripts.UI.WaitingRoom
@@ -35,7 +35,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             lobbyNameInputField.text = LobbyExtensions.GetLobbyName();
             passwordInputField.text = LobbyExtensions.GetLobbyPassword();
-            var maxPlayers = LobbyExtensions.GetLobbyMaxPlayer();
+            var maxPlayers = LobbyExtensions.GetMaxPlayers();
             // Set the dropdown value based on the current max players
             if (maxPlayers > 0)
             {
@@ -46,12 +46,12 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 }
                 else
                 {
-                    Debug.LogWarning($"Max players {maxPlayers} not found in the configured options.");
+                    Debug.LogWarning($"[LobbySetting] Max players {maxPlayers} not found in the configured options.");
                 }
             }
             else
             {
-                Debug.LogWarning("Lobby Max Players is not set or invalid.");
+                Debug.LogWarning("[LobbySetting] Lobby Max Players is not set or invalid.");
             }
         }
 
@@ -59,7 +59,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             if (maxPlayersDropdown == null)
             {
-                Debug.LogError("Max Players Dropdown is not assigned in LobbySetting.");
+                Debug.LogError("[LobbySetting] Max Players Dropdown is not assigned in LobbySetting.");
                 return;
             }
 
@@ -74,26 +74,60 @@ namespace _GAME.Scripts.UI.WaitingRoom
             }
         }
 
-        private void OnMaxPlayersChanged(int arg0)
+        private async void OnMaxPlayersChanged(int arg0)
         {
-            LobbyExtensions.OnMaxPlayersChanged(GameConfig.Instance.maxPlayersPerLobby[arg0]);
-        }
-
-        private void OnLobbyPasswordChanged(string arg0)
-        {
-            //Check if the password is empty or null
-            if (string.IsNullOrEmpty(arg0) || string.IsNullOrWhiteSpace(arg0) || arg0.Length < 8)
+            try
             {
-                Debug.LogWarning("Password is empty or null, setting to null.");
-                arg0 = "12345678"; // Set to null if empty
-                PopupNotification.Instance.ShowPopup(false, "Password must be at least 8 characters long.\n Using default password", "Warning");
+                var result =  await LobbyExtensions.UpdateMaxPlayersAsync(GameConfig.Instance.maxPlayersPerLobby[arg0]);
+                if (LobbyExtensions.IsHost() && !result)
+                {
+                    Debug.LogError("[LobbySetting] Failed to update max players.");
+                }
             }
-            LobbyExtensions.OnPasswordChanged(arg0);
+            catch (Exception e)
+            {
+                Debug.LogError($"[LobbySetting] {e.Message}");
+            }
         }
 
-        private void OnLobbyNameChanged(string arg0)
+        private async void OnLobbyPasswordChanged(string arg0)
         {
-            LobbyExtensions.OnLobbyNameChanged(arg0);
+            try
+            {
+                //Check if the password is empty or null
+                if (string.IsNullOrEmpty(arg0) || string.IsNullOrWhiteSpace(arg0) || arg0.Length < 8)
+                {
+                    Debug.LogWarning("[LobbySetting] Password is empty or null, setting to null.");
+                    arg0 = "12345678"; // Set to null if empty
+                    PopupNotification.Instance.ShowPopup(false, "Password must be at least 8 characters long.\n Using default password", "Warning");
+                }
+                
+                var result = await LobbyExtensions.UpdateLobbyPasswordAsync(arg0);
+                if (!result)
+                {
+                    Debug.LogError("[LobbySetting] Failed to update lobby password.");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[LobbySetting] {e.Message}");
+            }
+        }
+
+        private async void OnLobbyNameChanged(string arg0)
+        {
+            try
+            {
+                var result = await LobbyExtensions.UpdateLobbyNameAsync(arg0);
+                if (!result)
+                {
+                    Debug.LogError("[LobbySetting] Failed to update lobby password.");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[LobbySetting] {e.Message}");
+            }
         }
     }
 }

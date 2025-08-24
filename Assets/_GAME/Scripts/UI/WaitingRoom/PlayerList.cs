@@ -15,7 +15,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             try
             {
-                var allPlayer = LobbyExtensions.GetAllPlayersInLobby();
+                var allPlayer = LobbyExtensions.GetAllPlayers();
                 var isHost = LobbyExtensions.IsHost();
                 
                 if (playerListContainer == null || itemPlayerListPrefab == null)

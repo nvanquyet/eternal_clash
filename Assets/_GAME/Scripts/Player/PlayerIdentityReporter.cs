@@ -22,7 +22,7 @@ namespace _GAME.Scripts.Player
             {
                 var pid = AuthenticationService.Instance?.PlayerId;
                 if (!string.IsNullOrEmpty(pid))
-                    ClientIdentityRegistry.Instance?.Register(OwnerClientId, pid);
+                    ClientIdentityRegistry.Instance?.RegisterMapping(pid, OwnerClientId);
             }
         }
 
@@ -30,7 +30,7 @@ namespace _GAME.Scripts.Player
         private void RegisterIdentityServerRpc(string ugsPlayerId, ServerRpcParams rpc = default)
         {
             var senderClientId = rpc.Receive.SenderClientId;
-            ClientIdentityRegistry.Instance?.Register(senderClientId, ugsPlayerId);
+            ClientIdentityRegistry.Instance?.RegisterMapping(ugsPlayerId, senderClientId);
         }
 
         public override void OnNetworkDespawn()

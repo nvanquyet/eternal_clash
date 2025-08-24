@@ -49,8 +49,6 @@ namespace _GAME.Scripts.UI.Home
                 };
                 if (!AuthenticationService.Instance.IsSignedIn)
                     await AuthenticationService.Instance.SignInAnonymouslyAsync();
-                
-                LobbyExtensions.Initialize();
             }
             catch (Exception e)
             {

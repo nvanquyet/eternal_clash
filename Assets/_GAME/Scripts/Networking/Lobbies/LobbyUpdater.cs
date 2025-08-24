@@ -26,7 +26,9 @@ namespace _GAME.Scripts.Lobbies
         // state
         private Lobby _lastSnapshot;
         private bool _wasHost;
-        private float _backoffSec; // tăng khi lỗi/429
+        private float _backoffSec;// tăng khi lỗi/429
+        
+        public bool IsRunning => _isUpdating;
 
         public void Initialize(LobbyHandler lobbyManager, float interval = 4f)
         {
@@ -127,7 +129,7 @@ namespace _GAME.Scripts.Lobbies
 
                     // 4) Raise snapshot mới cho UI
                     _lobbyManager?.RaiseLobbyUpdated(lobby);
-
+                    
                     _lastSnapshot = lobby;
                 }
             }

@@ -75,19 +75,17 @@ namespace _GAME.Scripts.Player.Locomotion
         public void OnFixedUpdate(PlayerInputData inputData)
         {
             // Chỉ server xử lý physics
-            if (!_playerController.IsServer) return;
-            
+            //if (!_playerController.IsServer) return;
             _currentState?.OnFixedUpdate(inputData, this);
             ApplyGravity();
             
             // CHỈ server move CharacterController
-            if (_characterController != null && _characterController.enabled)
+            if (_characterController != null)
             {
                 _characterController.Move(_velocity * Time.fixedDeltaTime);
             }
         }
-        #endregion
-
+        #endregion 
         #region State Management
         public void SetState(ALocomotionState newState)
         {
@@ -142,13 +140,14 @@ namespace _GAME.Scripts.Player.Locomotion
                 if (moveDir != Vector3.zero)
                 {
                     Quaternion toRotation = Quaternion.LookRotation(moveDir);
-
+                    _playerTransform.rotation = Quaternion.Slerp(
+                        _playerTransform.rotation, toRotation, _config.RotationSpeed * Time.deltaTime);
                     // Chỉ xoay khi là server (loại bỏ xoay client-prediction)
-                    if (_playerController.IsServer)
-                    {
-                        _playerTransform.rotation = Quaternion.Slerp(
-                            _playerTransform.rotation, toRotation, _config.RotationSpeed * Time.deltaTime);
-                    }
+                    // if (_playerController.IsServer)
+                    // {
+                    //     _playerTransform.rotation = Quaternion.Slerp(
+                    //         _playerTransform.rotation, toRotation, _config.RotationSpeed * Time.deltaTime);
+                    // }
                 }
             }
             else
@@ -195,7 +194,8 @@ namespace _GAME.Scripts.Player.Locomotion
         #endregion
 
         #region Dash System
-        public void UpdateDashSystem()
+
+        private void UpdateDashSystem()
         {
             if (_dashCooldown > 0)
                 _dashCooldown -= Time.deltaTime;
@@ -218,15 +218,5 @@ namespace _GAME.Scripts.Player.Locomotion
         public void ResetAirDashes() => _airDashesUsed = 0;
         public void ResetDashCooldown() => _dashCooldown = 0f;
         #endregion
-
-        public void UpdateAnimationFromNetwork(Vector3 valueVelocity)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public void UpdateGroundedFromNetwork(bool valueIsGrounded)
-        {
-            throw new System.NotImplementedException();
-        }
     }
 }
