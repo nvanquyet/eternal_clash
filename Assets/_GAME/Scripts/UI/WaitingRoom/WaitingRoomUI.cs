@@ -66,7 +66,6 @@ namespace _GAME.Scripts.UI.WaitingRoom
         }
 
         
-        
         private void OnDestroy()
         {
             UnregisterEvent();

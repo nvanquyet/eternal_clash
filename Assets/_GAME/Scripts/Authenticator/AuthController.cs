@@ -9,7 +9,7 @@ namespace _GAME.Scripts.Authenticator
     {
         [SerializeField] private AuthUIManager uiManager;
         private IAuthManager<PlayFabAuthManager> authManager;
-
+    
         private void Awake()
         {
             authManager = PlayFabAuthManager.Instance;
@@ -38,6 +38,36 @@ namespace _GAME.Scripts.Authenticator
                 //Show popup notification
                 PopupNotification.Instance.ShowPopup(success, message);
             });
+            
+            RegisterEvent();
+        }
+        
+        private void OnDestroy()
+        {
+            UnRegisterEvent();
+        }
+        
+        private void RegisterEvent()
+        {
+            if (authManager is PlayFabAuthManager pfManager)
+            {
+                pfManager.OnSecurityAlert += OnSecurityAlert;
+            }
+        }
+
+        private void OnSecurityAlert(SecurityAlertInfo alertInfo)
+        {
+            var alertMessage = $"Cảnh báo bảo mật: Có người cố đăng nhập vào tài khoản của bạn từ {alertInfo.AttemptDeviceInfo} lúc {alertInfo.AttemptTime:HH:mm:ss}";
+            PopupNotification.Instance.ShowPopup(false, alertMessage);
+        }
+        
+        
+        private void UnRegisterEvent()
+        {
+            if (authManager is PlayFabAuthManager pfManager)
+            {
+                pfManager.OnSecurityAlert -= OnSecurityAlert;
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using _GAME.Scripts.Config;
 using _GAME.Scripts.Lobbies;
 using _GAME.Scripts.Networking;
 using Unity.Services.Authentication;
@@ -76,6 +77,10 @@ namespace _GAME.Scripts.Networking.Lobbies
 
         #endregion
 
+        
+        public static string NormalizeLobbyCode(string code)
+            => (code ?? "").Trim().ToUpperInvariant();
+        
         #region Lobby Update Operations
 
         /// <summary>
@@ -111,7 +116,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// <summary>
         /// Update single lobby data value
         /// </summary>
-        public static async Task<bool> UpdateLobbyDataValueAsync(string lobbyId, string key, string value,
+        private static async Task<bool> UpdateLobbyDataValueAsync(string lobbyId, string key, string value,
             DataObject.VisibilityOptions visibility = DataObject.VisibilityOptions.Member)
         {
             if (string.IsNullOrEmpty(key))
@@ -129,6 +134,28 @@ namespace _GAME.Scripts.Networking.Lobbies
             return result != null;
         }
 
+        private static async Task<bool> UpdateLobbyDataValueAsync(
+            string lobbyId,
+            string key,
+            string value,
+            DataObject.IndexOptions index,
+            DataObject.VisibilityOptions visibility = DataObject.VisibilityOptions.Member)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                Debug.LogWarning("[LobbyDataExtensions] Data key cannot be empty");
+                return false;
+            }
+
+            var data = new Dictionary<string, DataObject>
+            {
+                { key, new DataObject(visibility, value ?? string.Empty, index) }
+            };
+
+            var result = await UpdateLobbyDataAsync(lobbyId, data);
+            return result != null;
+        }
+        
         /// <summary>
         /// Set relay join code in lobby data
         /// </summary>
@@ -161,7 +188,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         public static async Task<bool> SetLobbyPhaseAsync(string lobbyId, string phase)
         {
             return await UpdateLobbyDataValueAsync(lobbyId, LobbyConstants.LobbyData.PHASE,
-                phase ?? LobbyConstants.Phases.WAITING);
+                phase ?? SessionPhase.WAITING);
         }
 
         /// <summary>

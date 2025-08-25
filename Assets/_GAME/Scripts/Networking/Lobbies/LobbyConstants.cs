@@ -1,4 +1,5 @@
 ﻿using System;
+using _GAME.Scripts.Config;
 
 namespace _GAME.Scripts.Networking.Lobbies
 {
@@ -7,8 +8,21 @@ namespace _GAME.Scripts.Networking.Lobbies
     /// </summary>
     public static class LobbyConstants
     {
+        public enum MaxPlayerLobby
+        {
+            Four = 4,
+            Six = 6,
+            Eight = 8,
+            Ten = 10
+        }
+        
         #region Lobby Data Keys
         
+        public static class LobbyKeys
+        {
+            public const string CODE  = "CODE";
+            public const string PHASE = "PHASE";
+        }
         /// <summary>
         /// Keys used in Lobby.Data dictionary
         /// </summary>
@@ -63,22 +77,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         }
         
         #endregion
-
-        #region Lobby Phases
         
-        /// <summary>
-        /// Game phase values used to track lobby state
-        /// </summary>
-        public static class Phases
-        {
-            public const string WAITING = "Waiting";
-            public const string STARTING = "Starting";
-            public const string PLAYING = "Playing";
-            public const string FINISHED = "Finished";
-            public const string CANCELLED = "Cancelled";
-        }
-        
-        #endregion
 
         #region Player Roles
         
@@ -261,11 +260,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// </summary>
         public static bool IsValidPhase(string phase)
         {
-            return phase == Phases.WAITING || 
-                   phase == Phases.STARTING || 
-                   phase == Phases.PLAYING || 
-                   phase == Phases.FINISHED || 
-                   phase == Phases.CANCELLED;
+            return phase is SessionPhase.WAITING or SessionPhase.STARTING or SessionPhase.PLAYING or SessionPhase.FINISHED or SessionPhase.CANCELLED;
         }
         
         /// <summary>

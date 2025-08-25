@@ -23,7 +23,15 @@ namespace _GAME.Scripts.UI
             closeButton?.onClick.AddListener(HidePopup);
             popupPanel.SetActive(false);
         }
+        
+        protected override void OnDestroy()
+        {
+            base.OnDestroy();
+            closeButton?.onClick.RemoveListener(HidePopup);
+        }
 
+        
+        
         public void ShowPopup(bool isSuccess, string message, string title = "")
         {
             popupPanel.SetActive(true);

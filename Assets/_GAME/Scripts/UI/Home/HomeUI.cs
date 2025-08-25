@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
 using _GAME.Scripts.Authenticator;
+using _GAME.Scripts.Config;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Data;
-using _GAME.Scripts.Lobbies;
 using _GAME.Scripts.Lobbies.UI;
 using _GAME.Scripts.Networking.Lobbies;
-using _GAME.Scripts.Networking.Relay;
 using _GAME.Scripts.UI.Base;
 using TMPro;
 using Unity.Netcode;
@@ -15,7 +14,6 @@ using Unity.Services.Core;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace _GAME.Scripts.UI.Home
@@ -85,55 +83,62 @@ namespace _GAME.Scripts.UI.Home
 
         private async void OnHostButtonClicked()
         {
-            if (isProcessing) return;
-            
             try
             {
-                isProcessing = true;
-                
-                // Show loading with initial progress
-                LoadingUI.Instance.SetProgress(0.1f, 1f, "Creating lobby..");
-                
-                // Disable buttons during processing
-                SetButtonsInteractable(false);
-                
-                string defaultPassword = "12345678";
-                var createLobbyOption = new CreateLobbyOptions
+                if (isProcessing) return;
+            
+                try
                 {
-                    Password = defaultPassword, // Built-in password protection
-                    Data = new Dictionary<string, DataObject>
+                    isProcessing = true;
+                
+                    // Show loading with initial progress
+                    LoadingUI.Instance.SetProgress(0.1f, 1f, "Creating lobby..");
+                
+                    // Disable buttons during processing
+                    SetButtonsInteractable(false);
+                    var config = GameConfig.Instance;
+                    var createLobbyOption = new CreateLobbyOptions
                     {
-                        // Store password in lobby data for UI display
-                        { LobbyConstants.LobbyData.PASSWORD, new DataObject(DataObject.VisibilityOptions.Member, defaultPassword) },
-                        // Set initial phase
-                        { LobbyConstants.LobbyData.PHASE, new DataObject(DataObject.VisibilityOptions.Member, LobbyConstants.Phases.WAITING) }
-                    },
-                };
+                        Password = config.defaultPassword, // Built-in password protection
+                        Data = new Dictionary<string, DataObject>
+                        {
+                            // Store password in lobby data for UI display
+                            { LobbyConstants.LobbyData.PASSWORD, new DataObject(DataObject.VisibilityOptions.Member, config.defaultPassword) },
+                            // Set initial phase
+                            { LobbyConstants.LobbyData.PHASE, new DataObject(DataObject.VisibilityOptions.Member, SessionPhase.WAITING) }
+                        },
+                    };
 
-                // Update progress
-                LoadingUI.Instance.SetProgress(0.3f, 1f, "Setting up Lobby...");
-                var lobby = await LobbyHandler.Instance.CreateLobbyAsync("MyLobby", 4, createLobbyOption);
+                    // Update progress
+                    LoadingUI.Instance.SetProgress(0.3f, 1f, "Setting up Lobby...");
                 
-                if (lobby != null)
-                {
-                    Debug.Log($"[Home UI] Lobby created successfully: {lobby.Name} with code {lobby.LobbyCode}");
-                    //Trigger lobby update
-                    LobbyEvents.TriggerLobbyCreated(lobby, true, "Lobby created successfully");
-                    // Update progress - lobby created, now setting up network
-                    LoadingUI.Instance.SetProgress(0.5f, 1f, "Setting up game server...");
+                    var lobby = await LobbyExtensions.CreateLobbyAsync(config.defaultNameLobby, (int) GameConfig.Instance.defaultMaxPlayer, createLobbyOption);
+                
+                    if (lobby != null)
+                    {
+                        Debug.Log($"[Home UI] Lobby created successfully: {lobby.Name} with code {lobby.LobbyCode}");
+                        //Trigger lobby update
+                        LobbyEvents.TriggerLobbyCreated(lobby, true, "Lobby created successfully");
+                        // Update progress - lobby created, now setting up network
+                        LoadingUI.Instance.SetProgress(0.5f, 1f, "Setting up game server...");
                     
-                    // NetSessionManager will handle the Relay creation and scene transition
-                    // through the LobbyEvents.OnLobbyCreated event
+                        // NetSessionManager will handle the Relay creation and scene transition
+                        // through the LobbyEvents.OnLobbyCreated event
+                    }
+                    else
+                    {
+                        throw new Exception("Failed to create lobby");
+                    }
                 }
-                else
+                catch (Exception e)
                 {
-                    throw new Exception("Failed to create lobby");
+                    Debug.LogError($"Error while creating lobby: {e.Message}");
+                    HandleError($"Failed to create lobby: {e.Message}");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"Error while creating lobby: {e.Message}");
-                HandleError($"Failed to create lobby: {e.Message}");
+                Debug.LogError($"[HomeUI] Unexpected error: {e.Message}");
             }
         }
 
@@ -168,7 +173,7 @@ namespace _GAME.Scripts.UI.Home
                     SetButtonsInteractable(false);
                     
                     Debug.Log($"Attempting to join lobby with code: {lobbyCode}");
-                    var joinResult = await LobbyHandler.Instance.JoinLobbyAsync(lobbyCode, password);
+                    var joinResult = await LobbyExtensions.JoinLobbyAsync(lobbyCode, password);
                     
                     if (!joinResult)
                     {

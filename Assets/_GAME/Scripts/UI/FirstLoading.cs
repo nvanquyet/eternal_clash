@@ -13,7 +13,7 @@ namespace _GAME.Scripts.UI
         void Start()
         {
             //Show Loading UI
-            LoadingUI.Instance.RunTimed(3f, () =>
+            LoadingUI.Instance.RunTimed(5f, () =>
             {
                 //After loading time is over, initialize services and personal information
                 Debug.Log("[FirstCtrl] Fake loading done!");
@@ -40,7 +40,10 @@ namespace _GAME.Scripts.UI
                 }
                 else
                 {
-                    SceneController.Instance.LoadSceneAsync((int)SceneDefinitions.Login);
+                    SceneController.Instance.LoadSceneAsync((int)SceneDefinitions.Login, () =>
+                    {
+                        PopupNotification.Instance.ShowPopup(false, "Please login to continue.", "Login Required");
+                    });
                 }
             }
             catch (Exception e)

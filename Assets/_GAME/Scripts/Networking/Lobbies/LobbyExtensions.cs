@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using _GAME.Scripts.Config;
 using Unity.Services.Authentication;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
@@ -54,28 +56,16 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// <summary>
         /// Create a new lobby
         /// </summary>
-        public static async Task<bool> CreateLobbyAsync(string lobbyName, int maxPlayers = 4, string password = null)
+        public static async Task<Lobby> CreateLobbyAsync(string lobbyName, int maxPlayers, CreateLobbyOptions options)
         {
             if (Handler == null)
             {
                 Debug.LogError("[LobbyExtensions] LobbyHandler not available");
-                return false;
+                return null;
             }
-
-            var options = new CreateLobbyOptions();
             
-            if (!string.IsNullOrEmpty(password))
-            {
-                options.IsPrivate = true;
-                options.Password = password;
-                options.Data = new Dictionary<string, DataObject>
-                {
-                    { LobbyConstants.LobbyData.PASSWORD, new DataObject(DataObject.VisibilityOptions.Member, password) }
-                };
-            }
-
             var lobby = await Handler.CreateLobbyAsync(lobbyName, maxPlayers, options);
-            return lobby != null;
+            return lobby;
         }
 
         /// <summary>
@@ -288,17 +278,17 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// <summary>
         /// Get lobby phase
         /// </summary>
-        public static string GetLobbyPhase() => CachedLobby?.GetDataValue(LobbyConstants.LobbyData.PHASE, LobbyConstants.Phases.WAITING) ?? LobbyConstants.Phases.WAITING;
+        public static string GetSessionPhase() => CachedLobby?.GetDataValue(LobbyConstants.LobbyData.PHASE, SessionPhase.WAITING) ?? SessionPhase.WAITING;
 
         /// <summary>
         /// Check if lobby is in waiting phase
         /// </summary>
-        public static bool IsWaitingPhase() => GetLobbyPhase() == LobbyConstants.Phases.WAITING;
+        public static bool IsWaitingPhase() => GetSessionPhase() == SessionPhase.WAITING;
 
         /// <summary>
         /// Check if lobby is in playing phase
         /// </summary>
-        public static bool IsPlayingPhase() => GetLobbyPhase() == LobbyConstants.Phases.PLAYING;
+        public static bool IsPlayingPhase() => GetSessionPhase() == SessionPhase.PLAYING;
 
         #endregion
 
@@ -442,5 +432,93 @@ namespace _GAME.Scripts.Networking.Lobbies
             Handler.StopHeartbeat();
             Handler.StopUpdater();
         }
+
+
+        #region Rejoin Lobby
+
+        /// <summary>
+        /// Đã tham gia lobby có id này chưa?
+        /// </summary>
+        public static bool HasJoinedLobby(string lobbyId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(lobbyId)) return false;
+                return string.Equals(LobbyHandler.Instance?.CurrentLobbyId, lobbyId, StringComparison.Ordinal);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        /// <summary>
+        /// Thử rejoin lobby theo lobbyId.
+        /// - Lấy lobby → lấy lobby code → dùng API JoinLobbyAsync(code) của LobbyHandler để vào lại
+        /// - Tận dụng đúng luồng join sẵn có (heartbeat/updater/events)
+        /// </summary>
+        public static async Task<bool> TryRejoinLobbyAsync(string lobbyId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(lobbyId)) return false;
+
+            try
+            {
+                // Nếu đã trong lobby đó rồi → true
+                if (HasJoinedLobby(lobbyId)) return true;
+
+                // Lấy lobby info để lấy code
+                var lobby = await LobbyService.Instance.GetLobbyAsync(lobbyId);
+                if (lobby == null)
+                {
+                    Debug.LogWarning("[LobbyExtensions] TryRejoinLobbyAsync: lobby null");
+                    return false;
+                }
+
+                // UGS có thuộc tính LobbyCode (tên property là LobbyCode)
+                var code = lobby.LobbyCode;
+                if (string.IsNullOrEmpty(code))
+                {
+                    Debug.LogWarning("[LobbyExtensions] TryRejoinLobbyAsync: lobby code empty");
+                    return false;
+                }
+
+                // Dùng pipeline join chuẩn của LobbyHandler (tự xử lý heartbeat/updater/events)
+                var ok = await JoinLobbyAsync(code);
+                return ok;
+            }
+            catch (LobbyServiceException lse)
+            {
+                Debug.LogWarning($"[LobbyExtensions] TryRejoinLobbyAsync lobby error: {lse.Reason}");
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[LobbyExtensions] TryRejoinLobbyAsync error: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Lobby có còn sống trên server không?
+        /// </summary>
+        public static async Task<bool> IsLobbyAliveAsync(string lobbyId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(lobbyId)) return false;
+            try
+            {
+                var lobby = await LobbyService.Instance.GetLobbyAsync(lobbyId);
+                return lobby != null;
+            }
+            catch (LobbyServiceException lse)
+            {
+                Debug.LogWarning($"[LobbyExtensions] IsLobbyAliveAsync: {lse.Reason}");
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[LobbyExtensions] IsLobbyAliveAsync error: {e.Message}");
+                return false;
+            }
+        }
+        #endregion
     }
 }

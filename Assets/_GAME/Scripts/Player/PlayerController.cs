@@ -22,7 +22,7 @@ namespace _GAME.Scripts.Player
         [SerializeField] private GameObject tppCamera;
 
         [Header("Input")]
-        [SerializeField] private PlayerInput playerInput;
+        [SerializeField] private MobileInputBridge playerInput;
         private Transform CameraTransform
         {
             get
