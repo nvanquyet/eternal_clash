@@ -123,7 +123,7 @@ namespace _GAME.Scripts.Networking
         private void OnClientStopped(bool wasHost)
         {
             if (wasHost) _isHost = false;
-            Debug.Log("[NetworkExitManager] Client stopped");
+            Debug.Log($"[NetworkExitManager] Client stopped {wasHost} {_isExiting}");
             
             // Nếu không phải do chúng ta chủ động thoát thì có thể do host disconnect
             if (!_isExiting)

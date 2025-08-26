@@ -25616,7 +25616,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1327435096
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -30491,7 +30491,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1623080797
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -40928,7 +40928,6 @@ GameObject:
   - component: {fileID: 6349661860075049031}
   - component: {fileID: 6747984990898515108}
   - component: {fileID: 6747984990898515109}
-  - component: {fileID: 6747984990898515110}
   - component: {fileID: 6747984990898515111}
   m_Layer: 0
   m_Name: Camera
@@ -40936,7 +40935,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &6349661860075049031
 Transform:
   m_ObjectHideFlags: 0
@@ -41063,18 +41062,6 @@ MonoBehaviour:
   m_BeforeTransparentBundles: []
   m_BeforeStackBundles: []
   m_AfterStackBundles: []
---- !u!114 &6747984990898515110
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4252734484658429538}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1ab2043ac4c06cd4ea61271e9cd6ba92, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &6747984990898515111
 MonoBehaviour:
   m_ObjectHideFlags: 0

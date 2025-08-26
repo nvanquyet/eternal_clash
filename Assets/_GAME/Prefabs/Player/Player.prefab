@@ -2108,7 +2108,7 @@ MonoBehaviour:
     SplineCurvature: 0.5
   RecenteringTarget: 2
   HorizontalAxis:
-    Value: -48.083374
+    Value: 71.71323
     Center: 0
     Range: {x: -180, y: 180}
     Wrap: 1
@@ -2118,7 +2118,7 @@ MonoBehaviour:
       Time: 2
     Restrictions: 0
   VerticalAxis:
-    Value: 28.30988
+    Value: -7.1576295
     Center: 17.5
     Range: {x: -10, y: 45}
     Wrap: 0
@@ -2841,11 +2841,11 @@ MonoBehaviour:
   usingJoystick: 1
   joystick: {fileID: 6606145785869168032}
   gamePadMovement: {fileID: 4622806466216417234}
-  moveAction: {fileID: -3603104949884539813, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
-  lookAction: {fileID: -6516022567857389328, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
-  jumpAction: {fileID: 6488460581803216282, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
-  runAction: {fileID: 870802175319260168, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
-  dashAction: {fileID: 6172983637750094955, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
+  moveActionRef: {fileID: -3603104949884539813, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
+  lookActionRef: {fileID: -6516022567857389328, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
+  jumpActionRef: {fileID: 6488460581803216282, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
+  runActionRef: {fileID: 870802175319260168, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
+  dashActionRef: {fileID: 6172983637750094955, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
 --- !u!224 &2484552469923060268 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 7196498779483888934, guid: c01f222863811604399fdd2dd02614c6, type: 3}

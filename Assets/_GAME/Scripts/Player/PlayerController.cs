@@ -85,7 +85,7 @@ namespace _GAME.Scripts.Player
             // Owner có CharacterController để local movement
             if (characterController) characterController.enabled = true;
             
-            playerInput?.gameObject.SetActive(true);// Optional: for mobile input
+            playerInput?.SetOwner();
         }
 
         private void SetupNonOwner()
@@ -94,7 +94,7 @@ namespace _GAME.Scripts.Player
             // Non-owners tắt CharacterController, để NetworkTransform sync
             if (characterController) characterController.enabled = false;
             
-            playerInput?.gameObject.SetActive(false);// Optional: for mobile input
+            playerInput?.SetNonOwner();
         }
 
         #endregion

@@ -479,7 +479,7 @@ namespace _GAME.Scripts.Networking
 
         private void OnClientStopped(bool wasHost)
         {
-            Debug.Log($"[NetSessionManager] Client stopped (wasHost: {wasHost})");
+            Debug.Log($"[NetSessionManager] Client stopped (wasHost: {wasHost} {_isShuttingDown})");
 
             if (_sessionState == NetworkSessionState.StartingNetwork && !_isShuttingDown)
             {
