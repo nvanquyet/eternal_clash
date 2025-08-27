@@ -26,7 +26,7 @@ namespace _GAME.Scripts.Player
             }
         }
 
-        [ServerRpc(RequireOwnership = false)]
+        [ServerRpc(RequireOwnership = false)] 
         private void RegisterIdentityServerRpc(string ugsPlayerId, ServerRpcParams rpc = default)
         {
             var senderClientId = rpc.Receive.SenderClientId;
