@@ -5,6 +5,7 @@ using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.UI.Base;
 using TMPro;
+using Unity.Netcode;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -55,9 +56,9 @@ namespace _GAME.Scripts.UI.WaitingRoom
             RegisterEvent();
             
             //Initial UI state
-            if (LobbyExtensions.GetCurrentLobby() != null)
+            if (LobbyManager.Instance.CurrentLobby != null)
             {
-                OnLobbyUpdated(LobbyExtensions.GetCurrentLobby(), "Initial update");
+                OnLobbyUpdated(LobbyManager.Instance.CurrentLobby, "Initial update");
             }
             else
             {
@@ -98,24 +99,31 @@ namespace _GAME.Scripts.UI.WaitingRoom
         
         
         
-        private void OnPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
+        private async void OnPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
         {
-            //Check null and id
-            if (player == null || lobby == null || string.IsNullOrEmpty(player.Id) || player.Id != NetIdHub.PlayerId)
+            try
             {
-                Debug.LogError("[WaitingRoomUI] Player kicked event received with invalid data.");
-                return;
+                //Check null and id
+                if (player == null || lobby == null || string.IsNullOrEmpty(player.Id) || player.Id != PlayerIdManager.PlayerId)
+                {
+                    Debug.LogError("[WaitingRoomUI] Player kicked event received with invalid data.");
+                    return;
+                }
+                Debug.Log("You have been kicked from the lobby.");
+                await NetworkController.Instance.DisconnectAsync();
             }
-            Debug.Log("You have been kicked from the lobby.");
-            NetSessionManager.Instance.ForceShutdown();
+            catch (Exception e)
+            {
+                Debug.LogError($"[WaitingRoomUI] Error handling player kicked event: {e.Message}");
+            }
         }
 
         private void OnPlayerUpdated(Unity.Services.Lobbies.Models.Player p, Lobby arg2, string arg3)
         {
             //Check isMe 
             if (p == null) return;
-            if (p.Id != NetIdHub.PlayerId) return;
-            isReady = LobbyExtensions.IsPlayerReady(p);
+            if (p.Id != PlayerIdManager.PlayerId) return;
+            isReady = p.IsPlayerReady();
             // Update the ready button state
             if (btnReady != null)
             {
@@ -135,7 +143,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
             {
                 btnReady.interactable = false; // Disable the button to prevent multiple clicks
             }
-            _ = LobbyExtensions.SetPlayerReadyAsync(!isReady);
+            _ = LobbyManager.Instance.SetPlayerReadyAsync(!isReady);
         }
 
         private void OnLobbyUpdated(Lobby lobby, string arg2)
@@ -161,7 +169,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             //Todo: Leave Room
             //Remove lobby
-            _ = LobbyExtensions.IsHost() ? LobbyExtensions.RemoveLobbyAsync() : LobbyExtensions.LeaveLobbyAsync();
+            _ = NetworkController.Instance.IsHost ? LobbyManager.Instance.RemoveLobbyAsync() : LobbyManager.Instance.LeaveLobbyAsync();
         }
 
         private void OnClickStartGame()

@@ -54,7 +54,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// <summary>
         /// Get network status from lobby data
         /// </summary>
-        public static string GetNetworkStatus(this Lobby lobby)
+        private static string GetNetworkStatus(this Lobby lobby)
         {
             return lobby.GetDataValue(LobbyConstants.LobbyData.NETWORK_STATUS, LobbyConstants.NetworkStatus.NONE);
         }
@@ -74,6 +74,9 @@ namespace _GAME.Scripts.Networking.Lobbies
         {
             return !string.IsNullOrWhiteSpace(lobby.GetRelayJoinCode());
         }
+        public static string LobbyPassword(this Lobby lobby)
+            => lobby.GetDataValue(LobbyConstants.LobbyData.PASSWORD, null);
+        
 
         #endregion
 
@@ -96,7 +99,7 @@ namespace _GAME.Scripts.Networking.Lobbies
 
             try
             {
-                var handler = LobbyHandler.Instance;
+                var handler = LobbyManager.Instance.LobbyHandler;
                 if (handler == null)
                 {
                     Debug.LogError("[LobbyDataExtensions] LobbyHandler not available");
@@ -166,10 +169,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                 Debug.LogWarning("[LobbyDataExtensions] Lobby ID cannot be empty");
                 return false;
             }
-
-            // Update NetIdHub first
-            NetIdHub.SetRelayJoinCode(joinCode ?? "");
-
+            
             // Then update lobby data
             return await UpdateLobbyDataValueAsync(lobbyId, LobbyConstants.LobbyData.RELAY_JOIN_CODE, joinCode);
         }
@@ -199,7 +199,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         {
             try
             {
-                var handler = LobbyHandler.Instance;
+                var handler = LobbyManager.Instance.LobbyHandler;
                 if (handler == null)
                 {
                     Debug.LogError("[LobbyDataExtensions] LobbyHandler not available");
@@ -317,7 +317,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// </summary>
         public static async Task<bool> SetPlayerReadyAsync(string lobbyId, bool isReady)
         {
-            var playerId = AuthenticationService.Instance?.PlayerId;
+            var playerId = PlayerIdManager.PlayerId;
             if (string.IsNullOrEmpty(playerId))
             {
                 Debug.LogError("[LobbyDataExtensions] Player ID not available");
@@ -333,7 +333,7 @@ namespace _GAME.Scripts.Networking.Lobbies
         /// </summary>
         public static async Task<bool> SetPlayerNameAsync(string lobbyId, string displayName)
         {
-            var playerId = AuthenticationService.Instance?.PlayerId;
+            var playerId = PlayerIdManager.PlayerId;
             if (string.IsNullOrEmpty(playerId))
             {
                 Debug.LogError("[LobbyDataExtensions] Player ID not available");
@@ -419,7 +419,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                 return false;
             }
 
-            if (requireHost && !NetIdHub.IsLocalHost())
+            if (requireHost && !NetworkController.Instance.IsHost)
             {
                 Debug.LogWarning("[LobbyDataExtensions] Operation requires host privileges");
                 return false;

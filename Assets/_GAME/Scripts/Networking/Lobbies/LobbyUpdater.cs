@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using Unity.Services.Authentication;
 using Unity.Services.Lobbies;
@@ -15,7 +16,7 @@ namespace _GAME.Scripts.Lobbies
     /// </summary>
     public class LobbyUpdater : MonoBehaviour
     {
-        private LobbyHandler _lobbyManager;
+        private LobbyManager _lobbyManager;
         private LobbyHeartbeat _heartbeat;
 
         [SerializeField] private float _updateInterval = 4f; // thưa hơn để giảm request
@@ -30,10 +31,10 @@ namespace _GAME.Scripts.Lobbies
         
         public bool IsRunning => _isUpdating;
 
-        public void Initialize(LobbyHandler lobbyManager, float interval = 4f)
+        public void Initialize(LobbyManager lobbyManager, float interval = 4f)
         {
             _lobbyManager = lobbyManager;
-            _heartbeat = lobbyManager.GetComponent<LobbyHeartbeat>();
+            _heartbeat = lobbyManager.Heartbeat;
             _updateInterval = interval;
         }
 
@@ -128,7 +129,7 @@ namespace _GAME.Scripts.Lobbies
                     }
 
                     // 4) Raise snapshot mới cho UI
-                    _lobbyManager?.RaiseLobbyUpdated(lobby);
+                    _lobbyManager?.OnLobbyUpdated(lobby);
                     
                     _lastSnapshot = lobby;
                 }

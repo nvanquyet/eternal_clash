@@ -42,7 +42,7 @@ namespace _GAME.Scripts.Core
                 TryShutdownNetcodeFast();
 
                 // 2) kiểm tra đang ở lobby không
-                var lobbyId = LobbyExtensions.GetCurrentLobby().Id;
+                var lobbyId = LobbyManager.Instance.CurrentLobby.Id;
                 if (string.IsNullOrWhiteSpace(lobbyId))
                 {
                     OnInfo?.Invoke("Không có lobby hiện tại → bỏ qua.");
@@ -50,18 +50,16 @@ namespace _GAME.Scripts.Core
                 }
 
                 // 3) host → remove, client → leave
-                var isHost = LobbyExtensions.IsHost();
+                var isHost = NetworkController.Instance.IsHost;
                 if (isHost)
                 {
                     OnInfo?.Invoke("Host → Remove lobby…");
-                    var ok = await LobbyHandler.Instance.RemoveLobbyAsync();
-                    if (!ok) OnWarn?.Invoke("RemoveLobbyAsync trả về false.");
+                    await LobbyManager.Instance.RemoveLobbyAsync();
                 }
                 else
                 {
                     OnInfo?.Invoke("Client → Leave lobby…");
-                    var ok = await LobbyHandler.Instance.LeaveLobbyAsync();
-                    if (!ok) OnWarn?.Invoke("LeaveLobbyAsync trả về false.");
+                    await LobbyManager.Instance.LeaveLobbyAsync();
                 }
             }
             catch (Exception e)

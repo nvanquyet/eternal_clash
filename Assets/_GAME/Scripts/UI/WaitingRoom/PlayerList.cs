@@ -1,5 +1,7 @@
 using System;
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace _GAME.Scripts.UI.WaitingRoom
@@ -15,8 +17,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             try
             {
-                var allPlayer = LobbyExtensions.GetAllPlayers();
-                var isHost = LobbyExtensions.IsHost();
+                var allPlayer = LobbyManager.Instance.CurrentLobby.Players;
+                var isHost = NetworkController.Instance.IsHost;
                 
                 if (playerListContainer == null || itemPlayerListPrefab == null)
                 {
@@ -33,7 +35,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 // Create a new item for each player in the lobby
                 foreach (var player in allPlayer)
                 {
-                    var isMe = LobbyExtensions.IsMe(player.Id);
+                    var isMe = PlayerIdManager.IsMe(player.Id);
                     var item = Instantiate(itemPlayerListPrefab, playerListContainer);
                     item.Initialize(player, isMe, isHost);
                 }

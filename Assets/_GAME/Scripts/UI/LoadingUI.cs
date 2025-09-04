@@ -73,7 +73,7 @@ namespace _GAME.Scripts.UI
         // =================== PUBLIC API (HIỂN/ẨN) ===================
 
         /// <summary>Hiện loading UI (không đổi progress) với tip (optional).</summary>
-        public void Show(string tip = null)
+        private void Show(string tip = null)
         {
             EnsurePanelActive();
             if (!string.IsNullOrEmpty(tip)) SetTipText(tip);
@@ -85,7 +85,7 @@ namespace _GAME.Scripts.UI
         }
 
         /// <summary>Chỉ hiện nếu đang ẩn (dùng khi cập nhật progress đẩy vào).</summary>
-        public void ShowIfHidden(string tip = null)
+        private void ShowIfHidden(string tip = null)
         {
             if (!IsVisible())
             {
@@ -96,7 +96,7 @@ namespace _GAME.Scripts.UI
         }
 
         /// <summary>Ẩn loading UI (tôn trọng minDisplayTime).</summary>
-        public void Hide()
+        private void Hide()
         {
             if (!IsVisible()) return;
 
@@ -116,12 +116,14 @@ namespace _GAME.Scripts.UI
         // =================== PUBLIC API (PUSH PROGRESS) ===================
 
         /// <summary>Đặt tiến trình [0..1]. Dùng khi bạn tự đẩy tiến độ.</summary>
-        public void SetProgress01(float p, Action callback = null)
+        private void SetProgress01(float p, Action callback = null)
         {
             ShowIfHidden();
             p = Mathf.Clamp01(p);
             ApplyProgressUI(p, callback);
         }
+
+        // =================== PUBLIC API (TIMED) ===================
 
         /// <summary>Đặt tiến trình theo current/max.</summary>
         public void SetProgress(float current, float max, string tip = null, Action callback = null)
@@ -141,6 +143,7 @@ namespace _GAME.Scripts.UI
         /// <summary>Hoàn tất (đặt 100% và ẩn sau minDisplayTime).</summary>
         public void Complete(Action onHidden = null)
         {
+            Debug.Log($"[LoadingUI] Complete()");
             ShowIfHidden();
             ApplyProgressUI(1f);
             if (_runCo != null)
@@ -151,9 +154,7 @@ namespace _GAME.Scripts.UI
 
             _runCo = StartCoroutine(Co_CompleteThenHide(onHidden));
         }
-
-        // =================== PUBLIC API (TIMED) ===================
-
+        
         /// <summary>Chạy loading theo thời gian (giả lập), có đổi tip ở nửa chừng.</summary>
         public void RunTimed(float seconds, Action onComplete = null, string tipAtStart = null)
         {

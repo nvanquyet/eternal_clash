@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
@@ -10,21 +11,16 @@ namespace _GAME.Scripts.Lobbies
 {
     public class LobbyHeartbeat : MonoBehaviour
     {
-        private LobbyHandler _lobbyManager;
         private float _heartbeatInterval = 15f;
         private string _currentLobbyId;
         private CancellationTokenSource _cancellationTokenSource;
         private bool _isHeartbeatActive = false;
 
         public bool IsActive => _isHeartbeatActive;
-        public bool IsRunning => _isHeartbeatActive; // <<< NEW
-        public string ActiveLobbyId => _currentLobbyId;
 
-        public void Initialize(LobbyHandler lobbyManager, float interval = 15f)
+        public void Initialize(float interval = 15f)
         {
-            _lobbyManager = lobbyManager;
             _heartbeatInterval = interval;
-
         }
         
 

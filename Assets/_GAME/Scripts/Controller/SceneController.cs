@@ -11,7 +11,8 @@ namespace _GAME.Scripts.Controller
         Login = 1,
         Home = 2,
         WaitingRoom = 3,
-        GamePlay = 4
+        GameScene = 4,
+        
     }
     
     public static class SceneHelper
@@ -22,7 +23,7 @@ namespace _GAME.Scripts.Controller
             {
                 SceneDefinitions.Home        => "HomeScene",
                 SceneDefinitions.WaitingRoom => "WaitingScene",
-                SceneDefinitions.GamePlay    => "Gameplay",
+                SceneDefinitions.GameScene    => "Gameplay",
                 _ => throw new ArgumentOutOfRangeException(nameof(def), def, null)
             };
         }

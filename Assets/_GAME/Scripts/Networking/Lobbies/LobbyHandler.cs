@@ -13,18 +13,7 @@ using UnityEngine;
 
 namespace _GAME.Scripts.Networking.Lobbies
 {
-    public interface ILobbyOperations
-    {
-        Task<Lobby> CreateLobbyAsync(string lobbyName, int maxPlayers, CreateLobbyOptions options = null);
-        Task<bool> JoinLobbyAsync(string lobbyCode, string password = null);
-        Task<bool> LeaveLobbyAsync();
-        Task<bool> RemoveLobbyAsync();
-        Task<bool> KickPlayerAsync(string playerId);
-        Task<Lobby> GetLobbyInfoAsync(string lobbyId);
-        Task<Lobby> UpdateLobbyAsync(string lobbyId, UpdateLobbyOptions options);
-    }
-
-    public class LobbyHandler : SingletonDontDestroy<LobbyHandler>, ILobbyOperations
+    public class LobbyHandler
     {
         [Header("Lobby Settings")] [SerializeField]
         private float heartbeatInterval = 15f;
@@ -35,27 +24,18 @@ namespace _GAME.Scripts.Networking.Lobbies
         [SerializeField] private LobbyUpdater _updater;
         private bool _isInitialized = false;
 
-        public string CurrentLobbyId => NetIdHub.LobbyId;
+        public string CurrentLobbyId => CachedLobby?.Id;
         public Lobby CachedLobby { get; private set; }
 
-        protected override void OnAwake()
-        {
-            base.OnAwake();
-            InitializeComponents();
-        }
-
-        private void InitializeComponents()
+        public void InitializeComponents(LobbyHeartbeat heartbeat, LobbyUpdater updater)
         {
             if (_isInitialized) return;
 
             try
             {
-                _heartbeat ??= GetComponent<LobbyHeartbeat>() ?? gameObject.AddComponent<LobbyHeartbeat>();
-                _updater ??= GetComponent<LobbyUpdater>() ?? gameObject.AddComponent<LobbyUpdater>();
-
-                _heartbeat.Initialize(this, heartbeatInterval);
-                _updater.Initialize(this, lobbyRefreshInterval);
-
+                _heartbeat = heartbeat;
+                _updater = updater;
+                
                 _isInitialized = true;
                 Debug.Log("[LobbyHandler] Components initialized successfully");
             }
@@ -111,7 +91,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                 };
 
                 lobby = await LobbyService.Instance.UpdateLobbyAsync(lobby.Id, update);
-                await HandleLobbyCreated(lobby);
+                HandleLobbyCreated(lobby);
                 return lobby;
             }
             catch (LobbyServiceException e)
@@ -186,7 +166,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                     return false;
                 }
 
-                await HandleLobbyJoined(lobby);
+                HandleLobbyJoined(lobby);
                 return true;
             }
             catch (LobbyServiceException e)
@@ -231,7 +211,7 @@ namespace _GAME.Scripts.Networking.Lobbies
 
             try
             {
-                bool isHost = NetIdHub.IsLocalHost();
+                bool isHost = NetworkController.Instance.IsHost;
 
                 if (isHost)
                 {
@@ -263,7 +243,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                 return false;
             }
 
-            if (!NetIdHub.IsLocalHost())
+            if (!NetworkController.Instance.IsHost)
             {
                 Debug.LogWarning("[LobbyHandler] Only host can remove lobby");
                 return false;
@@ -295,7 +275,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                 return false;
             }
 
-            if (!NetIdHub.IsLocalHost())
+            if (!NetworkController.Instance.IsHost)
             {
                 Debug.LogWarning("[LobbyHandler] Only host can kick players");
                 return false;
@@ -357,8 +337,10 @@ namespace _GAME.Scripts.Networking.Lobbies
                 return null;
             }
         }
-
-        public void RaiseLobbyUpdated(Lobby lobby)
+        /// <summary>
+        /// Called by LobbyUpdater when lobby data changes
+        /// </summary>
+        public void OnLobbyUpdated(Lobby lobby)
         {
             if (lobby == null) return; // không update gì khi null
 
@@ -391,48 +373,28 @@ namespace _GAME.Scripts.Networking.Lobbies
             UpdateCachedLobby(lobby);
             LobbyEvents.TriggerLobbyUpdated(lobby, "poll updated");
         }
-
         #endregion
 
         #region Event Handlers
 
-        private async Task HandleLobbyCreated(Lobby lobby)
+        private void HandleLobbyCreated(Lobby lobby)
         {
             UpdateCachedLobby(lobby);
-            NetIdHub.BindLobby(lobby);
-
-            if (NetIdHub.IsLocalHost())
+            if (NetworkController.Instance.IsHost)
             {
                 _heartbeat?.StartHeartbeat(lobby.Id);
             }
 
             _updater?.StartUpdating(lobby.Id);
             
-           // await LobbyDataExtensions.UpdateLobbyDataValueAsync(
-           //      lobby.Id,
-           //      LobbyConstants.LobbyKeys.CODE,
-           //      lobby.LobbyCode,
-           //      DataObject.IndexOptions.S1,
-           //      DataObject.VisibilityOptions.Public
-           //  );
-           //
-           // await LobbyDataExtensions.UpdateLobbyDataValueAsync(
-           //     lobby.Id,
-           //     LobbyConstants.LobbyKeys.PHASE,
-           //     SessionPhase.WAITING,
-           //     DataObject.IndexOptions.S2,
-           //     DataObject.VisibilityOptions.Public
-           // );
-            
             LobbyEvents.TriggerLobbyCreated(lobby, true, $"Lobby '{lobby.Name}' created");
         }
 
-        private async Task HandleLobbyJoined(Lobby lobby)
+        private void HandleLobbyJoined(Lobby lobby)
         {
             UpdateCachedLobby(lobby);
-            NetIdHub.BindLobby(lobby);
 
-            if (NetIdHub.IsLocalHost())
+            if (NetworkController.Instance.IsHost)
             {
                 _heartbeat?.StartHeartbeat(lobby.Id);
             }
@@ -464,33 +426,20 @@ namespace _GAME.Scripts.Networking.Lobbies
         #endregion
 
         #region Internal Methods
+        
 
-        /// <summary>
-        /// Called by LobbyUpdater when lobby data changes
-        /// </summary>
-        public void OnLobbyUpdated(Lobby lobby, string message = "Lobby updated")
-        {
-            if (lobby != null)
-            {
-                UpdateCachedLobby(lobby);
-                NetIdHub.BindLobby(lobby);
-            }
-
-            LobbyEvents.TriggerLobbyUpdated(lobby, message);
-        }
-
-        private void UpdateCachedLobby(Lobby lobby)
+        private void UpdateCachedLobby(Lobby lobby, string message = "Lobby updated")
         {
             if (lobby != null)
             {
                 CachedLobby = lobby;
             }
+            LobbyEvents.TriggerLobbyUpdated(lobby, message);
         }
 
         private void ClearCachedLobby()
         {
             CachedLobby = null;
-            NetIdHub.Clear();
         }
 
         private Unity.Services.Lobbies.Models.Player CreateDefaultPlayerData()
@@ -559,15 +508,11 @@ namespace _GAME.Scripts.Networking.Lobbies
 
         #region Cleanup
 
-        protected override void OnDestroy()
+        public void OnDestroy()
         {
-            if (Instance == this)
-            {
-                _heartbeat?.StopHeartbeat();
-                _updater?.StopUpdating();
-                ClearCachedLobby();
-                base.OnDestroy();
-            }
+            _heartbeat?.StopHeartbeat();
+            _updater?.StopUpdating();
+            ClearCachedLobby();
         }
 
         #endregion
@@ -580,16 +525,11 @@ namespace _GAME.Scripts.Networking.Lobbies
             Debug.Log($"[LobbyHandler] State:" +
                       $"\n  Current Lobby ID: {CurrentLobbyId}" +
                       $"\n  Cached Lobby: {(CachedLobby != null ? CachedLobby.Name : "null")}" +
-                      $"\n  Is Host: {NetIdHub.IsLocalHost()}" +
+                      $"\n  Is Host: {NetworkController.Instance.IsHost}" +
                       $"\n  Heartbeat Running: {(_heartbeat?.IsActive ?? false)}" +
                       $"\n  Updater Running: {(_updater?.IsRunning ?? false)}");
         }
 
         #endregion
-
-
-        public void StopUpdater() => _updater.StopUpdating();
-
-        public void StopHeartbeat() => _heartbeat.StopHeartbeat();
     }
 }

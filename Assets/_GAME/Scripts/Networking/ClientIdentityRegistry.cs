@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using _GAME.Scripts.Networking.Lobbies;
 using GAME.Scripts.DesignPattern;
 using Unity.Netcode;
@@ -8,11 +9,18 @@ using UnityEngine;
 
 namespace _GAME.Scripts.Networking
 {
+    // Chỉ giữ ClientIdentityRegistry, remove duplicate logic từ NetworkStateManager
+    public interface IClientIdentityManager 
+    {
+        void RegisterMapping(string ugsId, ulong clientId);
+        bool TryGetClientId(string ugsId, out ulong clientId);
+    }
+    
     /// <summary>
     /// Registry to map between Unity Gaming Services Player IDs and Netcode Client IDs
     /// Essential for proper player management across Lobby and Network systems
     /// </summary>
-    public class ClientIdentityRegistry : SingletonDontDestroy<ClientIdentityRegistry>
+    public class ClientIdentityRegistry : SingletonDontDestroy<ClientIdentityRegistry>, IClientIdentityManager, IDisposable
     {
         private readonly Dictionary<string, ulong> _ugsToNetcode = new();
         private readonly Dictionary<ulong, string> _netcodeToUgs = new();
@@ -149,7 +157,7 @@ namespace _GAME.Scripts.Networking
         /// <summary>
         /// Clear all mappings
         /// </summary>
-        public void ClearAll()
+        private void ClearAll()
         {
             int count = _ugsToNetcode.Count;
             _ugsToNetcode.Clear();
@@ -245,7 +253,7 @@ namespace _GAME.Scripts.Networking
         {
             if (!NetworkManager.Singleton.IsServer) return;
 
-            var lobby = LobbyExtensions.GetCurrentLobby();
+            var lobby = LobbyManager.Instance.CurrentLobby;
             if (lobby?.Players == null) return;
 
             // Try to correlate with lobby players
@@ -345,7 +353,7 @@ namespace _GAME.Scripts.Networking
         [ContextMenu("Sync with Current Lobby")]
         public void ForceSyncWithLobby()
         {
-            var lobby = LobbyExtensions.GetCurrentLobby();
+            var lobby = LobbyManager.Instance.CurrentLobby;
             if (lobby != null)
             {
                 SyncWithLobbyPlayers(lobby);
@@ -364,6 +372,12 @@ namespace _GAME.Scripts.Networking
             UnregisterEvents();
             ClearAll();
             base.OnDestroy();
+        }
+
+        public void Dispose()
+        {
+            UnregisterEvents();
+            ClearAll();
         }
     }
 }

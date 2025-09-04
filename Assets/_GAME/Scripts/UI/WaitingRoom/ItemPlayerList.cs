@@ -1,3 +1,4 @@
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using TMPro;
 using UnityEngine;
@@ -45,7 +46,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
             }
             //Disable the kick button to prevent multiple clicks
             kickButton.interactable = false;
-            LobbyExtensions.KickPlayerAsync(player.Id).ContinueWith(task =>
+            LobbyManager.Instance.KickPlayerAsync(player.Id).ContinueWith(task =>
             {
                 if (task.IsFaulted)
                 {
@@ -67,7 +68,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 return;
             }
             //Disable the toggle to prevent multiple clicks
-            LobbyExtensions.SetPlayerReadyAsync(arg0).ContinueWith(task =>
+            LobbyManager.Instance.SetPlayerReadyAsync(arg0).ContinueWith(task =>
             {
                 if (task.IsFaulted)
                 {
@@ -87,8 +88,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
             if(isHost && isMe) SetKickButtonActive(false);
             else SetKickButtonActive(isHost);
             
-            SetPlayerName(LobbyExtensions.GetPlayerName(player));
-            SetReadyState(LobbyExtensions.IsPlayerReady(player));
+            SetPlayerName(player.GetPlayerDisplayName());
+            SetReadyState(player.IsPlayerReady());
         }        
         private void SetPlayerName(string playerName)
         {

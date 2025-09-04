@@ -5,6 +5,7 @@ using _GAME.Scripts.Config;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Data;
 using _GAME.Scripts.Lobbies.UI;
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.UI.Base;
 using TMPro;
@@ -112,23 +113,24 @@ namespace _GAME.Scripts.UI.Home
                     // Update progress
                     LoadingUI.Instance.SetProgress(0.3f, 1f, "Setting up Lobby...");
                 
-                    var lobby = await LobbyExtensions.CreateLobbyAsync(config.defaultNameLobby, (int) GameConfig.Instance.defaultMaxPlayer, createLobbyOption);
-                
-                    if (lobby != null)
+                    var op = await LobbyManager.Instance.CreateLobbyAsync(config.defaultNameLobby, (int) GameConfig.Instance.defaultMaxPlayer, createLobbyOption);
+                    if (op.IsSuccess)
                     {
-                        Debug.Log($"[Home UI] Lobby created successfully: {lobby.Name} with code {lobby.LobbyCode}");
-                        //Trigger lobby update
-                        LobbyEvents.TriggerLobbyCreated(lobby, true, "Lobby created successfully");
-                        // Update progress - lobby created, now setting up network
-                        LoadingUI.Instance.SetProgress(0.5f, 1f, "Setting up game server...");
+                        var lobby = LobbyManager.Instance.CurrentLobby;
+                        if (lobby != null)
+                        {
+                            Debug.Log($"[Home UI] Lobby created successfully: {lobby.Name} with code {lobby.LobbyCode}");
+                            //Trigger lobby update
+                            LobbyEvents.TriggerLobbyCreated(lobby, true, "Lobby created successfully");
+                            NetworkController.Instance.LoadSceneAsync(SceneDefinitions.WaitingRoom, () =>
+                            {
+                                LoadingUI.Instance.Complete();
+                            });
+                            return;
+                        }
+                    }
                     
-                        // NetSessionManager will handle the Relay creation and scene transition
-                        // through the LobbyEvents.OnLobbyCreated event
-                    }
-                    else
-                    {
-                        throw new Exception("Failed to create lobby");
-                    }
+                    PopupNotification.Instance.ShowPopup(false, "Create lobby failed, please try again.", "Error");
                 }
                 catch (Exception e)
                 {
@@ -173,18 +175,18 @@ namespace _GAME.Scripts.UI.Home
                     SetButtonsInteractable(false);
                     
                     Debug.Log($"Attempting to join lobby with code: {lobbyCode}");
-                    var joinResult = await LobbyExtensions.JoinLobbyAsync(lobbyCode, password);
-                    
-                    if (!joinResult)
+                    var op = await LobbyManager.Instance.JoinLobbyAsync(lobbyCode, password);
+                    if (op.IsSuccess)
                     {
-                        throw new Exception("Failed to join lobby - check code and password");
+                        var lobby = LobbyManager.Instance.CurrentLobby;
+                        if (lobby != null)
+                        {
+                            LoadingUI.Instance.Complete();
+                            return;
+                        }
+
                     }
-                    
-                    // Update progress - joined lobby, now connecting to network
-                    LoadingUI.Instance.SetProgress(0.6f, 1f, "Connecting to game server...");
-                    
-                    // NetSessionManager will handle the Relay connection and scene transition
-                    // through the LobbyEvents.OnLobbyJoined event
+                    PopupNotification.Instance.ShowPopup(false, "Join lobby failed, please try again.", "Error");
                 }
                 catch (Exception e)
                 {
@@ -255,7 +257,7 @@ namespace _GAME.Scripts.UI.Home
         // Helper methods
         private void HandleError(string errorMessage)
         {
-            LoadingUI.Instance.Hide();
+            LoadingUI.Instance.Complete();
             PopupNotification.Instance?.ShowPopup(false, errorMessage);
             ResetProcessingState();
         }
@@ -275,7 +277,7 @@ namespace _GAME.Scripts.UI.Home
         public void ReInit()
         {
             // Hide loading if showing
-            LoadingUI.Instance.Hide();
+            LoadingUI.Instance.Complete();
             
             // Reset processing state
             ResetProcessingState();
