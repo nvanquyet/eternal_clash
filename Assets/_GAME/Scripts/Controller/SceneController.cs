@@ -23,7 +23,7 @@ namespace _GAME.Scripts.Controller
             {
                 SceneDefinitions.Home        => "HomeScene",
                 SceneDefinitions.WaitingRoom => "WaitingScene",
-                SceneDefinitions.GameScene    => "Gameplay",
+                SceneDefinitions.GameScene    => "GamePlayScene",
                 _ => throw new ArgumentOutOfRangeException(nameof(def), def, null)
             };
         }

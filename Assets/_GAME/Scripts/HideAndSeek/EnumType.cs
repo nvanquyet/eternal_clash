@@ -1,8 +1,9 @@
-using System;
-using UnityEngine;
+using _GAME.Scripts.DesignPattern.Interaction;
 using Unity.Netcode;
+using UnityEngine;
+using System;
 
-namespace HideAndSeekGame.Core
+namespace _GAME.Scripts.HideAndSeek
 {
     #region Enums
     
@@ -14,13 +15,13 @@ namespace HideAndSeekGame.Core
     
     public enum PlayerRole
     {
+        None,       // Chưa chọn
         Hider,      // Người trốn
         Seeker      // Người tìm
     }
     
     public enum GameState
     {
-        Lobby,
         Preparation,    // Setup phase
         Playing,
         GameOver
@@ -59,14 +60,13 @@ namespace HideAndSeekGame.Core
     
     #region Core Interfaces
     
-    public interface IGamePlayer : INetworkBehaviour
+    public interface IGamePlayer 
     {
         ulong ClientId { get; }
         PlayerRole Role { get; }
         string PlayerName { get; }
         bool IsAlive { get; }
         Vector3 Position { get; }
-        
         void SetRole(PlayerRole role);
         void OnGameStart();
         void OnGameEnd(PlayerRole winnerRole);
@@ -83,7 +83,7 @@ namespace HideAndSeekGame.Core
         void OnTaskCompleted(int taskId);
     }
     
-    public interface ISeeker : IGamePlayer  
+    public interface ISeeker : IGamePlayer, IAttackable 
     {
         float CurrentHealth { get; }
         float MaxHealth { get; }
@@ -134,57 +134,10 @@ namespace HideAndSeekGame.Core
 
     #endregion
     
-    #region Data Structures
-    
-    [System.Serializable]
-    public struct GameSettings
-    {
-        public GameMode gameMode;
-        public int maxPlayers;
-        public float gameTime;           // Thời gian chơi (giây)
-        public int tasksToComplete;      // Số nhiệm vụ cần hoàn thành (Case 1)
-        public float objectSwapTime;     // Thời gian đổi đồ vật (Case 2)
-        public float seekerHealth;       // Máu người tìm
-        public float environmentDamage;  // Sát thương khi bắn vào môi trường
-        public float hiderKillReward;    // Máu hồi phục khi bắn trúng hider
-    }
-    
-    [System.Serializable]
-    public struct SkillData
-    {
-        public SkillType type;
-        public float cooldown;
-        public int usesPerGame;
-        public float duration;           // Thời gian hiệu ứng
-        public float range;              // Phạm vi tác dụng
-        public string description;
-    }
-    
-    [System.Serializable]
-    public struct ObjectData
-    {
-        public ObjectType type;
-        public float health;
-        public Vector3 size;
-        public GameObject prefab;
-        public string displayName;
-    }
-    
-    [System.Serializable]
-    public struct TaskData
-    {
-        public TaskType type;
-        public float completionTime;     // Thời gian hoàn thành
-        public string description;
-        public GameObject prefab;
-    }
-
-    #endregion
-    
     #region Network Data Structures
     
     [System.Serializable]
-    public struct NetworkPlayerData : INetworkSerializable
+    public struct NetworkPlayerData : INetworkSerializable, IEquatable<NetworkPlayerData>
     {
         public ulong clientId;
         public PlayerRole role;
@@ -200,14 +153,42 @@ namespace HideAndSeekGame.Core
             serializer.SerializeValue(ref isAlive);
             serializer.SerializeValue(ref health);
         }
+        
+        public bool Equals(NetworkPlayerData other)
+        {
+            return clientId == other.clientId &&
+                   role == other.role &&
+                   position.Equals(other.position) &&
+                   isAlive == other.isAlive &&
+                   Mathf.Approximately(health, other.health);
+        }
+        
+        public override bool Equals(object obj)
+        {
+            return obj is NetworkPlayerData other && Equals(other);
+        }
+        
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(clientId, role, position, isAlive, health);
+        }
+        
+        public static bool operator ==(NetworkPlayerData left, NetworkPlayerData right)
+        {
+            return left.Equals(right);
+        }
+        
+        public static bool operator !=(NetworkPlayerData left, NetworkPlayerData right)
+        {
+            return !left.Equals(right);
+        }
     }
     
     [System.Serializable]
-    public struct NetworkGameState : INetworkSerializable
+    public struct NetworkGameState : INetworkSerializable, IEquatable<NetworkGameState>
     {
         public GameState state;
         public GameMode mode;
-        public float timeRemaining;
         public int completedTasks;
         public int totalTasks;
         public int alivePlayers;
@@ -216,10 +197,38 @@ namespace HideAndSeekGame.Core
         {
             serializer.SerializeValue(ref state);
             serializer.SerializeValue(ref mode);
-            serializer.SerializeValue(ref timeRemaining);
             serializer.SerializeValue(ref completedTasks);
             serializer.SerializeValue(ref totalTasks);
             serializer.SerializeValue(ref alivePlayers);
+        }
+        
+        public bool Equals(NetworkGameState other)
+        {
+            return state == other.state &&
+                   mode == other.mode &&
+                   completedTasks == other.completedTasks &&
+                   totalTasks == other.totalTasks &&
+                   alivePlayers == other.alivePlayers;
+        }
+        
+        public override bool Equals(object obj)
+        {
+            return obj is NetworkGameState other && Equals(other);
+        }
+        
+        public override int GetHashCode()
+        {
+            return HashCode.Combine((int)state, (int)mode, completedTasks, totalTasks, alivePlayers);
+        }
+        
+        public static bool operator ==(NetworkGameState left, NetworkGameState right)
+        {
+            return left.Equals(right);
+        }
+        
+        public static bool operator !=(NetworkGameState left, NetworkGameState right)
+        {
+            return !left.Equals(right);
         }
     }
 

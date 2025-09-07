@@ -176,6 +176,15 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             //Todo: Start Game
             Debug.Log("[WaitingRoomUI] Start Game button clicked. Implement game start logic here.");
+            //Switch to game scene
+            if (NetworkController.Instance.IsHost)
+            {
+                NetworkController.Instance.StartGameAsync();
+            }
+            else
+            {
+                Debug.LogWarning("[WaitingRoomUI] Only the host can start the game.");
+            }
         }
 
     }

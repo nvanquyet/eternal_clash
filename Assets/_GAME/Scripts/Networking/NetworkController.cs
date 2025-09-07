@@ -582,6 +582,12 @@ namespace _GAME.Scripts.Networking
         }
 
         #endregion
+
+        public void StartGameAsync()
+        {
+            //Swtich to gameplay scene
+            _ = LoadSceneAsync(SceneDefinitions.GameScene, null, LoadSceneMode.Single);
+        }
     }
 
     #region Supporting Types

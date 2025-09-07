@@ -1,26 +1,34 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
+using _GAME.Scripts.Core;
+using _GAME.Scripts.HideAndSeek.Config;
+using _GAME.Scripts.HideAndSeek.Util;
+using _GAME.Scripts.Player;
+using GAME.Scripts.DesignPattern;
 using UnityEngine;
 using Unity.Netcode;
-using HideAndSeekGame.Core;
-using _GAME.Scripts.DesignPattern.Interaction;
 
-namespace HideAndSeekGame.Managers
+namespace _GAME.Scripts.HideAndSeek
 {
-    public class GameManager : NetworkBehaviour
+    public class GameManager : NetworkSingleton<GameManager>
     {
         [Header("Game Settings")]
-        [SerializeField] private GameSettings gameSettings;
-        [SerializeField] private SkillData[] skillDatabase;
-        [SerializeField] private ObjectData[] objectDatabase;
-        [SerializeField] private TaskData[] taskDatabase;
+        [SerializeField] private GameSettingsConfig gameSettings;
+        [SerializeField] private SkillDataConfig skillDatabase;
+        [SerializeField] private ObjectDataConfig objectDatabase;
+        [SerializeField] private TaskDataConfig taskDatabase;
         
         [Header("Spawn Points")]
         [SerializeField] private Transform[] hiderSpawnPoints;
         [SerializeField] private Transform[] seekerSpawnPoints;
         [SerializeField] private Transform[] taskSpawnPoints;
         [SerializeField] private Transform[] objectSpawnPoints;
+
+        [Header("References")] [SerializeField]
+        private TimeCountDown timeCountDown;
+
+        [SerializeField] private SpawnerController spawnerController; 
         
         // Network Variables
         private NetworkVariable<NetworkGameState> networkGameState = new NetworkVariable<NetworkGameState>();
@@ -30,20 +38,15 @@ namespace HideAndSeekGame.Managers
         private Dictionary<ulong, IGamePlayer> players = new Dictionary<ulong, IGamePlayer>();
         private List<IGameTask> gameTasks = new List<IGameTask>();
         private List<IObjectDisguise> disguiseObjects = new List<IObjectDisguise>();
-        private float gameStartTime;
-        private float nextObjectSwapTime;
-        
         // Events
         public static event Action<GameState> OnGameStateChanged;
         public static event Action<PlayerRole> OnGameEnded;
         public static event Action<int, int> OnTaskProgressUpdated;
-        public static event Action<float> OnTimeUpdated;
         
         // Properties
         public GameState CurrentState => networkGameState.Value.state;
         public GameMode CurrentMode => networkGameState.Value.mode;
-        public float TimeRemaining => networkGameState.Value.timeRemaining;
-        public GameSettings Settings => gameSettings;
+        public GameSettingsConfig Settings => gameSettings;
         
         private void Awake()
         {
@@ -56,68 +59,49 @@ namespace HideAndSeekGame.Managers
             {
                 networkGameState.Value = new NetworkGameState
                 {
-                    state = GameState.Lobby,
+                    state = GameState.Preparation,
                     mode = gameSettings.gameMode,
-                    timeRemaining = gameSettings.gameTime,
                     completedTasks = 0,
                     totalTasks = gameSettings.tasksToComplete,
                     alivePlayers = 0
                 };
-                
-                NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-                NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
             }
             
             networkGameState.OnValueChanged += OnGameStateNetworkChanged;
             networkPlayers.OnListChanged += OnPlayersListChanged;
+
+
+            if(spawnerController) spawnerController.OnFinishSpawning += StartGameServerRpc;
         }
         
         public override void OnNetworkDespawn()
         {
-            if (IsServer)
-            {
-                NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
-                NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
-            }
-            
             networkGameState.OnValueChanged -= OnGameStateNetworkChanged;
-            networkPlayers.OnListChanged -= OnPlayersListChanged;
-        }
-        
-        private void Update()
-        {
-            if (!IsServer || CurrentState != GameState.Playing) return;
-            
-            UpdateGameTime();
-            
-            if (CurrentMode == GameMode.PersonVsObject)
+            if (networkPlayers != null)
             {
-                UpdateObjectSwapping();
+                networkPlayers.OnListChanged -= OnPlayersListChanged;
             }
             
-            CheckWinConditions();
+            if(spawnerController) spawnerController.OnFinishSpawning -= StartGameServerRpc;
         }
         
+        // private void Update()
+        // {
+        //     if (!IsServer || CurrentState != GameState.Playing) return;
+        //     
+        //     if (CurrentMode == GameMode.PersonVsObject)
+        //     {
+        //         UpdateObjectSwapping();
+        //     }
+        //     
+        //     CheckWinConditions();
+        // }
+        //
         #region Server Methods
         
-        private void OnClientConnected(ulong clientId)
-        {
-            Debug.Log($"Client {clientId} connected");
-        }
-        
-        private void OnClientDisconnected(ulong clientId)
-        {
-            if (players.ContainsKey(clientId))
-            {
-                RemovePlayer(clientId);
-            }
-        }
-        
         [ServerRpc(RequireOwnership = false)]
-        public void StartGameServerRpc()
+        private void StartGameServerRpc()
         {
-            if (CurrentState != GameState.Lobby) return;
-            
             AssignRoles();
             SpawnGameElements();
             
@@ -125,11 +109,25 @@ namespace HideAndSeekGame.Managers
             newState.state = GameState.Preparation;
             networkGameState.Value = newState;
             
-            gameStartTime = Time.time;
-            nextObjectSwapTime = Time.time + gameSettings.objectSwapTime;
+            //gameStartTime = Time.time;
+            //
+            if (gameSettings)
+            {
+                timeCountDown.OnCountdownFinished += () =>
+                {
+                    EndGame(PlayerRole.Seeker); // Time up, seekers win by default
+                };
+                timeCountDown.StartCountdownServerRpc(gameSettings.gameDuration);
+            }
             
             // Start game after preparation time
-            Invoke(nameof(StartPlayingPhase), 5f);
+            StartCoroutine(StartPlayingPhaseCoroutine());
+        }
+        
+        private IEnumerator StartPlayingPhaseCoroutine()
+        {
+            yield return new WaitForSeconds(5f);
+            StartPlayingPhase();
         }
         
         private void StartPlayingPhase()
@@ -147,16 +145,35 @@ namespace HideAndSeekGame.Managers
         
         private void AssignRoles()
         {
-            var clientIds = NetworkManager.Singleton.ConnectedClientsList.Select(c => c.ClientId).ToList();
-            var seekerCount = Mathf.Max(1, clientIds.Count / 4); // 1/4 players are seekers
+            if (NetworkManager.Singleton == null) return;
+            
+            var clientsList = NetworkManager.Singleton.ConnectedClientsList;
+            var seekerCount = Mathf.Max(1, clientsList.Count / 4); // 1/4 players are seekers
+            
+            // Create list of client IDs
+            List<ulong> clientIds = new List<ulong>();
+            foreach (var client in clientsList)
+            {
+                clientIds.Add(client.ClientId);
+            }
             
             // Randomly assign seekers
-            var seekers = clientIds.OrderBy(x => UnityEngine.Random.value).Take(seekerCount).ToList();
-            
-            foreach (var clientId in clientIds)
+            List<ulong> seekers = new List<ulong>();
+            for (int i = 0; i < seekerCount; i++)
             {
-                var role = seekers.Contains(clientId) ? PlayerRole.Seeker : PlayerRole.Hider;
-                AssignPlayerRole(clientId, role);
+                if (clientIds.Count > 0)
+                {
+                    int randomIndex = UnityEngine.Random.Range(0, clientIds.Count);
+                    seekers.Add(clientIds[randomIndex]);
+                    clientIds.RemoveAt(randomIndex);
+                }
+            }
+            
+            // Assign roles
+            foreach (var client in clientsList)
+            {
+                var role = seekers.Contains(client.ClientId) ? PlayerRole.Seeker : PlayerRole.Hider;
+                AssignPlayerRole(client.ClientId, role);
             }
         }
         
@@ -192,7 +209,7 @@ namespace HideAndSeekGame.Managers
             {
                 var spawnPoint = taskSpawnPoints[i];
                 var taskType = (TaskType)(i % System.Enum.GetValues(typeof(TaskType)).Length);
-                var taskData = taskDatabase.FirstOrDefault(t => t.type == taskType);
+                var taskData = GetTaskData(taskType);
                 
                 if (taskData.prefab != null)
                 {
@@ -217,7 +234,7 @@ namespace HideAndSeekGame.Managers
             foreach (var spawnPoint in objectSpawnPoints)
             {
                 var randomObjectType = (ObjectType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(ObjectType)).Length);
-                var objectData = objectDatabase.FirstOrDefault(o => o.type == randomObjectType);
+                var objectData = GetObjectData(randomObjectType);
                 
                 if (objectData.prefab != null)
                 {
@@ -237,29 +254,11 @@ namespace HideAndSeekGame.Managers
             }
         }
         
-        private void UpdateGameTime()
-        {
-            var newState = networkGameState.Value;
-            newState.timeRemaining -= Time.deltaTime;
-            networkGameState.Value = newState;
-            
-            if (newState.timeRemaining <= 0)
-            {
-                EndGame(PlayerRole.Seeker); // Time up, seekers win by default
-            }
-        }
-        
-        private void UpdateObjectSwapping()
-        {
-            if (Time.time >= nextObjectSwapTime)
-            {
-                ForceObjectSwapClientRpc();
-                nextObjectSwapTime = Time.time + gameSettings.objectSwapTime;
-            }
-        }
         
         private void CheckWinConditions()
         {
+            if (networkPlayers == null || networkPlayers.Count == 0) return;
+            
             if (CurrentMode == GameMode.PersonVsPerson)
             {
                 // Check if all tasks completed
@@ -270,15 +269,26 @@ namespace HideAndSeekGame.Managers
                 }
                 
                 // Check if all hiders are dead
-                var aliveHiders = networkPlayers.Count(p => p.role == PlayerRole.Hider && p.isAlive);
+                int aliveHiders = 0;
+                int aliveSeekers = 0;
+                
+                foreach (var player in networkPlayers)
+                {
+                    if (player.isAlive)
+                    {
+                        if (player.role == PlayerRole.Hider)
+                            aliveHiders++;
+                        else if (player.role == PlayerRole.Seeker)
+                            aliveSeekers++;
+                    }
+                }
+                
                 if (aliveHiders == 0)
                 {
                     EndGame(PlayerRole.Seeker);
                     return;
                 }
                 
-                // Check if all seekers are dead
-                var aliveSeekers = networkPlayers.Count(p => p.role == PlayerRole.Seeker && p.isAlive);
                 if (aliveSeekers == 0)
                 {
                     EndGame(PlayerRole.Hider);
@@ -286,16 +296,27 @@ namespace HideAndSeekGame.Managers
             }
             else if (CurrentMode == GameMode.PersonVsObject)
             {
-                // Check if all hiders found
-                var aliveHiders = networkPlayers.Count(p => p.role == PlayerRole.Hider && p.isAlive);
+                // Check if all hiders found or all seekers dead
+                int aliveHiders = 0;
+                int aliveSeekers = 0;
+                
+                foreach (var player in networkPlayers)
+                {
+                    if (player.isAlive)
+                    {
+                        if (player.role == PlayerRole.Hider)
+                            aliveHiders++;
+                        else if (player.role == PlayerRole.Seeker)
+                            aliveSeekers++;
+                    }
+                }
+                
                 if (aliveHiders == 0)
                 {
                     EndGame(PlayerRole.Seeker);
                     return;
                 }
                 
-                // Check if all seekers are dead
-                var aliveSeekers = networkPlayers.Count(p => p.role == PlayerRole.Seeker && p.isAlive);
                 if (aliveSeekers == 0)
                 {
                     EndGame(PlayerRole.Hider);
@@ -316,6 +337,8 @@ namespace HideAndSeekGame.Managers
             {
                 player.OnGameEnd(winnerRole);
             }
+            
+            timeCountDown.StopCountdownServerRpc();
         }
         
         [ServerRpc(RequireOwnership = false)]
@@ -343,11 +366,30 @@ namespace HideAndSeekGame.Managers
                 }
             }
             
-            // If seeker killed hider, restore health
-            var killer = networkPlayers.FirstOrDefault(p => p.clientId == killerId);
-            var victim = networkPlayers.FirstOrDefault(p => p.clientId == victimId);
+            // Find killer and victim data
+            NetworkPlayerData killer = default;
+            NetworkPlayerData victim = default;
+            bool killerFound = false;
+            bool victimFound = false;
             
-            if (killer.role == PlayerRole.Seeker && victim.role == PlayerRole.Hider)
+            for (int i = 0; i < networkPlayers.Count; i++)
+            {
+                if (networkPlayers[i].clientId == killerId)
+                {
+                    killer = networkPlayers[i];
+                    killerFound = true;
+                }
+                if (networkPlayers[i].clientId == victimId)
+                {
+                    victim = networkPlayers[i];
+                    victimFound = true;
+                }
+                
+                if (killerFound && victimFound) break;
+            }
+            
+            // If seeker killed hider, restore health
+            if (killerFound && victimFound && killer.role == PlayerRole.Seeker && victim.role == PlayerRole.Hider)
             {
                 for (int i = 0; i < networkPlayers.Count; i++)
                 {
@@ -389,12 +431,15 @@ namespace HideAndSeekGame.Managers
         private void ForceObjectSwapClientRpc()
         {
             // Force all hiders to swap objects
-            var hiders = players.Values.Where(p => p.Role == PlayerRole.Hider);
-            foreach (var hider in hiders)
+            foreach (var kvp in players)
             {
-                if (hider is IHider h)
+                if (kvp.Value.Role == PlayerRole.Hider)
                 {
-                    // Implementation will be in hider class
+                    if (kvp.Value is IHider hider)
+                    {
+                        // Implementation will be in hider class
+                        Debug.Log($"Forcing object swap for hider {hider.ClientId}");
+                    }
                 }
             }
         }
@@ -406,7 +451,6 @@ namespace HideAndSeekGame.Managers
         private void OnGameStateNetworkChanged(NetworkGameState previousValue, NetworkGameState newValue)
         {
             OnGameStateChanged?.Invoke(newValue.state);
-            OnTimeUpdated?.Invoke(newValue.timeRemaining);
             OnTaskProgressUpdated?.Invoke(newValue.completedTasks, newValue.totalTasks);
         }
         
@@ -414,7 +458,16 @@ namespace HideAndSeekGame.Managers
         {
             // Handle player list changes
             var newState = networkGameState.Value;
-            newState.alivePlayers = networkPlayers.Count(p => p.isAlive);
+            
+            // Count alive players manually
+            int aliveCount = 0;
+            foreach (var player in networkPlayers)
+            {
+                if (player.isAlive)
+                    aliveCount++;
+            }
+            
+            newState.alivePlayers = aliveCount;
             networkGameState.Value = newState;
         }
         
@@ -449,19 +502,46 @@ namespace HideAndSeekGame.Managers
         
         public SkillData GetSkillData(SkillType skillType)
         {
-            return skillDatabase.FirstOrDefault(s => s.type == skillType);
+            return skillDatabase.GetData(skillType);
         }
-        
-        public ObjectData GetObjectData(ObjectType objectType)
+
+        private ObjectData GetObjectData(ObjectType objectType)
         {
-            return objectDatabase.FirstOrDefault(o => o.type == objectType);
+            return objectDatabase.GetData(objectType);
         }
-        
-        public TaskData GetTaskData(TaskType taskType)
+
+        private TaskData GetTaskData(TaskType taskType)
         {
-            return taskDatabase.FirstOrDefault(t => t.type == taskType);
+            return taskDatabase.GetData(taskType);
         }
         
         #endregion
+
+
+        #region Testing
+        
+        [Header("Testing")]
+        [SerializeField] private PlayerController playerPrefab;
+        
+        
+        [ContextMenu("Spawn Test Player")]
+        public void SpawnTestPlayer()
+        {
+            if (NetworkManager.Singleton == null || playerPrefab == null) return;
+            
+            
+            var playerInstance = Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
+            var networkObj = playerInstance.GetComponent<NetworkObject>();
+            if (networkObj != null)
+            {
+                networkObj.SpawnAsPlayerObject(NetworkManager.Singleton.LocalClientId);
+            }
+            
+            //Assign random role for testing
+            var role = UnityEngine.Random.value > 0.5f ? PlayerRole.Hider : PlayerRole.Seeker;
+            playerInstance.SetRole(role);
+        }
+        #endregion
+        
     }
 }

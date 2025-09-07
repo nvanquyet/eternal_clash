@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace _GAME.Scripts.DesignPattern.Interaction
@@ -8,7 +9,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
     /// <summary>
     /// Base abstract class for all interactable entities
     /// </summary>
-    public abstract class InteractableBase : MonoBehaviour, IInteractable
+    public abstract class InteractableBase : NetworkBehaviour, IInteractable
     {
         [Header("Base Interactable Settings")] [SerializeField]
         protected string entityId;
@@ -305,10 +306,11 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         [SerializeField] protected float defenseValue = 0f;
         [SerializeField] protected bool isInvulnerable = false;
 
-        public float CurrentHealth => currentHealth;
+        public virtual float CurrentHealth => currentHealth;
         public float MaxHealth => maxHealth;
         public float DefenseValue => defenseValue;
-        public bool IsAlive => currentHealth > 0;
+        public virtual bool IsAlive => currentHealth > 0;
+        public virtual Vector3 Position =>  transform.position;
         public bool IsInvulnerable => isInvulnerable;
 
         public event Action<float, float> OnHealthChanged;
@@ -388,6 +390,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         public DamageType PrimaryDamageType => primaryDamageType;
 
         public event Action<IAttackable, IDefendable, float> OnAttackPerformed;
+        
 
         public virtual bool Attack(IDefendable target)
         {

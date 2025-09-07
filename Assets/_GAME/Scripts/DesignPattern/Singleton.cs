@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace GAME.Scripts.DesignPattern
@@ -103,4 +104,5 @@ namespace GAME.Scripts.DesignPattern
     {
         protected override bool DontDestroyOnLoad => true;
     }
+    
 }
