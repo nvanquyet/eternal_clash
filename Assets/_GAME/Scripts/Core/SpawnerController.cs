@@ -16,14 +16,12 @@ namespace _GAME.Scripts.Core
     /// </summary>
     public class SpawnerController : NetworkBehaviour
     {
-        [Header("Prefabs")]
-        [SerializeField] protected NetworkObject playerPrefab;
+        [Header("Prefabs")] [SerializeField] protected NetworkObject playerPrefab;
 
-        [Header("Spawn Points")]
-        [SerializeField] protected Transform[] spawnPoints;
-        
-        [Header("Settings")]
-        [SerializeField] protected float spawnDelay = 0.5f;
+        [Header("Spawn Points")] [SerializeField]
+        protected Transform[] spawnPoints;
+
+        [Header("Settings")] [SerializeField] protected float spawnDelay = 0.5f;
         [SerializeField] protected float clientReadyTimeout = 2.5f;
         [SerializeField] protected bool debugMode = false;
 
@@ -41,34 +39,44 @@ namespace _GAME.Scripts.Core
         protected bool _eventsRegistered = false;
         protected bool _sceneFullyLoaded = false;
         
+        // Callback tracking to prevent multiple calls
+        protected bool _hasCalledFinishSpawning = false;
+        protected Coroutine _spawnWatchdog = null;
+
         // Callbacks
         public Action<NetworkObject> OnPlayerSpawn;
         public Action<NetworkObject> OnPlayerDespawn;
         public Action OnFinishSpawning;
-        
+
         // Public Properties
         public int SpawnedPlayerCount => spawnedPlayers.Count;
         public List<NetworkObject> SpawnedPlayers => new List<NetworkObject>(spawnedPlayers.Values);
-
-        // ✅ CLIENT SPAWN STATE ENUM
+        
+        
+        public Dictionary<ulong, T> GetSpawnedPlayersDictionary<T>() where T : NetworkBehaviour
+        {
+            //Return a dictionary of clientId to T component from spawned players
+            return spawnedPlayers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.GetComponent<T>());
+        }
+        
+        // CLIENT SPAWN STATE ENUM
         protected enum ClientSpawnState
         {
-            Connected,        // Vừa kết nối
+            Connected, // Vừa kết nối
             WaitingForScene, // Chờ scene load
-            ReadyToSpawn,    // Sẵn sàng spawn  
-            Spawning,        // Đang spawn
-            Spawned,         // Đã spawn xong
-            Disconnected     // Đã disconnect
+            ReadyToSpawn, // Sẵn sàng spawn  
+            Spawning, // Đang spawn
+            Spawned, // Đã spawn xong
+            Disconnected // Đã disconnect
         }
 
         #region Unity Lifecycle
-        
+
         protected virtual void Awake()
-        { 
+        {
+            if (debugMode) Debug.Log($"[{GetType().Name}] Awake - Initializing spawner");
             ValidateSetup();
             InitializeSpawnPoints();
-            
-            if (debugMode) Debug.Log($"[{GetType().Name}] Awake completed");
         }
 
         protected virtual void Start()
@@ -88,32 +96,22 @@ namespace _GAME.Scripts.Core
                 return;
             }
 
-            if (debugMode) 
-                Debug.Log($"[{GetType().Name}] NetworkSpawn - IsServer: {IsServer}, Scene: {gameObject.scene.name}");
-
             if (!IsServer) return;
 
+            Debug.Log($"[{GetType().Name}] Server spawning - Scene: {gameObject.scene.name}");
             RegisterServerCallbacks();
-            
-            // ✅ SCENE-BASED INITIALIZATION - spawn existing players immediately
             StartCoroutine(InitializeSceneSpawning());
         }
 
         public override void OnNetworkDespawn()
         {
-            if (debugMode) Debug.Log($"[{GetType().Name}] NetworkDespawn");
-            
             UnregisterAllCallbacks();
-            
-            if (IsServer)
-            {
-                CleanupAllPlayers();
-            }
+            if (IsServer) CleanupAllPlayers();
         }
 
         #endregion
 
-        #region ✅ SCENE-BASED SPAWNING SYSTEM
+        #region SCENE-BASED SPAWNING SYSTEM
 
         /// <summary>
         /// Initialize spawning for gameplay scenes - spawn all existing connected clients
@@ -123,12 +121,9 @@ namespace _GAME.Scripts.Core
             // Wait for network to be fully ready
             yield return new WaitForSeconds(0.1f);
             
-            // Mark scene as loaded
             _sceneFullyLoaded = true;
+            Debug.Log($"[{GetType().Name}] Scene spawning system initialized");
             
-            if (debugMode) Debug.Log($"[{GetType().Name}] Scene spawning system initialized");
-            
-            // Process all existing clients (they should already be connected from previous scene)
             ProcessExistingClients();
         }
 
@@ -138,54 +133,101 @@ namespace _GAME.Scripts.Core
         protected virtual void ProcessExistingClients()
         {
             var nm = NetworkManager.Singleton;
-            if (nm?.ConnectedClients == null) return;
+            if (nm?.ConnectedClients == null)
+            {
+                Debug.LogWarning($"[{GetType().Name}] No NetworkManager available");
+                TryCallFinishSpawning();
+                return;
+            }
 
             var clientsToSpawn = new List<ulong>();
-            
+
             foreach (var clientId in nm.ConnectedClients.Keys)
             {
                 // Initialize state for existing clients
                 if (!clientStates.ContainsKey(clientId))
                 {
                     clientStates[clientId] = ClientSpawnState.ReadyToSpawn;
-                    if (debugMode) Debug.Log($"[{GetType().Name}] Preparing to spawn existing client {clientId}");
                 }
-                
-                // Check if ready to spawn
+
                 if (ShouldSpawnClient(clientId))
                 {
                     clientsToSpawn.Add(clientId);
                 }
             }
 
-            // Spawn all ready clients
+            Debug.Log($"[{GetType().Name}] Processing {nm.ConnectedClients.Count} clients - {clientsToSpawn.Count} ready to spawn");
+
             if (clientsToSpawn.Count > 0)
             {
                 StartCoroutine(SpawnMultipleClients(clientsToSpawn));
             }
-            else if (debugMode)
+            else
             {
-                Debug.Log($"[{GetType().Name}] No clients to spawn in this scene");
+                StartSpawnWatchdog();
+            }
+        }
+
+        /// <summary>
+        /// Watchdog to handle cases where no immediate spawning occurs but callback still needs to be called
+        /// </summary>
+        protected virtual void StartSpawnWatchdog()
+        {
+            if (_spawnWatchdog != null) StopCoroutine(_spawnWatchdog);
+            _spawnWatchdog = StartCoroutine(SpawnWatchdog());
+        }
+
+        protected virtual IEnumerator SpawnWatchdog()
+        {
+            // Wait a bit to see if any spawning occurs
+            yield return new WaitForSeconds(spawnDelay + 0.5f);
+
+            var nm = NetworkManager.Singleton;
+            if (nm?.ConnectedClients != null)
+            {
+                int connectedCount = nm.ConnectedClients.Count;
+                int spawnedCount = SpawnedPlayerCount;
+                
+                if (debugMode) Debug.Log($"[{GetType().Name}] SpawnWatchdog - Connected: {connectedCount}, Spawned: {spawnedCount}");
+                
+                // If all connected clients have been spawned or no clients to spawn, call finish
+                if (spawnedCount >= connectedCount || connectedCount == 0)
+                {
+                    TryCallFinishSpawning();
+                }
+            }
+            else
+            {
+                TryCallFinishSpawning();
+            }
+        }
+
+        /// <summary>
+        /// Safely call OnFinishSpawning only once
+        /// </summary>
+        protected virtual void TryCallFinishSpawning()
+        {
+            if (!_hasCalledFinishSpawning)
+            {
+                _hasCalledFinishSpawning = true;
+                Debug.Log($"[{GetType().Name}] All spawning completed - calling OnFinishSpawning");
+                OnFinishSpawning?.Invoke();
             }
         }
 
         protected virtual bool ShouldSpawnClient(ulong clientId)
         {
-            // ✅ SINGLE SOURCE OF TRUTH
             if (!_sceneFullyLoaded) return false;
             if (spawnedPlayers.ContainsKey(clientId)) return false;
-            
+
             var state = GetClientState(clientId);
-            return state == ClientSpawnState.Connected || 
-                   state == ClientSpawnState.ReadyToSpawn;
+            return state == ClientSpawnState.Connected || state == ClientSpawnState.ReadyToSpawn;
         }
 
         protected virtual IEnumerator SpawnMultipleClients(List<ulong> clientIds)
         {
-            if (debugMode) Debug.Log($"[{GetType().Name}] Spawning {clientIds.Count} clients");
-            
             var spawnTasks = new List<Coroutine>();
-            
+
             foreach (var clientId in clientIds)
             {
                 if (ShouldSpawnClient(clientId))
@@ -195,20 +237,23 @@ namespace _GAME.Scripts.Core
                 }
             }
 
+            if (debugMode) Debug.Log($"[{GetType().Name}] Waiting for {spawnTasks.Count} spawn tasks to complete");
+
             // Wait for all spawns to complete
             while (spawnTasks.Any(task => task != null))
             {
                 yield return new WaitForSeconds(0.1f);
             }
 
-            // ✅ SINGLE CALLBACK INVOCATION
-            OnFinishSpawning?.Invoke();
+            Debug.Log($"[{GetType().Name}] All spawn tasks completed");
+            TryCallFinishSpawning();
         }
 
         protected virtual IEnumerator SpawnSingleClient(ulong clientId)
         {
             yield return new WaitForSeconds(spawnDelay);
-            
+
+            // Double check conditions after delay
             if (!ShouldSpawnClient(clientId) && GetClientState(clientId) != ClientSpawnState.Spawning)
             {
                 if (debugMode) Debug.Log($"[{GetType().Name}] Skipping spawn for client {clientId} - conditions changed");
@@ -222,18 +267,11 @@ namespace _GAME.Scripts.Core
 
         #region Callback Registration
 
-        /// <summary>
-        /// Register callbacks that don't depend on network - override in derived classes for specific events
-        /// </summary>
         protected virtual void RegisterEarlyCallbacks()
         {
             // Base implementation - derived classes can add their specific callbacks
-            if (debugMode) Debug.Log($"[{GetType().Name}] Early callbacks registered");
         }
 
-        /// <summary>
-        /// Register server-side callbacks - base scene management only
-        /// </summary>
         protected virtual void RegisterServerCallbacks()
         {
             if (!IsServer || _eventsRegistered) return;
@@ -241,13 +279,12 @@ namespace _GAME.Scripts.Core
             var nm = NetworkManager.Singleton;
             if (nm?.SceneManager != null)
             {
-                // Only scene-related callbacks for base controller
                 nm.SceneManager.OnLoadEventCompleted += OnSceneLoadCompleted;
                 nm.SceneManager.OnSynchronizeComplete += OnSceneSynchronizeComplete;
+                if (debugMode) Debug.Log($"[{GetType().Name}] Registered scene callbacks");
             }
 
             _eventsRegistered = true;
-            if (debugMode) Debug.Log($"[{GetType().Name}] Server callbacks registered");
         }
 
         protected virtual void UnregisterAllCallbacks()
@@ -262,27 +299,21 @@ namespace _GAME.Scripts.Core
             }
 
             _eventsRegistered = false;
-            if (debugMode) Debug.Log($"[{GetType().Name}] All callbacks unregistered");
         }
 
         #endregion
 
         #region Scene Event Handlers
 
-        /// <summary>
-        /// Handle scene load completion - respawn players if needed
-        /// </summary>
-        protected virtual void OnSceneLoadCompleted(string sceneName, LoadSceneMode mode, 
-                                        List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
+        protected virtual void OnSceneLoadCompleted(string sceneName, LoadSceneMode mode,
+            List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
         {
             if (!IsServer) return;
-            
+
             var currentSceneName = SceneManager.GetActiveScene().name;
             if (sceneName != currentSceneName && sceneName != gameObject.scene.name) return;
 
-            if (debugMode) 
-                Debug.Log($"[{GetType().Name}] Scene '{sceneName}' load completed. " +
-                         $"Clients completed: {clientsCompleted.Count}, timed out: {clientsTimedOut.Count}");
+            Debug.Log($"[{GetType().Name}] Scene '{sceneName}' loaded - {clientsCompleted.Count} completed, {clientsTimedOut.Count} timed out");
 
             // Update states for clients that completed scene load
             foreach (var clientId in clientsCompleted)
@@ -296,7 +327,6 @@ namespace _GAME.Scripts.Core
                 SetClientState(clientId, ClientSpawnState.ReadyToSpawn); // Still try to spawn
             }
 
-            // Process ready clients
             ProcessExistingClients();
         }
 
@@ -304,11 +334,10 @@ namespace _GAME.Scripts.Core
         {
             if (!IsServer) return;
 
-            if (debugMode) Debug.Log($"[{GetType().Name}] Scene synchronization complete for client {clientId}");
-            
-            // Update state and try to spawn
-            if (GetClientState(clientId) == ClientSpawnState.Connected)
+            var currentState = GetClientState(clientId);
+            if (currentState == ClientSpawnState.Connected)
             {
+                if (debugMode) Debug.Log($"[{GetType().Name}] Scene sync complete for client {clientId}");
                 SetClientState(clientId, ClientSpawnState.ReadyToSpawn);
                 ProcessExistingClients();
             }
@@ -320,7 +349,7 @@ namespace _GAME.Scripts.Core
 
         protected ClientSpawnState GetClientState(ulong clientId)
         {
-            return clientStates.TryGetValue(clientId, out var state) ? state : ClientSpawnState.Disconnected;
+            return clientStates.TryGetValue(clientId, out var value) ? value : ClientSpawnState.Disconnected;
         }
 
         protected void SetClientState(ulong clientId, ClientSpawnState newState)
@@ -329,8 +358,7 @@ namespace _GAME.Scripts.Core
             if (oldState != newState)
             {
                 clientStates[clientId] = newState;
-                if (debugMode) 
-                    Debug.Log($"[{GetType().Name}] Client {clientId}: {oldState} → {newState}");
+                if (debugMode) Debug.Log($"[{GetType().Name}] Client {clientId}: {oldState} → {newState}");
             }
         }
 
@@ -367,11 +395,7 @@ namespace _GAME.Scripts.Core
                 if (debugMode) Debug.Log($"[{GetType().Name}] Initialized {available.Count} spawn points");
             }
         }
-
-        public static List<T> GetAllSpawnedPlayers<T>(List<NetworkObject> originList) where T : NetworkBehaviour
-        {
-            return (from obj in originList where obj != null select obj.GetComponent<T>() into component where component != null select component).ToList();
-        }
+        
 
         protected virtual void TrySpawnPlayer(ulong clientId)
         {
@@ -380,14 +404,13 @@ namespace _GAME.Scripts.Core
             var nm = NetworkManager.Singleton;
             if (nm == null || !nm.ConnectedClients.ContainsKey(clientId))
             {
-                if (debugMode) Debug.LogWarning($"[{GetType().Name}] Client {clientId} no longer connected");
+                Debug.LogWarning($"[{GetType().Name}] Client {clientId} no longer connected");
                 SetClientState(clientId, ClientSpawnState.Disconnected);
                 return;
             }
 
             if (spawnedPlayers.ContainsKey(clientId))
             {
-                if (debugMode) Debug.LogWarning($"[{GetType().Name}] Player {clientId} already spawned");
                 SetClientState(clientId, ClientSpawnState.Spawned);
                 return;
             }
@@ -395,7 +418,6 @@ namespace _GAME.Scripts.Core
             var client = nm.ConnectedClients[clientId];
             if (client.PlayerObject != null && client.PlayerObject.IsSpawned)
             {
-                if (debugMode) Debug.Log($"[{GetType().Name}] Client {clientId} already has player object");
                 spawnedPlayers[clientId] = client.PlayerObject;
                 SetClientState(clientId, ClientSpawnState.Spawned);
                 OnPlayerSpawn?.Invoke(client.PlayerObject);
@@ -405,12 +427,11 @@ namespace _GAME.Scripts.Core
             try
             {
                 var (position, rotation, spawnPoint) = GetSpawnTransform();
-                
-                if (debugMode) Debug.Log($"[{GetType().Name}] Spawning player for client {clientId} at {position}");
+                Debug.Log($"[{GetType().Name}] Spawning player {clientId} at {position}");
 
                 var playerInstance = Instantiate(playerPrefab, position, rotation);
-                
-                // Add identity sync if needed (can be overridden in derived classes)
+
+                // Add identity sync if needed
                 if (ShouldAddIdentitySync() && playerInstance.GetComponent<IdentitySyncComponent>() == null)
                 {
                     playerInstance.gameObject.AddComponent<IdentitySyncComponent>();
@@ -427,11 +448,11 @@ namespace _GAME.Scripts.Core
                 }
 
                 OnPlayerSpawn?.Invoke(playerInstance);
-                
+
                 var receiver = playerInstance.GetComponent<IReceiveSpawnChoice>();
                 receiver?.OnSpawnWithChoice(new SpawnChoice { Position = position, Rotation = rotation });
 
-                if (debugMode) Debug.Log($"[{GetType().Name}] Successfully spawned player for client {clientId}");
+                Debug.Log($"[{GetType().Name}] Successfully spawned player for client {clientId}");
             }
             catch (System.Exception e)
             {
@@ -440,9 +461,6 @@ namespace _GAME.Scripts.Core
             }
         }
 
-        /// <summary>
-        /// Override in derived classes to control identity sync component addition
-        /// </summary>
         protected virtual bool ShouldAddIdentitySync()
         {
             return false; // Base spawner doesn't add identity sync by default
@@ -471,7 +489,6 @@ namespace _GAME.Scripts.Core
             if (spawnedPlayers.TryGetValue(clientId, out var playerObject))
             {
                 OnPlayerDespawn?.Invoke(playerObject);
-                
                 RestoreSpawnPoint(clientId, playerObject.transform.position);
 
                 if (playerObject != null && playerObject.IsSpawned)
@@ -483,14 +500,10 @@ namespace _GAME.Scripts.Core
             }
 
             slotByClient.Remove(clientId);
-
-            if (debugMode) Debug.Log($"[{GetType().Name}] Cleaned up client {clientId}");
         }
 
         protected virtual void CleanupAllPlayers()
         {
-            if (debugMode) Debug.Log($"[{GetType().Name}] Cleaning up all {spawnedPlayers.Count} players");
-
             var clientsToCleanup = new List<ulong>(spawnedPlayers.Keys);
             foreach (var clientId in clientsToCleanup)
             {
@@ -498,11 +511,6 @@ namespace _GAME.Scripts.Core
             }
 
             InitializeSpawnPoints();
-            // OnFinishSpawning chỉ gọi khi thực sự cleanup tất cả
-            if (clientsToCleanup.Count > 0)
-            {
-                OnFinishSpawning?.Invoke();
-            }
         }
 
         protected virtual void RestoreSpawnPoint(ulong clientId, Vector3 playerLastPos)
@@ -514,44 +522,36 @@ namespace _GAME.Scripts.Core
                 {
                     available.Add(used);
                 }
-
-                if (debugMode)
-                {
-                    Debug.Log($"[{GetType().Name}] Restored spawn point for client {clientId}");
-                }
             }
         }
 
         #endregion
 
         #region Debug Methods
-        
+
         [ContextMenu("Force Respawn All")]
         protected virtual void ForceRespawnAll()
         {
             if (!IsServer) return;
 
+            Debug.Log($"[{GetType().Name}] Force respawning all players");
             var clientIds = new List<ulong>(spawnedPlayers.Keys);
             foreach (var clientId in clientIds)
             {
                 CleanupClient(clientId);
                 SetClientState(clientId, ClientSpawnState.ReadyToSpawn);
             }
-            
+
             ProcessExistingClients();
         }
 
         [ContextMenu("Debug Dump State")]
         protected virtual void DebugDumpState()
         {
-            Debug.Log($"[{GetType().Name}] State:\n" +
-                     $"  Available: {available.Count}\n" +
-                     $"  Used: {usedSpawnPoints.Count}\n" +
-                     $"  Spawned: {spawnedPlayers.Count}\n" +
-                     $"  Client States: {clientStates.Count}\n" +
-                     $"  Scene Loaded: {_sceneFullyLoaded}\n" +
-                     $"  Events Registered: {_eventsRegistered}");
-                     
+            Debug.Log($"[{GetType().Name}] State Dump:\n" +
+                      $"  Available: {available.Count}, Used: {usedSpawnPoints.Count}, Spawned: {spawnedPlayers.Count}\n" +
+                      $"  Scene Loaded: {_sceneFullyLoaded}, Events Registered: {_eventsRegistered}, Is Server: {IsServer}");
+
             foreach (var kvp in clientStates)
             {
                 Debug.Log($"    Client {kvp.Key}: {kvp.Value}");

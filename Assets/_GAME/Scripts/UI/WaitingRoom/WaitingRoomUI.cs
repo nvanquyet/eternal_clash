@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Lobbies;
 using _GAME.Scripts.Networking;
@@ -149,14 +150,31 @@ namespace _GAME.Scripts.UI.WaitingRoom
         private void OnLobbyUpdated(Lobby lobby, string arg2)
         {
             if (lobby == null) return;
+            
+            btnStartGame?.gameObject.SetActive(NetworkController.Instance.IsHost);
+            // if (btnStartGame && NetworkController.Instance.IsHost)
+            // {
+            //     if (lobby.Players.Count < 2)
+            //     {
+            //         btnStartGame.interactable = false;
+            //     }
+            //     //Check all player ready 
+            //     else
+            //     {
+            //         var allReady = lobby.Players.All(player => player.IsPlayerReady());
+            //         btnStartGame.interactable = allReady;
+            //     }
+            // }
+            
+            
             // Update the lobby code text
             SetLobbyCode(lobby.LobbyCode);
                 
             // Initialize the player list
-            playerList.Initialized();
+            playerList.Initialized(lobby);
                 
             // Update the lobby UI setting
-            lobbySetting.Initialized();
+            lobbySetting.Initialized(lobby);
         }
 
         private void OnClickRoomInformation()
@@ -167,7 +185,6 @@ namespace _GAME.Scripts.UI.WaitingRoom
 
         private void OnClickLeaveRoom()
         {
-            //Todo: Leave Room
             //Remove lobby
             _ = NetworkController.Instance.IsHost ? LobbyManager.Instance.RemoveLobbyAsync() : LobbyManager.Instance.LeaveLobbyAsync();
         }

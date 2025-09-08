@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using _GAME.Scripts.Controller;
+using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.Networking.Relay;
 using _GAME.Scripts.Networking.StateMachine;
 using _GAME.Scripts.UI;
@@ -12,6 +13,7 @@ using Unity.Services.Authentication;
 using Unity.Services.Relay;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 
 namespace _GAME.Scripts.Networking
 {
@@ -587,6 +589,12 @@ namespace _GAME.Scripts.Networking
         {
             //Swtich to gameplay scene
             _ = LoadSceneAsync(SceneDefinitions.GameScene, null, LoadSceneMode.Single);
+            //Faking loading
+            LoadingUI.Instance.RunTimed(2, () =>
+            {
+                //Stop update lobby
+                LobbyManager.Instance.StopCheckingLobby();
+            });
         }
     }
 

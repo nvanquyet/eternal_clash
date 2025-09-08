@@ -29,7 +29,8 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         #region Abstract Methods
 
-        protected abstract void HandleInput();
+        protected abstract void HandleRegisterInput();
+        protected abstract void HandleUnRegisterInput();
         protected abstract void InitializeSkills();
         public abstract void OnGameStart();
         public abstract void OnGameEnd(PlayerRole winnerRole);
@@ -41,6 +42,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+            HandleRegisterInput();
             networkIsAlive.OnValueChanged += OnAliveStatusChanged;
 
             if (IsOwner)
@@ -56,6 +58,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             base.OnNetworkDespawn();
             networkIsAlive.OnValueChanged -= OnAliveStatusChanged;
+            HandleUnRegisterInput();
         }
 
         #endregion
@@ -85,10 +88,10 @@ namespace _GAME.Scripts.HideAndSeek.Player
             Debug.Log($"[RolePlayer] {gameObject.name} role assigned: {role}");
 
             // Initialize skills for this role
-            InitializeSkills();
+            //InitializeSkills();
 
             // Additional role-specific initialization
-            OnRoleInitialized();
+            //OnRoleInitialized();
         }
 
         /// <summary>

@@ -61,30 +61,35 @@ namespace _GAME.Scripts.HideAndSeek.Player
             networkInSoulMode.OnValueChanged -= OnSoulModeNetworkChanged;
         }
 
-        protected override void HandleInput()
+        protected override void HandleRegisterInput()
         {
-            // Skill inputs
-            if (Input.GetKeyDown(KeyCode.Q)) // Freeze seeker
-            {
-                UseSkill(SkillType.FreezeSeeker);
-            }
-            else if (Input.GetKeyDown(KeyCode.E)) // Teleport
-            {
-                UseSkill(SkillType.Teleport);
-            }
-            else if (Input.GetKeyDown(KeyCode.R)) // Shape shift
-            {
-                UseSkill(SkillType.ShapeShift);
-            }
-
-            // Soul mode toggle (Case 2 only)
-            if (GameManager.CurrentMode == GameMode.PersonVsObject)
-            {
-                if (Input.GetKeyDown(KeyCode.F) && currentDisguise != null)
-                {
-                    ToggleSoulModeServerRpc();
-                }
-            }
+            // // Skill inputs
+            // if (Input.GetKeyDown(KeyCode.Q)) // Freeze seeker
+            // {
+            //     UseSkill(SkillType.FreezeSeeker);
+            // }
+            // else if (Input.GetKeyDown(KeyCode.E)) // Teleport
+            // {
+            //     UseSkill(SkillType.Teleport);
+            // }
+            // else if (Input.GetKeyDown(KeyCode.R)) // Shape shift
+            // {
+            //     UseSkill(SkillType.ShapeShift);
+            // }
+            //
+            // // Soul mode toggle (Case 2 only)
+            // if (GameManager.CurrentMode == GameMode.PersonVsObject)
+            // {
+            //     if (Input.GetKeyDown(KeyCode.F) && currentDisguise != null)
+            //     {
+            //         ToggleSoulModeServerRpc();
+            //     }
+            // }
+        }
+        
+        protected override void HandleUnRegisterInput()
+        {
+            // Unregister skill inputs if any
         }
 
 

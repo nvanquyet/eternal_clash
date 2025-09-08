@@ -15,7 +15,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
     /// Spawns players as they connect and manages lobby events
     /// </summary>
     public class WaitingSpawnController : SpawnerController
-    {
+    { 
         // Waiting room specific tracking
         private readonly Dictionary<ulong, float> clientConnectTimes = new();
 

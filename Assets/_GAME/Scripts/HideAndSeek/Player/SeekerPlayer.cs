@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
 using _GAME.Scripts.HideAndSeek.SkillSystem;
+using _GAME.Scripts.Utils;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace _GAME.Scripts.HideAndSeek.Player
 {
@@ -13,13 +15,15 @@ namespace _GAME.Scripts.HideAndSeek.Player
         [SerializeField] private float shootCooldown = 0.5f;
         [SerializeField] private LayerMask shootableLayers = -1;
         
+        [SerializeField] private InputActionReference attackActionRef;
+        private InputAction attackAction; 
         private Camera playerCamera;
         private float nextShootTime;
         private NetworkVariable<float> networkHealth = new NetworkVariable<float>(100f);
         
         // ISeeker implementation
         public float CurrentHealth => networkHealth.Value;
-        public float MaxHealth => GameManager.Settings.seekerHealth;
+        public float MaxHealth => GameManager.Instance.Settings.seekerHealth;
         public bool HasSkillsAvailable => Skills.Values.Any(s => s.CanUse);
         public bool CanShoot => Time.time >= nextShootTime && IsAlive;
         
@@ -29,18 +33,27 @@ namespace _GAME.Scripts.HideAndSeek.Player
         protected override void Awake()
         {
             base.Awake();
-            playerCamera = GetComponentInChildren<Camera>();
+            playerCamera = Camera.main;
         }
         
+
+        protected override void HandleUnRegisterInput()
+        {
+            if (attackAction == null) return;
+            attackAction.performed -= Attack;
+            attackAction?.Disable();
+            attackAction = null;
+        }
+
         protected override void InitializeSkills()
         {
             // Add seeker skills
             var detectSkill = gameObject.AddComponent<DetectSkill>();
-            detectSkill.Initialize(SkillType.Detect, GameManager.GetSkillData(SkillType.Detect));
+            detectSkill.Initialize(SkillType.Detect, GameManager.Instance.GetSkillData(SkillType.Detect));
             Skills[SkillType.Detect] = detectSkill;
             
             var freezeSkill = gameObject.AddComponent<FreezeSkill>();
-            freezeSkill.Initialize(SkillType.FreezeHider, GameManager.GetSkillData(SkillType.FreezeHider));
+            freezeSkill.Initialize(SkillType.FreezeHider, GameManager.Instance.GetSkillData(SkillType.FreezeHider));
             Skills[SkillType.FreezeHider] = freezeSkill;
         }
         
@@ -51,7 +64,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
             
             if (IsServer)
             {
-                networkHealth.Value = GameManager.Settings.seekerHealth;
+                networkHealth.Value = GameManager.Instance.Settings.seekerHealth;
             }
         }
         
@@ -60,28 +73,45 @@ namespace _GAME.Scripts.HideAndSeek.Player
             base.OnNetworkDespawn();
             networkHealth.OnValueChanged -= OnHealthNetworkChanged;
         }
-        
-        protected override void HandleInput()
+
+        protected override void HandleRegisterInput()
         {
-            // Shooting
-            if (Input.GetMouseButtonDown(0) && CanShoot)
+            if (IsOwner)
             {
-                Shoot();
+                int instanceId = GetInstanceID();
+
+                // Tạo actions sử dụng factory
+                attackAction = InputActionFactory.CreateUniqueAction(attackActionRef, instanceId);
+                if (attackAction != null)
+                {
+                    Debug.Log("$[SeekerPlayer] Setting up input actions for SeekerPlayer");
+                    attackAction.performed += Attack;
+                    attackAction?.Enable();
+                }
             }
-            
-            // Skills
-            if (Input.GetKeyDown(KeyCode.Q)) // Detect
-            {
-                UseSkill(SkillType.Detect);
-            }
-            else if (Input.GetKeyDown(KeyCode.E)) // Freeze hider
-            {
-                UseSkill(SkillType.FreezeHider);
-            }
+
+            // // Skills
+            // if (Input.GetKeyDown(KeyCode.Q)) // Detect
+            // {
+            //     UseSkill(SkillType.Detect);
+            // }
+            // else if (Input.GetKeyDown(KeyCode.E)) // Freeze hider
+            // {
+            //     UseSkill(SkillType.FreezeHider);
+            // }
         }
+
+
+        private void Attack(InputAction.CallbackContext obj)
+        {
+            Debug.Log($"[SeekerPlayer] Attack input received");
+            if(CanShoot) Shoot();
+        }
+
         
         private void Shoot()
         {
+            Debug.Log($"Seeker shooting");
             if (playerCamera == null) return;
             
             Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition);
@@ -98,6 +128,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         
         public void Shoot(Vector3 direction, Vector3 hitPoint)
         {
+            Debug.Log($"Seeker {ClientId} shooting from {playerCamera.transform.position} towards {direction} to hit point {hitPoint}");
             if (!CanShoot) return;
             
             ShootServerRpc(direction, hitPoint);
@@ -126,6 +157,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         [ServerRpc]
         private void ShootServerRpc(Vector3 direction, Vector3 hitPoint)
         {
+            Debug.Log($"Seeker {ClientId} shooting from {playerCamera.transform.position} towards {direction} to hit point {hitPoint}");
             // Perform raycast on server
             Ray ray = new Ray(playerCamera.transform.position, direction);
             bool hitTarget = false;
@@ -140,7 +172,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
                 if (hiderPlayer != null)
                 {
                     // Kill hider
-                    GameManager.PlayerKilledServerRpc(ClientId, hiderPlayer.ClientId);
+                    GameManager.Instance.PlayerKilledServerRpc(ClientId, hiderPlayer.ClientId);
                     hitTarget = true;
                 }
                 else
@@ -155,14 +187,14 @@ namespace _GAME.Scripts.HideAndSeek.Player
                     else
                     {
                         // Hit environment - take damage
-                        TakeDamage(GameManager.Settings.environmentDamage);
+                        TakeDamage(GameManager.Instance.Settings.environmentDamage);
                     }
                 }
             }
             else
             {
                 // Missed - take damage
-                TakeDamage(GameManager.Settings.environmentDamage);
+                TakeDamage(GameManager.Instance.Settings.environmentDamage);
             }
             
             // Notify all clients about the shot
@@ -182,7 +214,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         private void TakeDamageServerRpc(float damage)
         {
             networkHealth.Value = Mathf.Max(0, networkHealth.Value - damage);
-            GameManager.PlayerTookDamageServerRpc(ClientId, damage);
+            GameManager.Instance.PlayerTookDamageServerRpc(ClientId, damage);
             
             if (networkHealth.Value <= 0)
             {

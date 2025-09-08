@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.InputSystem;
+using _GAME.Scripts.Utils;
 
 namespace _GAME.Scripts.Player
 {
@@ -37,7 +38,7 @@ namespace _GAME.Scripts.Player
             if (joystick) joystick.gameObject.SetActive(usingJoystick);
             if (gamePadMovement) gamePadMovement.SetActive(!usingJoystick);
 
-            // Clone actions - tạo instance riêng cho mỗi player
+            // Tạo unique actions cho instance này - sử dụng factory
             CreateUniqueActions();
 
             // Mặc định: không đọc input
@@ -49,53 +50,23 @@ namespace _GAME.Scripts.Player
 
         private void CreateUniqueActions()
         {
-            // Tạo actions hoàn toàn mới thay vì clone
-            // Điều này tránh conflict giữa các instances
-            
-            if (moveActionRef != null)
-            {
-                _move = new InputAction(name: $"Move_{GetInstanceID()}", type: InputActionType.Value);
-                CopyBindings(moveActionRef.action, _move);
-            }
+            int instanceId = GetInstanceID();
 
-            if (jumpActionRef != null)
-            {
-                _jump = new InputAction(name: $"Jump_{GetInstanceID()}", type: InputActionType.Button);
-                CopyBindings(jumpActionRef.action, _jump);
-                _jump.performed += OnJumpPerformed;
-            }
+            // Tạo actions sử dụng factory
+            _move = InputActionFactory.CreateUniqueAction(moveActionRef, instanceId);
+            _look = InputActionFactory.CreateUniqueAction(lookActionRef, instanceId);
+            _jump = InputActionFactory.CreateUniqueAction(jumpActionRef, instanceId);
+            _run = InputActionFactory.CreateUniqueAction(runActionRef, instanceId);
+            _dash = InputActionFactory.CreateUniqueAction(dashActionRef, instanceId);
 
-            if (runActionRef != null)
+            // Subscribe events
+            if (_jump != null) _jump.performed += OnJumpPerformed;
+            if (_run != null) 
             {
-                _run = new InputAction(name: $"Run_{GetInstanceID()}", type: InputActionType.Button);
-                CopyBindings(runActionRef.action, _run);
                 _run.performed += OnRunPerformed;
                 _run.canceled += OnRunCanceled;
             }
-
-            if (dashActionRef != null)
-            {
-                _dash = new InputAction(name: $"Dash_{GetInstanceID()}", type: InputActionType.Button);
-                CopyBindings(dashActionRef.action, _dash);
-                _dash.performed += OnDashPerformed;
-            }
-
-            if (lookActionRef != null)
-            {
-                _look = new InputAction(name: $"Look_{GetInstanceID()}", type: InputActionType.Value);
-                CopyBindings(lookActionRef.action, _look);
-            }
-        }
-
-        private void CopyBindings(InputAction source, InputAction target)
-        {
-            if (source == null || target == null) return;
-
-            // Copy tất cả bindings từ source action
-            for (int i = 0; i < source.bindings.Count; i++)
-            {
-                target.AddBinding(source.bindings[i]);
-            }
+            if (_dash != null) _dash.performed += OnDashPerformed;
         }
 
         private void OnDestroy()
@@ -186,7 +157,7 @@ namespace _GAME.Scripts.Player
         // ======== Helpers ========
         private void EnableActions() 
         {
-            if (!_isOwner) return; // Chỉ owner mới enable được
+            if (!_isOwner) return;
             
             _move?.Enable();
             _look?.Enable();

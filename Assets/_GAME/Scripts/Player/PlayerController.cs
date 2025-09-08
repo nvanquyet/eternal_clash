@@ -1,3 +1,4 @@
+using System;
 using _GAME.Scripts.HideAndSeek;
 using _GAME.Scripts.HideAndSeek.Player;
 using _GAME.Scripts.Player.Config;
@@ -24,6 +25,14 @@ namespace _GAME.Scripts.Player
         [SerializeField] private GameObject tppCamera;
 
         [Header("Input")] [SerializeField] private MobileInputBridge playerInput;
+        
+        [Header("References")]
+        [SerializeField] private HiderPlayer hiderPlayer;
+        [SerializeField] private SeekerPlayer seekerPlayer;
+        
+        
+        //Network PlayerData
+        
 
         private Transform CameraTransform
         {
@@ -44,6 +53,16 @@ namespace _GAME.Scripts.Player
         private bool IsLocalOwner => IsOwner && IsClient;
 
         #region Unity Lifecycle
+        
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            hiderPlayer ??= GetComponentInChildren<HiderPlayer>();
+            seekerPlayer ??= GetComponentInChildren<SeekerPlayer>();
+            hiderPlayer.enabled = false;
+            seekerPlayer.enabled = false;
+        }
+#endif
 
         private void Awake()
         {
@@ -224,9 +243,6 @@ namespace _GAME.Scripts.Player
 
         #region Role System - COMPLETELY FIXED
 
-        // Role system
-        private RolePlayer _currentRoleComponent;
-        
         private NetworkVariable<PlayerRole> _networkRole = new NetworkVariable<PlayerRole>(
             PlayerRole.None, 
             NetworkVariableReadPermission.Everyone, 
@@ -237,10 +253,6 @@ namespace _GAME.Scripts.Player
         /// </summary>
         public PlayerRole CurrentRole => _networkRole.Value;
 
-        /// <summary>
-        /// Public getter for role component
-        /// </summary>
-        public RolePlayer CurrentRoleComponent => _currentRoleComponent;
 
         /// <summary>
         /// Set player role - SERVER ONLY
@@ -281,37 +293,17 @@ namespace _GAME.Scripts.Player
         /// </summary>
         private void ApplyRoleLocally(PlayerRole newRole)
         {
-            // Remove old role component
-            if (_currentRoleComponent != null)
-            {
-                Debug.Log($"[CLIENT] Removing old role component: {_currentRoleComponent.GetType().Name}");
-
-                // Notify old component about role change
-                _currentRoleComponent.OnRoleRemoved();
-
-                if (_currentRoleComponent is Component comp)
-                {
-                    Destroy(comp);
-                }
-
-                _currentRoleComponent = null;
-            }
-
             // Add new role component
-            if (newRole != PlayerRole.None)
+            if (newRole == PlayerRole.None) return;
+            var role = CreateRoleComponent(newRole);
+            if (role == null)
             {
-                _currentRoleComponent = CreateRoleComponent(newRole);
-                if (_currentRoleComponent != null)
-                {
-                    Debug.Log($"[CLIENT] Created new role component: {_currentRoleComponent.GetType().Name}");
-
-                    // ✅ IMPORTANT: Set role in the component
-                    _currentRoleComponent.SetRole(newRole);
-
-                    // Notify about role assignment
-                    _currentRoleComponent.OnRoleAssigned();
-                }
+                Debug.LogError($"No role component found for role {newRole} on Player {OwnerClientId}");
+                return;
             }
+            role.enabled = true;
+            role.SetRole(newRole);
+            role.OnRoleAssigned(); 
         }
 
         /// <summary>
@@ -321,10 +313,9 @@ namespace _GAME.Scripts.Player
         {
             return role switch
             {
-                PlayerRole.Hider => gameObject.AddComponent<HiderPlayer>(),
-                PlayerRole.Seeker => gameObject.AddComponent<SeekerPlayer>(),
-                PlayerRole.None => null,
-                _ => throw new System.ArgumentException($"Unknown role: {role}")
+                PlayerRole.Hider => hiderPlayer,
+                PlayerRole.Seeker => seekerPlayer,
+                _ => null
             };
         }
 

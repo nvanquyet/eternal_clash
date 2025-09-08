@@ -2,6 +2,7 @@ using System;
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using Unity.Netcode;
+using Unity.Services.Lobbies.Models;
 using UnityEngine;
 
 namespace _GAME.Scripts.UI.WaitingRoom
@@ -13,11 +14,11 @@ namespace _GAME.Scripts.UI.WaitingRoom
         
         
         //Initialize the player list with lobby param
-        public void Initialized()
+        public void Initialized(Lobby lobby)
         {
             try
             {
-                var allPlayer = LobbyManager.Instance.CurrentLobby.Players;
+                var allPlayer = lobby.Players;
                 var isHost = NetworkController.Instance.IsHost;
                 
                 if (playerListContainer == null || itemPlayerListPrefab == null)

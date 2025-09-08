@@ -4,6 +4,7 @@ using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using TMPro;
 using Unity.Netcode;
+using Unity.Services.Lobbies.Models;
 using UnityEngine;
 
 namespace _GAME.Scripts.UI.WaitingRoom
@@ -33,9 +34,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
         }
 
 
-        public void Initialized()
+        public void Initialized(Lobby lobby)
         {
-            var lobby = LobbyManager.Instance.CurrentLobby;
             if (lobby == null)
             {
                 Debug.LogError("[LobbySetting] Lobby is not initialized in LobbySetting.");

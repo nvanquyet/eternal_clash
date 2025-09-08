@@ -109,7 +109,7 @@ namespace _GAME.Scripts.UI.Home
                             { LobbyConstants.LobbyData.PHASE, new DataObject(DataObject.VisibilityOptions.Member, SessionPhase.WAITING) }
                         },
                     };
-
+        
                     // Update progress
                     LoadingUI.Instance.SetProgress(0.3f, 1f, "Setting up Lobby...");
                 
@@ -143,7 +143,8 @@ namespace _GAME.Scripts.UI.Home
                 Debug.LogError($"[HomeUI] Unexpected error: {e.Message}");
             }
         }
-
+        
+        
         private void OnJoinButtonClicked()
         {
             if (isProcessing) return;

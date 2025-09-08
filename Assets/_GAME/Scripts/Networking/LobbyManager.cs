@@ -371,6 +371,14 @@ namespace _GAME.Scripts.Networking
 
         #region Public API - Lobby Management
 
+        public void StopCheckingLobby()
+        {
+            _lobbyUpdater?.StopUpdating();
+            _lobbyHeartbeat?.StopHeartbeat();
+            Debug.Log("[LobbyManager] Stopped lobby heartbeat and updater");
+        }
+        
+        
         /// <summary>
         /// Leave lobby với proper cleanup
         /// </summary>

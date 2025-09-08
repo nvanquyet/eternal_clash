@@ -65,13 +65,13 @@ namespace _GAME.Scripts.HideAndSeek
                     totalTasks = gameSettings.tasksToComplete,
                     alivePlayers = 0
                 };
+                networkGameState.OnValueChanged += OnGameStateNetworkChanged;
+                networkPlayers.OnListChanged += OnPlayersListChanged;
+                if(timeCountDown) timeCountDown.OnCountdownFinished += TimeDurationEnded;
+                if(spawnerController) spawnerController.OnFinishSpawning += StartGameServerRpc;
+                
+                Debug.Log("GameManager: Initialized on Server.");
             }
-            
-            networkGameState.OnValueChanged += OnGameStateNetworkChanged;
-            networkPlayers.OnListChanged += OnPlayersListChanged;
-
-
-            if(spawnerController) spawnerController.OnFinishSpawning += StartGameServerRpc;
         }
         
         public override void OnNetworkDespawn()
@@ -83,6 +83,7 @@ namespace _GAME.Scripts.HideAndSeek
             }
             
             if(spawnerController) spawnerController.OnFinishSpawning -= StartGameServerRpc;
+            if(timeCountDown) timeCountDown.OnCountdownFinished -= TimeDurationEnded;
         }
         
         // private void Update()
@@ -102,23 +103,13 @@ namespace _GAME.Scripts.HideAndSeek
         [ServerRpc(RequireOwnership = false)]
         private void StartGameServerRpc()
         {
+            Debug.Log("[GameManager] Starting Game...");
             AssignRoles();
             SpawnGameElements();
             
             var newState = networkGameState.Value;
             newState.state = GameState.Preparation;
             networkGameState.Value = newState;
-            
-            //gameStartTime = Time.time;
-            //
-            if (gameSettings)
-            {
-                timeCountDown.OnCountdownFinished += () =>
-                {
-                    EndGame(PlayerRole.Seeker); // Time up, seekers win by default
-                };
-                timeCountDown.StartCountdownServerRpc(gameSettings.gameDuration);
-            }
             
             // Start game after preparation time
             StartCoroutine(StartPlayingPhaseCoroutine());
@@ -141,20 +132,30 @@ namespace _GAME.Scripts.HideAndSeek
             {
                 player.OnGameStart();
             }
+            
+            if (gameSettings)
+            {
+                timeCountDown.StartCountdownServerRpc(gameSettings.gameDuration);
+            }
         }
         
         private void AssignRoles()
         {
             if (NetworkManager.Singleton == null) return;
+
+            var clientsList = NetworkManager.Singleton.ConnectedClients;
+            var allPlayers = spawnerController.GetSpawnedPlayersDictionary<PlayerController>();
             
-            var clientsList = NetworkManager.Singleton.ConnectedClientsList;
-            var seekerCount = Mathf.Max(1, clientsList.Count / 4); // 1/4 players are seekers
-            
+            var seekerCount = Mathf.Max(1, allPlayers.Count / 4); // 1/4 players are seekers
+           
+            var seekerPlayers = new List<IGamePlayer>();
+            var hiderPlayers = new List<IGamePlayer>();
+
             // Create list of client IDs
             List<ulong> clientIds = new List<ulong>();
             foreach (var client in clientsList)
             {
-                clientIds.Add(client.ClientId);
+                clientIds.Add(client.Value.ClientId);
             }
             
             // Randomly assign seekers
@@ -170,9 +171,10 @@ namespace _GAME.Scripts.HideAndSeek
             }
             
             // Assign roles
-            foreach (var client in clientsList)
+            foreach (var client in clientsList.Values)
             {
                 var role = seekers.Contains(client.ClientId) ? PlayerRole.Seeker : PlayerRole.Hider;
+                allPlayers[client.ClientId].SetRole(role);
                 AssignPlayerRole(client.ClientId, role);
             }
         }
@@ -322,6 +324,12 @@ namespace _GAME.Scripts.HideAndSeek
                     EndGame(PlayerRole.Hider);
                 }
             }
+        }
+        
+        private void TimeDurationEnded()
+        {
+            Debug.Log($"[GameManager] Time's up! Ending game...");
+            EndGame(PlayerRole.Seeker); // Time up, seekers win by default
         }
         
         private void EndGame(PlayerRole winnerRole)
