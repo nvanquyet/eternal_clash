@@ -1,5 +1,6 @@
 using System;
 using _GAME.Scripts.HideAndSeek;
+using _GAME.Scripts.HideAndSeek.Config;
 using _GAME.Scripts.HideAndSeek.Player;
 using _GAME.Scripts.Player.Config;
 using _GAME.Scripts.Player.Locomotion;
@@ -24,13 +25,9 @@ namespace _GAME.Scripts.Player
         [SerializeField] private GameObject fppCamera;
         [SerializeField] private GameObject tppCamera;
 
+        [SerializeField] private PlayerRoleSO playerRoleSO;
+
         [Header("Input")] [SerializeField] private MobileInputBridge playerInput;
-        
-        [Header("References")]
-        [SerializeField] private HiderPlayer hiderPlayer;
-        [SerializeField] private SeekerPlayer seekerPlayer;
-        
-        
         //Network PlayerData
         
 
@@ -53,16 +50,6 @@ namespace _GAME.Scripts.Player
         private bool IsLocalOwner => IsOwner && IsClient;
 
         #region Unity Lifecycle
-        
-#if UNITY_EDITOR
-        private void OnValidate()
-        {
-            hiderPlayer ??= GetComponentInChildren<HiderPlayer>();
-            seekerPlayer ??= GetComponentInChildren<SeekerPlayer>();
-            hiderPlayer.enabled = false;
-            seekerPlayer.enabled = false;
-        }
-#endif
 
         private void Awake()
         {
@@ -243,22 +230,22 @@ namespace _GAME.Scripts.Player
 
         #region Role System - COMPLETELY FIXED
 
-        private NetworkVariable<PlayerRole> _networkRole = new NetworkVariable<PlayerRole>(
-            PlayerRole.None, 
+        private NetworkVariable<Role> _networkRole = new NetworkVariable<Role>(
+            Role.None, 
             NetworkVariableReadPermission.Everyone, 
             NetworkVariableWritePermission.Server
         );
         /// <summary>
         /// Public getter for current role
         /// </summary>
-        public PlayerRole CurrentRole => _networkRole.Value;
+        public Role CurrentRole => _networkRole.Value;
 
 
         /// <summary>
         /// Set player role - SERVER ONLY
         /// This is the MAIN method that should be called by GameManager
         /// </summary>
-        public void SetRole(PlayerRole role)
+        public void SetRole(Role role)
         {
             if (!IsServer)
             {
@@ -281,7 +268,7 @@ namespace _GAME.Scripts.Player
         /// <summary>
         /// Network callback - triggered on ALL clients when role changes
         /// </summary>
-        private void OnNetworkRoleChanged(PlayerRole previousRole, PlayerRole newRole)
+        private void OnNetworkRoleChanged(Role previousRole, Role newRole)
         {
             Debug.Log(
                 $"[CLIENT {NetworkManager.Singleton.LocalClientId}] Player {OwnerClientId} role changed: {previousRole} -> {newRole}");
@@ -291,34 +278,18 @@ namespace _GAME.Scripts.Player
         /// <summary>
         /// Apply role changes locally on each client
         /// </summary>
-        private void ApplyRoleLocally(PlayerRole newRole)
+        private void ApplyRoleLocally(Role newRole)
         {
             // Add new role component
-            if (newRole == PlayerRole.None) return;
-            var role = CreateRoleComponent(newRole);
-            if (role == null)
-            {
-                Debug.LogError($"No role component found for role {newRole} on Player {OwnerClientId}");
-                return;
-            }
-            role.enabled = true;
-            role.SetRole(newRole);
-            role.OnRoleAssigned(); 
+            if (newRole == Role.None) return;
+            //Get prefab for the role
+            var prefab = playerRoleSO?.GetData(newRole).Prefab;
+            
+            //Spawn network object for the role
+            var gO = Instantiate(prefab, transform);
+            gO.SetRole(newRole);
         }
-
-        /// <summary>
-        /// Create appropriate role component based on role type
-        /// </summary>
-        private RolePlayer CreateRoleComponent(PlayerRole role)
-        {
-            return role switch
-            {
-                PlayerRole.Hider => hiderPlayer,
-                PlayerRole.Seeker => seekerPlayer,
-                _ => null
-            };
-        }
-
+        
         #endregion
     }
 }

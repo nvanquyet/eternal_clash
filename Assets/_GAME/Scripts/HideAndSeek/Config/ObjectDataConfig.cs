@@ -17,10 +17,10 @@ namespace _GAME.Scripts.HideAndSeek.Config
     {
         protected override void InitDictionary()
         {
-            dataDictionary.Clear();
+            DataDictionary.Clear();
             foreach (var o in data)
             {
-                if (!dataDictionary.TryAdd(o.type, o))
+                if (!DataDictionary.TryAdd(o.type, o))
                 {
                     Debug.LogWarning($"Duplicate skill type in SkillDataConfig: {o.type}");
                 }

@@ -3,22 +3,22 @@ using UnityEngine;
 
 namespace _GAME.Scripts.HideAndSeek.Config
 {
-    public abstract class BaseData<T, V> : ScriptableObject 
+    public abstract class BaseData<T, TV> : ScriptableObject 
     {
         [SerializeField] protected T[] data;
         
-        protected Dictionary<V, T> dataDictionary;
+        protected Dictionary<TV, T> DataDictionary;
 
         protected abstract void InitDictionary();
         
-        public T GetData(V key)
+        public T GetData(TV key)
         {
-            if (dataDictionary == null)
+            if (DataDictionary == null)
             {
                 InitDictionary();
             }
             
-            if (dataDictionary != null && dataDictionary.TryGetValue(key, out T value))
+            if (DataDictionary != null && DataDictionary.TryGetValue(key, out T value))
             {
                 return value;
             }

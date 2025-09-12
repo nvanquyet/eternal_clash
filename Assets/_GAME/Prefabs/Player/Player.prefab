@@ -1069,8 +1069,6 @@ GameObject:
   - component: {fileID: 4923417426826010396}
   - component: {fileID: 8664100078279905516}
   - component: {fileID: 5910943126999775176}
-  - component: {fileID: 1010650850406634762}
-  - component: {fileID: 29492149802276562}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1095,6 +1093,7 @@ Transform:
   - {fileID: 996880227716988012}
   - {fileID: 4895588568873799595}
   - {fileID: 2484552469923060268}
+  - {fileID: 7661498171193535952}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &2607557856472328663
@@ -1201,9 +1200,8 @@ MonoBehaviour:
   animator: {fileID: 3134213635978987424}
   fppCamera: {fileID: 9473909264377653}
   tppCamera: {fileID: 7834537915011958377}
+  playerRoleSO: {fileID: 11400000, guid: f7358b06e857a084eb34aa70de72e950, type: 2}
   playerInput: {fileID: 2520969078587262897}
-  hiderPlayer: {fileID: 1010650850406634762}
-  seekerPlayer: {fileID: 29492149802276562}
 --- !u!114 &8664100078279905516
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1247,71 +1245,6 @@ MonoBehaviour:
   m_DefaultActionMap: GamePlay
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
---- !u!114 &1010650850406634762
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3651018391697466810}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a32d44dbbfea4e2c999119e06dac2462, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  entityId: 
-  isActive: 1
-  currentState: 0
-  maxHealth: 100
-  currentHealth: 0
-  defenseValue: 0
-  isInvulnerable: 0
-  baseDamage: 10
-  attackRange: 2
-  attackCooldown: 1
-  primaryDamageType: 0
-  playerName: Player
-  role: 0
-  networkIsAlive:
-    m_InternalValue: 1
-  completedTasks: 0
-  totalTasks: 5
-  ghostCamera: {fileID: 0}
---- !u!114 &29492149802276562
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3651018391697466810}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e8efbacafab446ce80613603402e42ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  entityId: 
-  isActive: 1
-  currentState: 0
-  maxHealth: 100
-  currentHealth: 0
-  defenseValue: 0
-  isInvulnerable: 0
-  baseDamage: 10
-  attackRange: 2
-  attackCooldown: 1
-  primaryDamageType: 0
-  playerName: Player
-  role: 0
-  networkIsAlive:
-    m_InternalValue: 1
-  shootRange: 100
-  shootCooldown: 0.5
-  shootableLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  attackActionRef: {fileID: -8924780678998019253, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
 --- !u!1 &3870582892665618869
 GameObject:
   m_ObjectHideFlags: 0
@@ -4380,6 +4313,37 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_ControlPath: <Keyboard>/space
+--- !u!1 &8975717526423367997
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7661498171193535952}
+  m_Layer: 0
+  m_Name: GunPosition
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7661498171193535952
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8975717526423367997}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1587148693767218912}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8994285419672428590
 GameObject:
   m_ObjectHideFlags: 0

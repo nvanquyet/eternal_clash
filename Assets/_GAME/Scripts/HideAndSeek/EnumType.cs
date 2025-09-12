@@ -13,7 +13,7 @@ namespace _GAME.Scripts.HideAndSeek
         PersonVsObject     // Case 2: Người-vật
     }
     
-    public enum PlayerRole
+    public enum Role
     {
         None,       // Chưa chọn
         Hider,      // Người trốn
@@ -63,37 +63,25 @@ namespace _GAME.Scripts.HideAndSeek
     public interface IGamePlayer 
     {
         ulong ClientId { get; }
-        PlayerRole Role { get; }
+        Role Role { get; }
         string PlayerName { get; }
         bool IsAlive { get; }
         Vector3 Position { get; }
-        void SetRole(PlayerRole role);
+        void SetRole(Role role);
         void OnGameStart();
-        void OnGameEnd(PlayerRole winnerRole);
+        void OnGameEnd(Role winnerRole);
+        bool HasSkillsAvailable { get; }
+        
+        void UseSkill(SkillType skillType, Vector3? targetPosition = null);
     }
     
     public interface IHider : IGamePlayer
     {
         int CompletedTasks { get; }
         int TotalTasks { get; }
-        bool HasSkillsAvailable { get; }
         
-        void UseSkill(SkillType skillType, Vector3? targetPosition = null);
         void CompleteTask(int taskId);
         void OnTaskCompleted(int taskId);
-    }
-    
-    public interface ISeeker : IGamePlayer, IAttackable 
-    {
-        float CurrentHealth { get; }
-        float MaxHealth { get; }
-        bool HasSkillsAvailable { get; }
-        bool CanShoot { get; }
-        
-        void Shoot(Vector3 direction, Vector3 hitPoint);
-        void UseSkill(SkillType skillType, Vector3? targetPosition = null);
-        void TakeDamage(float damage);
-        void RestoreHealth(float amount);
     }
     
     public interface IGameTask
@@ -111,13 +99,10 @@ namespace _GAME.Scripts.HideAndSeek
     public interface IObjectDisguise
     {
         ObjectType Type { get; }
-        float MaxHealth { get; }
-        float CurrentHealth { get; }
         bool IsOccupied { get; }
         
         void OccupyObject(IHider hider);
         void ReleaseObject();
-        void TakeDamage(float damage, ISeeker attacker);
     }
     
     public interface ISkill
@@ -140,7 +125,7 @@ namespace _GAME.Scripts.HideAndSeek
     public struct NetworkPlayerData : INetworkSerializable, IEquatable<NetworkPlayerData>
     {
         public ulong clientId;
-        public PlayerRole role;
+        public Role role;
         public Vector3 position;
         public bool isAlive;
         public float health;

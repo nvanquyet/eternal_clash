@@ -16,10 +16,10 @@ namespace _GAME.Scripts.HideAndSeek.Config
     {
         protected override void InitDictionary()
         {
-            dataDictionary.Clear();
+            DataDictionary.Clear();
             foreach (var t in data)
             {
-                if (!dataDictionary.TryAdd(t.type, t))
+                if (!DataDictionary.TryAdd(t.type, t))
                 {
                     Debug.LogWarning($"Duplicate TaskType key found: {t.type}. Skipping this entry.");
                 }

@@ -6,125 +6,153 @@ using UnityEngine;
 
 namespace _GAME.Scripts.HideAndSeek.Player
 {
-    public abstract class RolePlayer : ACombatEntity, IGamePlayer
+    /// <summary>
+    /// Base class for all player roles with proper network synchronization
+    /// </summary>
+    public abstract class RolePlayer : ADefendable, IGamePlayer
     {
         [Header("Player Settings")] [SerializeField]
         protected string playerName = "Player";
 
-        [SerializeField] protected PlayerRole role; // ✅ This is now LOCAL only
+        // Network Variables - Synchronized across all clients
+        private NetworkVariable<Role> networkRole = new NetworkVariable<Role>(HideAndSeek.Role.None);
 
-        [Header("Network")] [SerializeField]
-        protected NetworkVariable<bool> networkIsAlive = new NetworkVariable<bool>(true);
+        // Local only - Role assignment happens through PlayerController
+        private Role localRole = HideAndSeek.Role.None;
 
-        protected GameManager GameManager => GameManager.Instance;
         protected readonly Dictionary<SkillType, ISkill> Skills = new Dictionary<SkillType, ISkill>();
+        protected GameManager GameManager => GameManager.Instance;
 
-        // IGamePlayer implementation
+        #region IGamePlayer Implementation
+
         public ulong ClientId => NetworkObject.OwnerClientId;
-        public PlayerRole Role => role; // ✅ Returns local role value
+        public Role Role => networkRole.Value; 
         public string PlayerName => playerName;
-        public override bool IsAlive => networkIsAlive.Value;
-
-        public static event Action<ulong, PlayerRole> OnPlayerRoleChanged;
-
-        #region Abstract Methods
-
-        protected abstract void HandleRegisterInput();
-        protected abstract void HandleUnRegisterInput();
-        protected abstract void InitializeSkills();
-        public abstract void OnGameStart();
-        public abstract void OnGameEnd(PlayerRole winnerRole);
+        public abstract bool HasSkillsAvailable { get; }
 
         #endregion
+        
 
         #region Network Lifecycle
 
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-            HandleRegisterInput();
-            networkIsAlive.OnValueChanged += OnAliveStatusChanged;
 
+            // Subscribe to network variable changes
+            networkRole.OnValueChanged += OnRoleNetworkChanged;
+
+            // Register input handling for owner
             if (IsOwner)
             {
+                HandleRegisterInput();
                 GameManager?.RegisterPlayer(this);
             }
-
-            // ✅ REMOVED: Don't initialize skills here anymore
-            // Skills will be initialized when role is actually set
         }
 
         public override void OnNetworkDespawn()
         {
             base.OnNetworkDespawn();
-            networkIsAlive.OnValueChanged -= OnAliveStatusChanged;
-            HandleUnRegisterInput();
+
+            // Cleanup subscriptions
+            if (networkRole != null)
+                networkRole.OnValueChanged -= OnRoleNetworkChanged;
+
+            // Unregister input
+            if (IsOwner)
+            {
+                HandleUnRegisterInput();
+            }
+
+            // Cleanup skills
+            CleanupSkills();
         }
 
         #endregion
 
-        #region Role Management - FIXED
+        #region Role Management
 
-        /// <summary>
-        /// Set role locally - called by PlayerController
-        /// This should ONLY be called by PlayerController.ApplyRoleLocally()
-        /// </summary>
-        public virtual void SetRole(PlayerRole newRole)
+        public void SetRole(Role role)
         {
-            var previousRole = role;
-            role = newRole;
-
-            Debug.Log($"[RolePlayer] {gameObject.name} role set: {previousRole} -> {newRole}");
-
-            // Trigger event
-            OnPlayerRoleChanged?.Invoke(ClientId, newRole);
+            AssignRoleServerRpc(role);
         }
-
+        
         /// <summary>
-        /// Called when role is first assigned to this player
+        /// Server-side method to assign role to player
+        /// Called by GameManager or PlayerController
         /// </summary>
-        public virtual void OnRoleAssigned()
+        [ServerRpc(RequireOwnership = false)]
+        private void AssignRoleServerRpc(Role newRole)
+        {
+            if (networkRole.Value == newRole) return;
+
+            var previousRole = networkRole.Value;
+            networkRole.Value = newRole;
+
+            Debug.Log($"[RolePlayer] {gameObject.name} role assigned: {previousRole} -> {newRole}");
+        }
+        
+
+        private void OnRoleNetworkChanged(Role previousRole, Role newRole)
+        {
+            // Initialize new role
+            if (newRole == Role.None) return;
+            localRole = newRole;
+            OnRoleAssigned(newRole);
+        }
+        
+
+        protected virtual void OnRoleAssigned(Role role)
         {
             Debug.Log($"[RolePlayer] {gameObject.name} role assigned: {role}");
 
             // Initialize skills for this role
-            //InitializeSkills();
+            InitializeSkills();
 
-            // Additional role-specific initialization
-            //OnRoleInitialized();
+            // Role-specific initialization
+            OnRoleInitialized();
         }
 
-        /// <summary>
-        /// Called when role is removed from this player
-        /// </summary>
-        public virtual void OnRoleRemoved()
+        #endregion
+
+        #region Skill System
+
+        public virtual void UseSkill(SkillType skillType, Vector3? targetPosition = null)
         {
-            Debug.Log($"[RolePlayer] {gameObject.name} role removed: {role}");
+            if (!IsOwner) return;
 
-            // Cleanup skills
-            CleanupSkills();
+            if (!Skills.ContainsKey(skillType) || !Skills[skillType].CanUse)
+            {
+                Debug.LogWarning($"Skill {skillType} not available or on cooldown");
+                return;
+            }
 
-            // Role-specific cleanup
-            OnRoleCleanup();
+            UseSkillServerRpc(skillType, targetPosition ?? Vector3.zero, targetPosition.HasValue);
         }
 
-        /// <summary>
-        /// Override this for role-specific initialization
-        /// </summary>
-        protected virtual void OnRoleInitialized()
+        [ServerRpc]
+        protected virtual void UseSkillServerRpc(SkillType skillType, Vector3 targetPosition, bool hasTarget)
         {
+            if (!Skills.ContainsKey(skillType) || !Skills[skillType].CanUse) return;
+
+            Vector3? target = hasTarget ? targetPosition : null;
+            Skills[skillType].UseSkill(this, target);
+
+            // Notify clients about skill usage
+            OnSkillUsedClientRpc(skillType);
         }
 
-        /// <summary>
-        /// Override this for role-specific cleanup
-        /// </summary>
-        protected virtual void OnRoleCleanup()
+        [ClientRpc]
+        protected virtual void OnSkillUsedClientRpc(SkillType skillType)
         {
+            OnSkillUsedLocal(skillType);
         }
 
-        /// <summary>
-        /// Cleanup all skills when role changes
-        /// </summary>
+        protected virtual void OnSkillUsedLocal(SkillType skillType)
+        {
+            // Override for local effects (UI, sounds, etc.)
+        }
+
         private void CleanupSkills()
         {
             foreach (var skill in Skills.Values)
@@ -140,46 +168,54 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         #endregion
 
-        #region Network RPCs
+        #region Input System
 
-        [ServerRpc]
-        protected void SetAliveStatusServerRpc(bool isAlive)
-        {
-            networkIsAlive.Value = isAlive;
-        }
+        protected abstract void HandleRegisterInput();
+        protected abstract void HandleUnRegisterInput();
+        
+        #endregion
+
+        #region Game Events
+
+        public abstract void OnGameStart();
+        public abstract void OnGameEnd(Role winnerRole);
 
         #endregion
 
-        #region Event Handlers
+        #region Abstract Methods
 
-        private void OnAliveStatusChanged(bool previousValue, bool newValue)
+        protected abstract void InitializeSkills();
+
+        protected virtual void OnRoleInitialized()
         {
-            if (!newValue)
-            {
-                OnDeath();
-            }
+            
         }
 
         #endregion
 
         #region Interaction System Integration
 
-        public override bool Interact(IInteractable target)
-        {
-            return true;
-        }
+        public override bool Interact(IInteractable target) => false;
 
-        public override void OnInteracted(IInteractable initiator)
-        {
-            // Handle being interacted with
-        }
+        public override void OnInteracted(IInteractable initiator) { }
+        
 
-        protected override void OnStateChanged(InteractionState previousState, InteractionState newState)
+        #endregion
+
+        #region Health System Override
+
+        protected override void OnHealthChangedLocal(float previousHealth, float newHealth)
         {
-            if (newState == InteractionState.Dead && IsAlive)
+            if (IsOwner)
             {
-                SetAliveStatusServerRpc(false);
+                // Update health UI only for owner
+                UpdateHealthUI(newHealth, MaxHealth);
             }
+        }
+
+        protected virtual void UpdateHealthUI(float currentHealth, float maxHealth)
+        {
+            // Override in specific player types
         }
 
         #endregion

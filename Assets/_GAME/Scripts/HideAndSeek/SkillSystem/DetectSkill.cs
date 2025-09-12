@@ -36,7 +36,7 @@ namespace _GAME.Scripts.HideAndSeek.SkillSystem
         private List<IGamePlayer> FindHidersInRange(Vector3 center)
         {
             var allPlayers = FindObjectsOfType<MonoBehaviour>().OfType<IGamePlayer>();
-            return allPlayers.Where(p => p.Role == PlayerRole.Hider && 
+            return allPlayers.Where(p => p.Role == Role.Hider && 
                                         p.IsAlive && 
                                         Vector3.Distance(p.Position, center) <= range)
                            .ToList();

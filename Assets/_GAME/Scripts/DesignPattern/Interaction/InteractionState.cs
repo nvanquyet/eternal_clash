@@ -5,12 +5,8 @@
         /// </summary>
         public enum InteractionState
         {
-            Idle,
-            Busy,
-            Attacking,
-            Defending,
-            Disabled,
-            Dead
+            Enable,
+            Disabled
         }
         /// <summary>
        /// Types of damage that can be dealt

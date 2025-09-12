@@ -21,13 +21,13 @@ namespace _GAME.Scripts.HideAndSeek.SkillSystem
             if (skillType == SkillType.FreezeSeeker)
             {
                 // Freeze all seekers in range
-                targets = FindTargetsInRange(caster.Position, PlayerRole.Seeker);
+                targets = FindTargetsInRange(caster.Position, Role.Seeker);
             }
             else if (skillType == SkillType.FreezeHider)
             {
                 // Freeze hiders in range or at target position
                 Vector3 center = targetPosition ?? caster.Position;
-                targets = FindTargetsInRange(center, PlayerRole.Hider);
+                targets = FindTargetsInRange(center, Role.Hider);
             }
             
             // Apply freeze effect
@@ -43,7 +43,7 @@ namespace _GAME.Scripts.HideAndSeek.SkillSystem
             }
         }
         
-        private List<IGamePlayer> FindTargetsInRange(Vector3 center, PlayerRole targetRole)
+        private List<IGamePlayer> FindTargetsInRange(Vector3 center, Role targetRole)
         {
             var allPlayers = FindObjectsOfType<MonoBehaviour>().OfType<IGamePlayer>();
             return allPlayers.Where(p => p.Role == targetRole && 
