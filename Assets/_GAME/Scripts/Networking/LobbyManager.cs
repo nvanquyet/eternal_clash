@@ -340,6 +340,8 @@ namespace _GAME.Scripts.Networking
                         return OperationResult.Failure("Failed to join lobby");
                     }
 
+                    Debug.Log($"[LobbyManager] Joined lobby with code: {GetRelayCode()}");
+                    
                     // Step 3: Start Client with relay Code
                     var result = await NetworkController.Instance.StartClientAsync(GetRelayCode(), cancellationToken);
 

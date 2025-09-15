@@ -84,6 +84,12 @@ namespace _GAME.Scripts.Core
             RegisterEarlyCallbacks();
         }
 
+        public override void OnDestroy()
+        {
+            base.OnDestroy();
+            UnregisterEarlyCallbacks();
+        }
+
         #endregion
 
         #region Network Lifecycle
@@ -271,6 +277,13 @@ namespace _GAME.Scripts.Core
         {
             // Base implementation - derived classes can add their specific callbacks
         }
+        
+        protected virtual void UnregisterEarlyCallbacks()
+        {
+            // Base implementation - derived classes can add their specific callbacks
+        }
+        
+        
 
         protected virtual void RegisterServerCallbacks()
         {

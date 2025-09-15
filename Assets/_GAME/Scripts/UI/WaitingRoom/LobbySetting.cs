@@ -19,18 +19,33 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             // Initialize the dropdown with max players options
             InitDropDown();
-
-            lobbyNameInputField.onEndEdit.AddListener(OnLobbyNameChanged);
-            passwordInputField.onEndEdit.AddListener(OnLobbyPasswordChanged);
-            maxPlayersDropdown.onValueChanged.AddListener(OnMaxPlayersChanged);
+            if (NetworkController.Instance.IsHost)
+            {
+                lobbyNameInputField.interactable = true;
+                passwordInputField.interactable = true;
+                maxPlayersDropdown.interactable = true;
+                lobbyNameInputField.onEndEdit.AddListener(OnLobbyNameChanged);
+                passwordInputField.onEndEdit.AddListener(OnLobbyPasswordChanged);
+                maxPlayersDropdown.onValueChanged.AddListener(OnMaxPlayersChanged);
+            }
+            else
+            {
+                //Disable the input fields and dropdown for non-host players
+                lobbyNameInputField.interactable = false;
+                passwordInputField.interactable = false;
+                maxPlayersDropdown.interactable = false;
+            }
         }
         
         
         private void OnDestroy()
         {
-            lobbyNameInputField.onEndEdit.RemoveListener(OnLobbyNameChanged);
-            passwordInputField.onEndEdit.RemoveListener(OnLobbyPasswordChanged);
-            maxPlayersDropdown.onValueChanged.RemoveListener(OnMaxPlayersChanged);
+            if (NetworkController.Instance.IsHost)
+            {
+                lobbyNameInputField.onEndEdit.RemoveListener(OnLobbyNameChanged);
+                passwordInputField.onEndEdit.RemoveListener(OnLobbyPasswordChanged);
+                maxPlayersDropdown.onValueChanged.RemoveListener(OnMaxPlayersChanged);
+            }
         }
 
 

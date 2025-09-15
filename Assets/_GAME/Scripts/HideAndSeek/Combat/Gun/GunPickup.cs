@@ -43,6 +43,10 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
                 //Set State 
                 Debug.Log("Gun Picked up by " + initiator);
             }
+            else
+            {
+                Debug.Log($"[GunPickup] Interaction ignored. Initiator is not a PlayerInteraction or gunReference is null.");
+            }
         }
     }
 }

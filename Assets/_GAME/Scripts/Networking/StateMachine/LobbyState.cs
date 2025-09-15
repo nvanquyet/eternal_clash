@@ -97,16 +97,21 @@ namespace _GAME.Scripts.Networking.StateMachine
             var isHost = lobbyManager.IsHost;
 
             // UI: Hide loading and show lobby screen
-            LoadingUI.Instance.SetProgress(1f,1f,State.GetDisplayName());
+            //LoadingUI.Instance.SetProgress(1f,1f,State.GetDisplayName());
 
             // UI: Configure controls based on role
             if (isHost)
             {
-                
+                LoadingUI.Instance.Complete();
             }
             else
             {
-                
+                // Client: wait for network stability
+                LoadingUI.Instance.SetProgress(0.8f, 1f, "Connecting...");
+            
+                // Wait for network to be truly connected
+                await WaitForNetworkStability();
+                LoadingUI.Instance.Complete();
             }
 
             // Audio & Analytics
@@ -117,6 +122,16 @@ namespace _GAME.Scripts.Networking.StateMachine
             //     player_count = lobbyManager.CurrentLobby?.Players?.Count ?? 0,
             //     max_players = lobbyManager.CurrentLobby?.MaxPlayers ?? 0
             // });
+        }
+        
+        private async Task WaitForNetworkStability()
+        {
+            int maxWait = 50; // 5 seconds max
+            while (maxWait-- > 0)
+            {
+                if (NetworkController.Instance.IsConnected) break;
+                await Task.Delay(100);
+            }
         }
 
         public override bool CanTransitionTo(LobbyState targetState)

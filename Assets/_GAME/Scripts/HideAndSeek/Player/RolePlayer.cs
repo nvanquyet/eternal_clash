@@ -22,6 +22,8 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         protected readonly Dictionary<SkillType, ISkill> Skills = new Dictionary<SkillType, ISkill>();
         protected GameManager GameManager => GameManager.Instance;
+        
+        public Action OnNetworkSpawned;
 
         #region IGamePlayer Implementation
 
@@ -42,6 +44,12 @@ namespace _GAME.Scripts.HideAndSeek.Player
             // Subscribe to network variable changes
             networkRole.OnValueChanged += OnRoleNetworkChanged;
 
+            if (OnNetworkSpawned != null)
+            {
+                OnNetworkSpawned?.Invoke();
+                OnNetworkSpawned = null; // Clear after invoking
+            }
+            
             // Register input handling for owner
             if (IsOwner)
             {

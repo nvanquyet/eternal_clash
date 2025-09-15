@@ -7,10 +7,10 @@ namespace _GAME.Scripts.Player.Locomotion
 {
     public class PlayerLocomotion
     {
+        private Animator _animator = null;
         private readonly Transform _playerTransform;
         private readonly PlayerMovementConfig _config;
         private readonly CharacterController _characterController;
-        private readonly Animator _animator;
         private readonly PlayerController _playerController;
 
         // Internal state
@@ -218,5 +218,10 @@ namespace _GAME.Scripts.Player.Locomotion
         public void ResetAirDashes() => _airDashesUsed = 0;
         public void ResetDashCooldown() => _dashCooldown = 0f;
         #endregion
+
+        public void UpdateAnimator(Animator newAnimator)
+        {
+            this._animator = newAnimator;
+        }
     }
 }

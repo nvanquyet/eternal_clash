@@ -2,6 +2,7 @@ using System;
 using _GAME.Scripts.HideAndSeek;
 using _GAME.Scripts.HideAndSeek.Config;
 using _GAME.Scripts.HideAndSeek.Player;
+using _GAME.Scripts.HideAndSeek.Player.Graphics;
 using _GAME.Scripts.Player.Config;
 using _GAME.Scripts.Player.Locomotion;
 using Unity.Netcode;
@@ -21,15 +22,18 @@ namespace _GAME.Scripts.Player
     {
         [SerializeField] private PlayerMovementConfig playerConfig;
         [SerializeField] private CharacterController characterController;
-        [SerializeField] private Animator animator;
+        
         [SerializeField] private GameObject fppCamera;
         [SerializeField] private GameObject tppCamera;
 
         [SerializeField] private PlayerRoleSO playerRoleSO;
-
         [Header("Input")] [SerializeField] private MobileInputBridge playerInput;
-        //Network PlayerData
         
+        [Header("Model Switching")]
+        [SerializeField] private PlayerModelSwitcher modelSwitcher;
+        [SerializeField] private PlayerAnimationSync animationSync;
+
+        public PlayerAnimationSync AnimationSync => animationSync;
 
         private Transform CameraTransform
         {
@@ -56,11 +60,32 @@ namespace _GAME.Scripts.Player
             InitializeComponents();
         }
 
+
         private void InitializeComponents()
         {
             if (!characterController) characterController = GetComponentInChildren<CharacterController>();
-            if (!animator) animator = GetComponentInChildren<Animator>();
+            modelSwitcher = GetComponent<PlayerModelSwitcher>();
+            if (modelSwitcher != null)
+            {
+                animationSync = modelSwitcher.GetAnimationSync();
+                modelSwitcher.OnAnimatorChanged += OnAnimatorChanged;
+            }
             DeactivateAllCameras();
+        }
+
+        private void OnAnimatorChanged(Animator newAnimator)
+        {
+            animationSync.SetAnimator(newAnimator);
+    
+            // Reinitialize systems với animator mới
+            if (_playerLocomotion != null)
+            {
+                _playerLocomotion.UpdateAnimator(newAnimator);
+            }
+            if (_animationController != null)
+            {
+                _animationController.UpdateAnimator(newAnimator);
+            }
         }
 
         #endregion
@@ -86,12 +111,16 @@ namespace _GAME.Scripts.Player
         {
             base.OnNetworkDespawn();
             _networkRole.OnValueChanged -= OnNetworkRoleChanged;
+            if (modelSwitcher != null)
+            {
+                modelSwitcher.OnAnimatorChanged -= OnAnimatorChanged;
+            }
         }
 
         private void InitializeSystems()
         {
-            _playerLocomotion = new PlayerLocomotion(playerConfig, characterController, animator, this);
-            _animationController = new PlayerLocomotionAnimator(animator, _playerLocomotion, this);
+            _playerLocomotion = new PlayerLocomotion(playerConfig, characterController, animationSync.GetCurrentAnimator(), this);
+            _animationController = new PlayerLocomotionAnimator(animationSync.GetCurrentAnimator(), _playerLocomotion, this);
         }
 
         private void SetupOwner()
@@ -205,31 +234,8 @@ namespace _GAME.Scripts.Player
 
         #endregion
 
-        #region Rpc Region
-
-        [Rpc(SendTo.NotOwner)]
-        public void SyncAnimationRpc(float xVel, float zVel, float yVel, bool isGrounded)
-        {
-            if (animator == null) return;
-            animator.SetFloat("xVelocity", xVel);
-            animator.SetFloat("zVelocity", zVel);
-            animator.SetFloat("yVelocity", yVel);
-            animator.SetBool("isGrounded", isGrounded);
-        }
-
-        [Rpc(SendTo.NotOwner)]
-        public void SyncTriggerRpc(string triggerName)
-        {
-            if (animator != null)
-            {
-                animator.SetTrigger(triggerName);
-            }
-        }
-
-        #endregion
-
         #region Role System - COMPLETELY FIXED
-
+        
         private NetworkVariable<Role> _networkRole = new NetworkVariable<Role>(
             Role.None, 
             NetworkVariableReadPermission.Everyone, 
@@ -270,24 +276,47 @@ namespace _GAME.Scripts.Player
         /// </summary>
         private void OnNetworkRoleChanged(Role previousRole, Role newRole)
         {
-            Debug.Log(
-                $"[CLIENT {NetworkManager.Singleton.LocalClientId}] Player {OwnerClientId} role changed: {previousRole} -> {newRole}");
-            ApplyRoleLocally(newRole);
+            // CHỈ server spawn network object
+            if (IsServer)
+            {
+                SpawnRoleObjectOnServer(newRole);
+            }
+    
+            // Tất cả clients apply local changes (UI, camera, etc.)
+            ApplyRoleUIChanges(newRole);
         }
 
         /// <summary>
         /// Apply role changes locally on each client
         /// </summary>
-        private void ApplyRoleLocally(Role newRole)
+        private void ApplyRoleUIChanges(Role newRole)
         {
-            // Add new role component
-            if (newRole == Role.None) return;
-            //Get prefab for the role
+            // CHỈ apply UI/camera/animation changes
+            // KHÔNG spawn objects nữa
+            // Ví dụ: change camera mode, UI elements, etc.
+        }
+        
+        private void SpawnRoleObjectOnServer(Role newRole)
+        {
             var prefab = playerRoleSO?.GetData(newRole).Prefab;
+            if(prefab == null) return;
+    
+            var gO = Instantiate(prefab);
             
-            //Spawn network object for the role
-            var gO = Instantiate(prefab, transform);
-            gO.SetRole(newRole);
+            gO.OnNetworkSpawned += () =>
+            {
+                Debug.Log($"[SERVER] Spawned role object for Player {OwnerClientId} as {newRole}");
+                gO.transform.SetParent(transform);
+                gO.transform.localPosition = Vector3.zero;
+                gO.SetRole(newRole);
+            };
+            
+            var networkObject = gO.GetComponent<NetworkObject>();
+            if (networkObject != null)
+            {
+                networkObject.SpawnWithOwnership(OwnerClientId);
+               
+            }
         }
         
         #endregion

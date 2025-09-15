@@ -7,13 +7,13 @@ namespace _GAME.Scripts.HideAndSeek.Config
     {
         [SerializeField] protected T[] data;
         
-        protected Dictionary<TV, T> DataDictionary;
+        protected Dictionary<TV, T> DataDictionary = new();
 
         protected abstract void InitDictionary();
         
         public T GetData(TV key)
         {
-            if (DataDictionary == null)
+            if (DataDictionary == null || DataDictionary.Count == 0)
             {
                 InitDictionary();
             }

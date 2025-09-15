@@ -35,7 +35,7 @@ namespace _GAME.Scripts.Networking.Lobbies
             {
                 _heartbeat = heartbeat;
                 _updater = updater;
-                
+
                 _isInitialized = true;
                 Debug.Log("[LobbyHandler] Components initialized successfully");
             }
@@ -71,7 +71,7 @@ namespace _GAME.Scripts.Networking.Lobbies
 
                 // Mirror CODE + PHASE vào Data (Public + Indexed) để client có thể Query theo CODE
                 var code = lobby.LobbyCode?.Trim().ToUpperInvariant() ?? "";
-                
+
                 var update = new UpdateLobbyOptions
                 {
                     Data = new Dictionary<string, DataObject>
@@ -110,12 +110,27 @@ namespace _GAME.Scripts.Networking.Lobbies
 
         public async Task<bool> PrecheckPhaseThenJoin(string code, string password = null)
         {
-            if (!ValidateService()) return false;
-            if (!ValidateInput(code, "Lobby code")) return false;
+            Debug.Log($"[LobbyHandler] === PrecheckPhaseThenJoin START ===");
+            Debug.Log(
+                $"[LobbyHandler] Input code: '{code}', Password: '{(string.IsNullOrEmpty(password) ? "null" : "***")}'");
+
+            if (!ValidateService())
+            {
+                Debug.LogError("[LobbyHandler] Service validation failed");
+                return false;
+            }
+
+            if (!ValidateInput(code, "Lobby code"))
+            {
+                Debug.LogError("[LobbyHandler] Input validation failed");
+                return false;
+            }
 
             try
             {
                 var normalized = code.Trim().ToUpperInvariant();
+                Debug.Log($"[LobbyHandler] Normalized code: '{normalized}'");
+                Debug.Log($"[LobbyHandler] Query key: '{LobbyConstants.LobbyKeys.CODE}'");
 
                 var q = new QueryLobbiesOptions
                 {
@@ -129,28 +144,100 @@ namespace _GAME.Scripts.Networking.Lobbies
                     }
                 };
 
+                Debug.Log($"[LobbyHandler] Sending QueryLobbiesAsync with filter S1 = '{normalized}'");
+                var startTime = System.DateTime.Now;
+
                 var res = await LobbyService.Instance.QueryLobbiesAsync(q);
+                var queryTime = (System.DateTime.Now - startTime).TotalMilliseconds;
+
+                Debug.Log(
+                    $"[LobbyHandler] Query completed in {queryTime}ms, Results count: {res?.Results?.Count ?? 0}");
+
+                if (res?.Results != null)
+                {
+                    for (int i = 0; i < res.Results.Count; i++)
+                    {
+                        var l = res.Results[i];
+                        Debug.Log(
+                            $"[LobbyHandler] Result [{i}]: ID='{l.Id}', Name='{l.Name}', Code='{l.LobbyCode}'");
+
+                        if (l.Data != null)
+                        {
+                            Debug.Log($"[LobbyHandler] Result [{i}] Data keys: {string.Join(", ", l.Data.Keys)}");
+
+                            foreach (var kvp in l.Data)
+                            {
+                                Debug.Log(
+                                    $"[LobbyHandler] Result [{i}] Data['{kvp.Key}'] = '{kvp.Value?.Value}' (Index: {kvp.Value?.Index})");
+                            }
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[LobbyHandler] Result [{i}] has no Data");
+                        }
+                    }
+                }
+
                 var hit = res.Results.FirstOrDefault();
                 if (hit == null)
                 {
+                    Debug.LogError("[LobbyHandler] No lobby found in query results");
+                    Debug.Log("[LobbyHandler] === Attempting fallback: Query all lobbies to debug ===");
+
+                    // Debug fallback: Query all lobbies to see what's available
+                    try
+                    {
+                        var allQ = new QueryLobbiesOptions { Count = 25 };
+                        var allRes = await LobbyService.Instance.QueryLobbiesAsync(allQ);
+                        Debug.Log($"[LobbyHandler] All lobbies count: {allRes?.Results?.Count ?? 0}");
+
+                        if (allRes?.Results != null)
+                        {
+                            foreach (var l in allRes.Results)
+                            {
+                                var lobbyCode = l.LobbyCode?.Trim()?.ToUpperInvariant() ?? "NULL";
+                                var dataCode =
+                                    l.Data?.TryGetValue(LobbyConstants.LobbyKeys.CODE, out var codeObj) == true
+                                        ? codeObj.Value
+                                        : "NOT_FOUND";
+
+                                Debug.Log(
+                                    $"[LobbyHandler] Available lobby: '{l.Name}', LobbyCode='{lobbyCode}', DataCode='{dataCode}', Match='{lobbyCode == normalized || dataCode == normalized}'");
+                            }
+                        }
+                    }
+                    catch (Exception debugEx)
+                    {
+                        Debug.LogError($"[LobbyHandler] Debug query failed: {debugEx.Message}");
+                    }
+
                     Fail("Lobby not found");
                     return false;
                 }
+
+                Debug.Log($"[LobbyHandler] Found lobby: ID='{hit.Id}', Name='{hit.Name}', Code='{hit.LobbyCode}'");
 
                 var phase = hit.Data != null && hit.Data.TryGetValue(LobbyConstants.LobbyKeys.PHASE, out var phaseObj)
                     ? phaseObj.Value
                     : SessionPhase.WAITING;
 
+                Debug.Log($"[LobbyHandler] Lobby phase: '{phase}' (Expected: '{SessionPhase.WAITING}')");
+
                 if (phase != SessionPhase.WAITING)
                 {
-                    Fail(phase switch
+                    var reason = phase switch
                     {
                         SessionPhase.STARTING => "Game is starting, cannot join",
                         SessionPhase.PLAYING => "Game is already in progress, cannot join",
                         _ => "Lobby is not accepting new players"
-                    });
+                    };
+
+                    Debug.LogWarning($"[LobbyHandler] Phase check failed: {reason}");
+                    Fail(reason);
                     return false;
                 }
+
+                Debug.Log("[LobbyHandler] Phase check passed, proceeding to join");
 
                 // Ok → join
                 var joinOpts = new JoinLobbyByCodeOptions
@@ -159,32 +246,61 @@ namespace _GAME.Scripts.Networking.Lobbies
                     Password = string.IsNullOrEmpty(password) ? null : password
                 };
 
+                Debug.Log($"[LobbyHandler] Calling JoinLobbyByCodeAsync with code: '{normalized}'");
+                Debug.Log(
+                    $"[LobbyHandler] Player data: DisplayName='{joinOpts.Player?.Data?["DisplayName"]?.Value}', IsReady='{joinOpts.Player?.Data?["IsReady"]?.Value}'");
+
+                var joinStartTime = System.DateTime.Now;
                 var lobby = await LobbyService.Instance.JoinLobbyByCodeAsync(normalized, joinOpts);
+                var joinTime = (System.DateTime.Now - joinStartTime).TotalMilliseconds;
+
+                Debug.Log($"[LobbyHandler] JoinLobbyByCodeAsync completed in {joinTime}ms");
+
                 if (lobby == null)
                 {
+                    Debug.LogError("[LobbyHandler] JoinLobbyByCodeAsync returned null");
                     Fail("Failed to join lobby");
                     return false;
                 }
 
+                Debug.Log(
+                    $"[LobbyHandler] Join successful: ID='{lobby.Id}', Name='{lobby.Name}', Players={lobby.Players?.Count ?? 0}");
+                Debug.Log($"[LobbyHandler] My player ID: '{AuthenticationService.Instance.PlayerId}'");
+
+                if (lobby.Players != null)
+                {
+                    foreach (var player in lobby.Players)
+                    {
+                        Debug.Log(
+                            $"[LobbyHandler] Player in lobby: ID='{player.Id}', Name='{player.Data?["DisplayName"]?.Value}'");
+                    }
+                }
+
+                Debug.Log("[LobbyHandler] Calling HandleLobbyJoined");
                 HandleLobbyJoined(lobby);
+
+                Debug.Log("[LobbyHandler] === PrecheckPhaseThenJoin SUCCESS ===");
                 return true;
             }
             catch (LobbyServiceException e)
             {
-                Debug.LogError($"[LobbyHandler] PrecheckPhaseThenJoin failed: {e.Reason} - {e.Message}");
+                Debug.LogError($"[LobbyHandler] LobbyServiceException - Reason: {e.Reason}, Message: {e.Message}");
+                Debug.LogError($"[LobbyHandler] Exception details: {e}");
                 Fail(e.Message);
                 return false;
             }
             catch (Exception e)
             {
-                Debug.LogError($"[LobbyHandler] PrecheckPhaseThenJoin failed: {e.Message}");
+                Debug.LogError($"[LobbyHandler] Unexpected exception: {e.Message}");
+                Debug.LogError($"[LobbyHandler] Stack trace: {e.StackTrace}");
                 Fail(e.Message);
                 return false;
             }
 
             void Fail(string msg)
             {
-                Debug.LogWarning($"[LobbyHandler] {msg}");
+                Debug.LogWarning($"[LobbyHandler] FAIL: {msg}");
+                Debug.Log("[LobbyHandler] === PrecheckPhaseThenJoin FAILED ===");
                 LobbyEvents.TriggerLobbyJoined(null, false, msg);
             }
         }
@@ -337,6 +453,7 @@ namespace _GAME.Scripts.Networking.Lobbies
                 return null;
             }
         }
+
         /// <summary>
         /// Called by LobbyUpdater when lobby data changes
         /// </summary>
@@ -373,6 +490,7 @@ namespace _GAME.Scripts.Networking.Lobbies
             UpdateCachedLobby(lobby);
             LobbyEvents.TriggerLobbyUpdated(lobby, "poll updated");
         }
+
         #endregion
 
         #region Event Handlers
@@ -386,7 +504,7 @@ namespace _GAME.Scripts.Networking.Lobbies
             }
 
             _updater?.StartUpdating(lobby.Id);
-            
+
             LobbyEvents.TriggerLobbyCreated(lobby, true, $"Lobby '{lobby.Name}' created");
         }
 
@@ -426,7 +544,6 @@ namespace _GAME.Scripts.Networking.Lobbies
         #endregion
 
         #region Internal Methods
-        
 
         private void UpdateCachedLobby(Lobby lobby, string message = "Lobby updated")
         {
@@ -434,6 +551,7 @@ namespace _GAME.Scripts.Networking.Lobbies
             {
                 CachedLobby = lobby;
             }
+
             LobbyEvents.TriggerLobbyUpdated(lobby, message);
         }
 

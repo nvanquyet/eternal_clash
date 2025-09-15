@@ -53,6 +53,13 @@ namespace _GAME.Scripts.Authenticator
         public string CurrentSessionId => currentSessionId;
         public bool IsCurrentlyLoggingIn => isCurrentlyLoggingIn;
 
+        
+        
+        // ✅ THÊM METHOD MỚI CHO RETRY LOGIC
+        private int sessionRetryCount = 0;
+        private const int MAX_SESSION_RETRY = 2;
+
+        
         protected override void Awake()
         {
             base.Awake();
@@ -179,9 +186,14 @@ namespace _GAME.Scripts.Authenticator
                 // Reset login attempt counter on success
                 loginAttemptCount = 0;
 
+                // ✅ FIX 1: CHỜ MỘT CHÚT TRƯỚC KHI START HEARTBEAT
+                Debug.Log("[PlayFabAuth] Waiting before starting session maintenance...");
+                await Task.Delay(3000); // Chờ 3 giây để đảm bảo session đã được lưu trên server
+
                 // ✅ BƯỚC 5: START SESSION MAINTENANCE
-                if (enableSessionProtection)
+                if (enableSessionProtection && isLoggedIn) // Double check vẫn còn logged in
                 {
+                    Debug.Log("[PlayFabAuth] Starting session maintenance...");
                     StartSessionMaintenance();
                 }
 
@@ -572,7 +584,40 @@ namespace _GAME.Scripts.Authenticator
 
         private void SendHeartbeat()
         {
-            if (!isLoggedIn || !enableSessionProtection) return;
+            // ✅ FIX 2: ENHANCED VALIDATION
+            if (!isLoggedIn || !enableSessionProtection)
+            {
+                Debug.Log("[PlayFabAuth] Heartbeat skipped - not logged in or protection disabled");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(currentSessionId) || string.IsNullOrEmpty(userId))
+            {
+                Debug.LogWarning("[PlayFabAuth] Heartbeat skipped - invalid session state");
+                return;
+            }
+
+            // ✅ THÊM COOLDOWN PERIOD - Chờ ít nhất 10 giây sau khi login
+            var timeSinceLogin = DateTime.UtcNow - loginStartTime;
+            if (timeSinceLogin.TotalSeconds < 10)
+            {
+                Debug.Log(
+                    $"[PlayFabAuth] Heartbeat skipped - too soon after login ({timeSinceLogin.TotalSeconds:F1}s)");
+                return;
+            }
+
+            // ✅ RATE LIMITING - Không gửi heartbeat quá thường xuyên
+            var timeSinceLastHeartbeat = DateTime.UtcNow - lastHeartbeat;
+            if (timeSinceLastHeartbeat.TotalSeconds < 30) // Tối thiểu 30s giữa các heartbeat
+            {
+                Debug.Log(
+                    $"[PlayFabAuth] Heartbeat skipped - too frequent ({timeSinceLastHeartbeat.TotalSeconds:F1}s)");
+                return;
+            }
+
+            // ✅ DEBUG LOG
+            Debug.Log($"[PlayFabAuth] Sending heartbeat - SessionId: {currentSessionId}, UserId: {userId}, " +
+                      $"TimeSinceLogin: {timeSinceLogin.TotalSeconds:F1}s");
 
             var request = new ExecuteCloudScriptRequest
             {
@@ -596,13 +641,38 @@ namespace _GAME.Scripts.Authenticator
                             if (resultDict != null && (bool)resultDict["success"])
                             {
                                 lastHeartbeat = DateTime.UtcNow;
-                                // Debug.Log("[PlayFabAuth] Heartbeat sent successfully");
+                                Debug.Log("[PlayFabAuth] Heartbeat sent successfully");
                             }
                             else
                             {
-                                Debug.LogWarning("[PlayFabAuth] Heartbeat failed - invalid session");
-                                HandleInvalidSession();
+                                // ✅ ENHANCED ERROR LOGGING
+                                var errorCode = resultDict?.ContainsKey("errorCode") == true
+                                    ? resultDict["errorCode"].ToString()
+                                    : "UNKNOWN";
+                                var expectedSessionId = resultDict?.ContainsKey("expectedSessionId") == true
+                                    ? resultDict["expectedSessionId"]?.ToString()
+                                    : "null";
+                                var receivedSessionId = resultDict?.ContainsKey("receivedSessionId") == true
+                                    ? resultDict["receivedSessionId"]?.ToString()
+                                    : "null";
+
+                                Debug.LogWarning($"[PlayFabAuth] Heartbeat failed - Error: {errorCode}, " +
+                                                 $"Expected: {expectedSessionId}, Received: {receivedSessionId}");
+
+                                // ✅ THÊM RETRY LOGIC CHO SESSION MISMATCH
+                                if (errorCode == "INVALID_SESSION")
+                                {
+                                    HandleInvalidSessionWithRetry();
+                                }
+                                else
+                                {
+                                    HandleInvalidSession();
+                                }
                             }
+                        }
+                        else
+                        {
+                            Debug.LogWarning("[PlayFabAuth] Heartbeat failed - no result returned");
                         }
                     }
                     catch (Exception ex)
@@ -616,6 +686,34 @@ namespace _GAME.Scripts.Authenticator
                     CheckSessionExpiration();
                 }
             );
+        }
+
+      
+        private async void HandleInvalidSessionWithRetry()
+        {
+            sessionRetryCount++;
+
+            if (sessionRetryCount <= MAX_SESSION_RETRY)
+            {
+                Debug.LogWarning(
+                    $"[PlayFabAuth] Session invalid - attempting recovery (attempt {sessionRetryCount}/{MAX_SESSION_RETRY})");
+
+                // Thử tạo lại session
+                var sessionResult = await EstablishNewSession(userId);
+                if (sessionResult.success)
+                {
+                    currentSessionId = sessionResult.sessionId;
+                    lastHeartbeat = DateTime.UtcNow;
+                    sessionRetryCount = 0; // Reset counter
+                    Debug.Log("[PlayFabAuth] Session recovered successfully");
+                    return;
+                }
+            }
+
+            // Nếu retry thất bại hoặc quá số lần thử
+            Debug.LogError($"[PlayFabAuth] Session recovery failed after {sessionRetryCount} attempts");
+            sessionRetryCount = 0; // Reset counter
+            HandleInvalidSession();
         }
 
         private void HandleInvalidSession()

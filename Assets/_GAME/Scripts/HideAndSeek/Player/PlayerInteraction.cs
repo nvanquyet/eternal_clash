@@ -3,6 +3,7 @@ using _GAME.Scripts.HideAndSeek.Combat.Base;
 using _GAME.Scripts.Test;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
 
 namespace _GAME.Scripts.HideAndSeek.Player
 {
@@ -10,7 +11,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
     {
         [SerializeField] private InputActionReference inputInteractionRef;
         
-        [SerializeField] private PlayerEquipment playerEquiqment;
+        [SerializeField] protected PlayerEquipment playerEquipment;
         
         private InputAction inputInteraction;
 
@@ -50,15 +51,6 @@ namespace _GAME.Scripts.HideAndSeek.Player
             {
                 inputInteraction.performed -= OnInputInteractionPerformed;
                 inputInteraction.Disable();
-            }
-        }
-
-
-        public override void OnInteracted(IInteractable initiator)
-        {
-            if (initiator is AGun gun)
-            {
-                playerEquiqment?.SetCurrentGun(gun);
             }
         }
 

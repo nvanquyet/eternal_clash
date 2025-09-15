@@ -69,13 +69,20 @@ namespace _GAME.Scripts.UI.WaitingRoom
             if (debugMode) Debug.Log("[WaitingSpawnController] Waiting room callbacks registered");
         }
 
+        protected override void UnregisterEarlyCallbacks()
+        {
+            base.UnregisterEarlyCallbacks();
+            LobbyEvents.OnPlayerKicked -= OnPlayerKicked;
+            LobbyEvents.OnLobbyRemoved -= OnLobbyRemoved;
+            
+            if (debugMode) Debug.Log("[WaitingSpawnController] Waiting room callbacks unRegistered");
+        }
+
         /// <summary>
         /// Register connection callbacks for waiting room
         /// </summary>
         protected override void RegisterServerCallbacks()
         {
-            base.RegisterServerCallbacks(); // Scene callbacks
-            
             if (!IsServer || _eventsRegistered) return;
 
             var nm = NetworkManager.Singleton;
@@ -85,14 +92,14 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 nm.OnClientConnectedCallback += OnClientConnected;
                 nm.OnClientDisconnectCallback += OnClientDisconnected;
             }
-
+            base.RegisterServerCallbacks(); // Scene callbacks
             if (debugMode) Debug.Log("[WaitingSpawnController] Connection callbacks registered");
+            
         }
 
         protected override void UnregisterAllCallbacks()
         {
-            base.UnregisterAllCallbacks();
-
+           
             var nm = NetworkManager.Singleton;
             if (nm != null)
             {
@@ -100,9 +107,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 nm.OnClientDisconnectCallback -= OnClientDisconnected;
             }
 
-            LobbyEvents.OnPlayerKicked -= OnPlayerKicked;
-            LobbyEvents.OnLobbyRemoved -= OnLobbyRemoved;
-
+            base.UnregisterAllCallbacks();
             if (debugMode) Debug.Log("[WaitingSpawnController] Waiting room callbacks unregistered");
         }
 
@@ -122,8 +127,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
             // Track connection time
             clientConnectTimes[clientId] = Time.time;
 
-            // Set initial state and spawn immediately
-            SetClientState(clientId, ClientSpawnState.Connected);
+            // ✅ FIX: Set state thành ReadyToSpawn cho waiting room
+            SetClientState(clientId, ClientSpawnState.ReadyToSpawn);
             
             if (_sceneFullyLoaded)
             {
@@ -150,19 +155,44 @@ namespace _GAME.Scripts.UI.WaitingRoom
         #region Waiting Room Spawning
 
         /// <summary>
-        /// Spawn a newly connected client
+        /// Spawn a newly connected client - FIXED VERSION
         /// </summary>
         private IEnumerator SpawnNewClient(ulong clientId)
         {
             yield return new WaitForSeconds(spawnDelay);
             
-            if (GetClientState(clientId) == ClientSpawnState.Disconnected)
+            // ✅ FIX: Kiểm tra state đúng cho waiting room
+            var currentState = GetClientState(clientId);
+            if (currentState == ClientSpawnState.Disconnected)
             {
                 if (debugMode) Debug.Log($"[WaitingSpawnController] Client {clientId} disconnected before spawn");
                 yield break;
             }
 
-            TrySpawnPlayer(clientId);
+            // ✅ FIX: Set state thành Spawning trước khi spawn
+            if (currentState == ClientSpawnState.ReadyToSpawn && ShouldSpawnClient(clientId))
+            {
+                SetClientState(clientId, ClientSpawnState.Spawning);
+                TrySpawnPlayer(clientId);
+            }
+            else if (debugMode)
+            {
+                Debug.Log($"[WaitingSpawnController] Client {clientId} not ready to spawn - State: {currentState}, ShouldSpawn: {ShouldSpawnClient(clientId)}");
+            }
+        }
+
+        /// <summary>
+        /// Override ShouldSpawnClient để phù hợp với waiting room
+        /// </summary>
+        protected override bool ShouldSpawnClient(ulong clientId)
+        {
+            if (!_sceneFullyLoaded) return false;
+            if (spawnedPlayers.ContainsKey(clientId)) return false;
+
+            var state = GetClientState(clientId);
+            
+            // ✅ FIX: Waiting room cho phép spawn từ ReadyToSpawn hoặc Spawning
+            return state == ClientSpawnState.ReadyToSpawn || state == ClientSpawnState.Spawning;
         }
 
         /// <summary>
@@ -207,8 +237,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 var connectTime = kvp.Value;
                 var state = GetClientState(clientId);
                 
-                // Check for clients stuck in connecting states
-                if ((state == ClientSpawnState.Connected || state == ClientSpawnState.Spawning) &&
+                // ✅ FIX: Kiểm tra timeout cho các state phù hợp
+                if ((state == ClientSpawnState.ReadyToSpawn || state == ClientSpawnState.Spawning) &&
                     now - connectTime > clientReadyTimeout)
                 {
                     Debug.LogWarning($"[WaitingSpawnController] Client {clientId} timeout in waiting room");
@@ -219,7 +249,53 @@ namespace _GAME.Scripts.UI.WaitingRoom
             // Force spawn timeout clients
             foreach (var clientId in clientsToTimeout)
             {
+                if (GetClientState(clientId) == ClientSpawnState.ReadyToSpawn)
+                {
+                    SetClientState(clientId, ClientSpawnState.Spawning);
+                }
                 TrySpawnPlayer(clientId);
+            }
+        }
+
+        #endregion
+
+        #region Override ProcessExistingClients
+
+        /// <summary>
+        /// Override để xử lý existing clients khác cho waiting room
+        /// </summary>
+        protected override void ProcessExistingClients()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm?.ConnectedClients == null)
+            {
+                Debug.LogWarning($"[WaitingSpawnController] No NetworkManager available");
+                return;
+            }
+
+            var clientsToSpawn = new List<ulong>();
+
+            foreach (var clientId in nm.ConnectedClients.Keys)
+            {
+                // ✅ FIX: Initialize state cho existing clients trong waiting room
+                if (!clientStates.ContainsKey(clientId))
+                {
+                    clientStates[clientId] = ClientSpawnState.ReadyToSpawn;
+                    clientConnectTimes[clientId] = Time.time; // Track connection time
+                }
+
+                if (ShouldSpawnClient(clientId))
+                {
+                    clientsToSpawn.Add(clientId);
+                }
+            }
+
+            if (debugMode) Debug.Log($"[WaitingSpawnController] Processing {nm.ConnectedClients.Count} existing clients - {clientsToSpawn.Count} ready to spawn");
+
+            // Spawn existing clients individually (connection-based)
+            foreach (var clientId in clientsToSpawn)
+            {
+                StartCoroutine(SpawnNewClient(clientId));
             }
         }
 

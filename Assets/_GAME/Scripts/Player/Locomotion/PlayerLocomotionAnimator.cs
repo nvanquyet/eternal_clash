@@ -10,7 +10,7 @@ namespace _GAME.Scripts.Player.Locomotion
         private static readonly int YVelocity  = Animator.StringToHash("yVelocity");
         private static readonly int IsGrounded = Animator.StringToHash("isGrounded");
 
-        private readonly Animator _animator;
+        private Animator _animator = null;
         private readonly PlayerLocomotion _playerLocomotion;
         private readonly PlayerController _playerController;
 
@@ -32,7 +32,7 @@ namespace _GAME.Scripts.Player.Locomotion
 
         public void OnLateUpdate()
         {
-            if (_animator == null || _playerLocomotion == null || _playerController == null) return;
+            if (_animator == null || _playerLocomotion == null || _playerController == null || _playerController.AnimationSync == null) return;
 
             // CHỈ OWNER cập nhật tham số
             if (!_playerController.IsOwner) return;
@@ -59,7 +59,7 @@ namespace _GAME.Scripts.Player.Locomotion
             float currentXVel = _animator.GetFloat(XVelocity);
             float currentZVel = _animator.GetFloat(ZVelocity);
             float currentYVel = _animator.GetFloat(YVelocity);
-            _playerController.SyncAnimationRpc(currentXVel, currentZVel, currentYVel, isGrounded);
+            _playerController.AnimationSync.SyncAnimationRpc(currentXVel, currentZVel, currentYVel, isGrounded);
         }
 
         private void SmoothInputDirection(Vector3 targetDirection)
@@ -132,19 +132,19 @@ namespace _GAME.Scripts.Player.Locomotion
         /// Gọi cho các action kiểu Trigger (Dash/Attack). Chỉ owner gọi.
         public void SetTrigger(string triggerName)
         {
-            if (!_playerController.IsOwner) return;
+            if (!_playerController.IsOwner || _playerController.AnimationSync == null) return;
             
             // Set local trigger (instant)
             _animator.SetTrigger(triggerName);
             
             // Sync to other clients
-            _playerController.SyncTriggerRpc(triggerName);
+            _playerController.AnimationSync.SyncTriggerRpc(triggerName);
         }
 
         /// Reset về trạng thái mặc định (owner side).
         public void ResetAnimationState()
         {
-            if (_animator == null) return;
+            if (_animator == null || _playerController.AnimationSync == null) return;
             _smoothedInputDirection = Vector3.zero;
             _animator.SetFloat(XVelocity, 0f);
             _animator.SetFloat(ZVelocity, 0f);
@@ -154,8 +154,13 @@ namespace _GAME.Scripts.Player.Locomotion
             // Sync reset state to other clients
             if (_playerController.IsOwner)
             {
-                _playerController.SyncAnimationRpc(0f, 0f, 0f, true);
+                _playerController.AnimationSync.SyncAnimationRpc(0f, 0f, 0f, true);
             }
+        }
+
+        public void UpdateAnimator(Animator newAnimator)
+        {
+            this._animator = newAnimator;
         }
     }
 }

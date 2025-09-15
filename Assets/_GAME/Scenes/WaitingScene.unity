@@ -784,7 +784,7 @@ MonoBehaviour:
   - {fileID: 5033383574067788483}
   spawnDelay: 0.5
   clientReadyTimeout: 2.5
-  debugMode: 0
+  debugMode: 1
 --- !u!1 &157981964
 GameObject:
   m_ObjectHideFlags: 0

@@ -44,7 +44,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         private void EquipWeapon(AGun weapon)
         {
             // Set parent using NetworkObject parenting (vì weaponHoldPoint là NetworkObject)
-            weapon.NetworkObject.TrySetParent(this.transform.parent);
+            weapon.NetworkObject.TrySetParent(this.transform);
             
             weapon.transform.localPosition = weaponHoldPosition;
             weapon.transform.localRotation = Quaternion.Euler(weaponHoldRotation);

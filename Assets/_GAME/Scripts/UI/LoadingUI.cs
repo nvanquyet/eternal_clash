@@ -138,7 +138,7 @@ namespace _GAME.Scripts.UI
             if (!string.IsNullOrEmpty(tip)) SetTipText(tip);
             SetProgress01(current / max, callback);
         }
-      
+
 
         /// <summary>Hoàn tất (đặt 100% và ẩn sau minDisplayTime).</summary>
         public void Complete(Action onHidden = null)
@@ -154,7 +154,7 @@ namespace _GAME.Scripts.UI
 
             _runCo = StartCoroutine(Co_CompleteThenHide(onHidden));
         }
-        
+
         /// <summary>Chạy loading theo thời gian (giả lập), có đổi tip ở nửa chừng.</summary>
         public void RunTimed(float seconds, Action onComplete = null, string tipAtStart = null)
         {
@@ -197,9 +197,12 @@ namespace _GAME.Scripts.UI
             }
         }
 
-        private void SetTipText(string tip)
+        public void SetTipText(string tip)
         {
-            if (tipText != null) tipText.text = $"{tip}\n\nLoading...";
+            if (tipText != null) 
+            {
+                tipText.text = string.IsNullOrEmpty(tip) ? "Loading..." : $"{tip}\n\nLoading...";
+            }
         }
 
         private void SetPercentText(string text)
@@ -312,6 +315,70 @@ namespace _GAME.Scripts.UI
             SetPercentText("0%");
             SetTipText(string.Empty);
             _runCo = null;
+        }
+
+
+        /// <summary>Hiện loading UI cho network scene loading</summary>
+        public void ShowNetworkLoading(string tip = null)
+        {
+            Debug.Log("[LoadingUI] ShowNetworkLoading");
+
+            // Cancel any existing loading operation
+            if (_runCo != null)
+            {
+                StopCoroutine(_runCo);
+                _runCo = null;
+            }
+
+            Show(tip ?? "Connecting to game...");
+            ApplyProgressUI(0f);
+            SetPercentText("0%");
+        }
+
+        /// <summary>Ẩn network loading</summary>
+        public void HideNetworkLoading()
+        {
+            Debug.Log("[LoadingUI] HideNetworkLoading");
+
+            // Set progress to 100% first
+            ApplyProgressUI(1f);
+            SetPercentText("100%");
+
+            // Then hide after a short delay
+            StartCoroutine(DelayedHideNetwork());
+        }
+
+        /// <summary>Cập nhật progress từ network</summary>
+        public void UpdateNetworkProgress(float progress01)
+        {
+            if (!IsVisible()) return;
+
+            progress01 = Mathf.Clamp01(progress01);
+            ApplyProgressUI(progress01);
+
+            // Update percent text immediately (no tween)
+            SetPercentText($"{Mathf.RoundToInt(progress01 * 100f)}%");
+        }
+        
+        // =================== PRIVATE NETWORK HELPERS ===================
+
+        private IEnumerator DelayedHideNetwork()
+        {
+            // Đảm bảo người dùng nhìn thấy 100% một chút
+            yield return new WaitForSecondsRealtime(0.3f);
+
+            // Respect minimum display time
+            float elapsed = (Time.unscaledTime - _shownAt);
+            if (elapsed < minDisplayTime)
+                yield return new WaitForSecondsRealtime(minDisplayTime - elapsed);
+
+            // Fade out
+            yield return FadeCanvas(0f);
+
+            // Reset UI
+            ApplyProgressUI(0f);
+            SetPercentText("0%");
+            SetTipText(string.Empty);
         }
     }
 }

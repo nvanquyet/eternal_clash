@@ -589,12 +589,7 @@ namespace _GAME.Scripts.Networking
         {
             //Swtich to gameplay scene
             _ = LoadSceneAsync(SceneDefinitions.GameScene, null, LoadSceneMode.Single);
-            //Faking loading
-            LoadingUI.Instance.RunTimed(2, () =>
-            {
-                //Stop update lobby
-                LobbyManager.Instance.StopCheckingLobby();
-            });
+            LobbyManager.Instance.StopCheckingLobby();
         }
     }
 
