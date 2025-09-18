@@ -119,6 +119,7 @@ namespace _GAME.Scripts.Player
 
         private void InitializeSystems()
         {
+            // Initialize systems
             _playerLocomotion = new PlayerLocomotion(playerConfig, characterController, animationSync.GetCurrentAnimator(), this);
             _animationController = new PlayerLocomotionAnimator(animationSync.GetCurrentAnimator(), _playerLocomotion, this);
         }

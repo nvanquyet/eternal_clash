@@ -13,21 +13,21 @@ MonoBehaviour:
   m_Name: ModelConfigSO
   m_EditorClassIdentifier: 
   data:
-  - modelName: 
+  - modelName: Default 01
     modelType: 0
-    modelPrefab: {fileID: 0}
+    modelPrefab: {fileID: 4970921967684032763, guid: 35872c5a7ee917c4682e5c1e175da33e, type: 3}
     overrideController: {fileID: 0}
     avatar: {fileID: 0}
-    availableInPersonVsPerson: 0
+    availableInPersonVsPerson: 1
     availableInPersonVsObject: 0
-    availableForHider: 0
-    availableForSeeker: 0
-  - modelName: 
+    availableForHider: 1
+    availableForSeeker: 1
+  - modelName: Default 02
     modelType: 0
-    modelPrefab: {fileID: 0}
+    modelPrefab: {fileID: 7161076584356740902, guid: 84ea12690a0f1f1458858ea223e8aefd, type: 3}
     overrideController: {fileID: 0}
     avatar: {fileID: 0}
-    availableInPersonVsPerson: 0
-    availableInPersonVsObject: 0
-    availableForHider: 0
-    availableForSeeker: 0
+    availableInPersonVsPerson: 1
+    availableInPersonVsObject: 1
+    availableForHider: 1
+    availableForSeeker: 1

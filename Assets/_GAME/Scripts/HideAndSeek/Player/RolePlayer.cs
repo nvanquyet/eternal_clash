@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using _GAME.Scripts.DesignPattern.Interaction;
+using _GAME.Scripts.HideAndSeek.Player.HitBox;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -9,7 +9,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
     /// <summary>
     /// Base class for all player roles with proper network synchronization
     /// </summary>
-    public abstract class RolePlayer : ADefendable, IGamePlayer
+    public abstract class RolePlayer : ModularRootHitBox, IGamePlayer
     {
         [Header("Player Settings")] [SerializeField]
         protected string playerName = "Player";
@@ -201,15 +201,6 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         #endregion
 
-        #region Interaction System Integration
-
-        public override bool Interact(IInteractable target) => false;
-
-        public override void OnInteracted(IInteractable initiator) { }
-        
-
-        #endregion
-
         #region Health System Override
 
         protected override void OnHealthChangedLocal(float previousHealth, float newHealth)
@@ -225,7 +216,6 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             // Override in specific player types
         }
-
         #endregion
     }
 }

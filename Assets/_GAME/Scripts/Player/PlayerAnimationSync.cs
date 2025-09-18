@@ -6,7 +6,7 @@ namespace _GAME.Scripts.Player
 {
     public class PlayerAnimationSync : NetworkBehaviour
     {
-        private Animator _currentAnimator;
+        [SerializeField] private Animator _currentAnimator;
 
         // Performance optimization: Cache animation parameter hashes
         private readonly Dictionary<string, int> _parameterHashes = new Dictionary<string, int>();

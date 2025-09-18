@@ -2,6 +2,7 @@
 using _GAME.Scripts.Player;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace _GAME.Scripts.HideAndSeek.Player.Graphics
 {
@@ -9,6 +10,9 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
     {
         [Header("Configuration")] [SerializeField]
         private ModelConfigSO modelConfig;
+        [SerializeField] private PlayerAnimationSync animationSync;
+        
+        [SerializeField] private InputActionReference switchModelAction;
 
         [SerializeField] private GameMode currentGameMode = GameMode.PersonVsPerson;
 
@@ -26,7 +30,6 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
         private List<ModelConfigData> availableModels = new List<ModelConfigData>();
 
         // Components
-        private PlayerAnimationSync animationSync;
         private PlayerController playerController;
 
         // Performance tracking
@@ -35,6 +38,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
         // Events
         public System.Action<Animator> OnAnimatorChanged;
         public System.Action<GameObject, ModelConfigData> OnModelChanged;
+        private InputAction _switchModelAction;
 
         // Properties
         public Animator CurrentAnimator { get; private set; }
@@ -50,13 +54,6 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
 
         private void InitializeComponents()
         {
-            // Get or create AnimationSync
-            animationSync = GetComponent<PlayerAnimationSync>();
-            if (animationSync == null)
-            {
-                animationSync = gameObject.AddComponent<PlayerAnimationSync>();
-            }
-
             playerController = GetComponent<PlayerController>();
 
             // Setup model container
@@ -96,8 +93,18 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
             if (IsOwner)
             {
                 SwitchToModelServerRpc(0);
+                
+                //Setup input action
+                if (switchModelAction != null)
+                {
+                    _switchModelAction = switchModelAction.action;
+                    _switchModelAction.Enable();
+                    _switchModelAction.performed += OnSwitchModelPerformed;
+                }
             }
         }
+
+       
 
         public override void OnNetworkDespawn()
         {
@@ -106,21 +113,17 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
                 currentModelIndex.OnValueChanged -= OnModelIndexChanged;
             }
 
-            base.OnNetworkDespawn();
-        }
-
-        #endregion
-
-        #region Input Handling
-
-        private void Update()
-        {
-            if (!IsOwner || !CanSwitch) return;
-
-            if (Input.GetKeyDown(KeyCode.R))
+            if (IsOwner)
             {
-                SwitchToNextModel();
+                //Setup input action
+                if (switchModelAction != null)
+                {
+                    _switchModelAction = switchModelAction.action;
+                    _switchModelAction.Enable();
+                    _switchModelAction.performed += OnSwitchModelPerformed;
+                }
             }
+            base.OnNetworkDespawn();
         }
 
         #endregion
@@ -137,6 +140,12 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
             Debug.Log($"Available models for {currentGameMode} - {currentRole}: {availableModels.Count}");
         }
 
+        private void OnSwitchModelPerformed(InputAction.CallbackContext obj)
+        {
+            if (!IsOwner || !CanSwitch) return;
+            SwitchToNextModel();
+        }
+        
         private void SwitchToNextModel()
         {
             if (availableModels.Count <= 1) return;

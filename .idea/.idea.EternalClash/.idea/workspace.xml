@@ -5,42 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c4248c56-3a43-45df-be7f-25ce1da4ddd0" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/easycode/codebase-v2.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/easycode/codebase-v2.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/indexLayout.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/projectSettingsUpdater.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/DefaultNetworkPrefabs.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/DefaultNetworkPrefabs.asset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/PlayerRoleSO.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/PlayerRoleSO.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/ModelConfigSO.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/ModelConfigSO.asset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Input/HnS_Input.inputactions" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Input/HnS_Input.inputactions" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/Player.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/Player.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/GamePlayScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/GamePlayScene.unity" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/InteractScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/InteractScene.unity" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/LoadingScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/LoadingScene.unity" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/WaitingScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/WaitingScene.unity" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Authenticator/PlayFabAuthManager.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Authenticator/PlayFabAuthManager.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/SpawnerController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/SpawnerController.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunPickup.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunPickup.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Config/BaseData.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Config/BaseData.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Config/PlayerRoleSO.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Config/PlayerRoleSO.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerEquipment.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerEquipment.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerInteraction.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerInteraction.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/RolePlayer.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/RolePlayer.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/Lobbies/LobbyHandler.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/Lobbies/LobbyHandler.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/LobbyManager.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/LobbyManager.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/NetworkController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/NetworkController.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/StateMachine/LobbyState.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/StateMachine/LobbyState.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotion.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotion.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotionAnimator.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotionAnimator.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerAnimationSync.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerAnimationSync.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerController.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/LoadingUI.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/LoadingUI.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/WaitingRoom/LobbySetting.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/WaitingRoom/LobbySetting.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/WaitingRoom/WaitingSpawnController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/WaitingRoom/WaitingSpawnController.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Settings/UniversalRenderPipelineGlobalSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Settings/UniversalRenderPipelineGlobalSettings.asset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Packages/manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/Packages/manifest.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Packages/packages-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/Packages/packages-lock.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -63,10 +36,15 @@
   }
 }</component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/5a41d6b7189842eca409fd0b1c3e3dcf17bf78/46/57194bb0/Action`2.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/ba26fa3b7e7a4e42a273a017a7353e4b34600/6b/5514cf2a/Animator.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/3ea01e77be99618395f448b16bd7cc2bd4248bd9e5d8474964b2d97f39c5d74/System.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/d44b17e136d09081da1e8fd0e8c83fde60e11818b9f2442d7ed8cb733fae895e/System.Collections.Generic.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Hitbox/ModularHitBox.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.netcode.gameobjects@f2477a6c90fe/Runtime/Core/NetworkBehaviour.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.netcode.gameobjects@f2477a6c90fe/Runtime/Spawning/NetworkSpawnManager.cs" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.services.multiplayer@dc9574e25bac/Runtime/Lobbies/Models/QueryResponse.cs" root0="SKIP_HIGHLIGHTING" />
-    <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.services.multiplayer@dc9574e25bac/Runtime/Lobbies/SDK/ILobbyService.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.services.multiplayer@dc9574e25bac/Runtime/Lobbies/SDK/ILobbyService.cs" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
@@ -159,6 +137,7 @@
       <workItem from="1757870796194" duration="6331000" />
       <workItem from="1757886211887" duration="2814000" />
       <workItem from="1757959271756" duration="5072000" />
+      <workItem from="1758212535920" duration="6427000" />
     </task>
     <servers />
   </component>
