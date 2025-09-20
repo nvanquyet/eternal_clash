@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 652ef3f76612ebb479d54d3e21fe1bd8
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Kenney/License.txt
+  uploadId: 718776

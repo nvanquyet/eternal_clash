@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3a7575e9e80fbd94d841349ae681cdc6
+timeCreated: 1449962046
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Kenney/Weapon Pack/Models/rocketlauncherModernRotating.mtl
+  uploadId: 718776

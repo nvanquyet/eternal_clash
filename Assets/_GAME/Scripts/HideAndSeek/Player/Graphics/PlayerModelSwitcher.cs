@@ -211,6 +211,11 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
             currentModel = Instantiate(modelData.modelPrefab, modelContainer);
             currentModel.transform.localPosition = Vector3.zero;
             currentModel.transform.localRotation = Quaternion.identity;
+            
+            if(currentModel.TryGetComponent<NetworkObject>(out var netObj))
+            {
+                netObj.SpawnWithOwnership(OwnerClientId);
+            }
 
             // Setup animator - Model prefab should already have Animator with OverrideController
             SetupModelAnimator(modelData);

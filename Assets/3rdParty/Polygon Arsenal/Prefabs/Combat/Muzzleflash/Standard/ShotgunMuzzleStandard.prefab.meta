@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7a3c17ee08a50ec488e3aeee1b4ce7a6
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Prefabs/Combat/Muzzleflash/Standard/ShotgunMuzzleStandard.prefab
+  uploadId: 718776

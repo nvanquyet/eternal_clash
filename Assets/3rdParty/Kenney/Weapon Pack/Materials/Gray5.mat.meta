@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6f06e318c92984042a9074c734738fb7
+timeCreated: 1449962047
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Kenney/Weapon Pack/Materials/Gray5.mat
+  uploadId: 718776

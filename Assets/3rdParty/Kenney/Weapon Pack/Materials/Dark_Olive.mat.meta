@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 151164125ee467a4a9ec37f72e050d9d
+timeCreated: 1449962047
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Kenney/Weapon Pack/Materials/Dark_Olive.mat
+  uploadId: 718776

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8362656cec097804c84056812cf927b7
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/Animations/DummyTarget_Red_Hit.anim
+  uploadId: 718776

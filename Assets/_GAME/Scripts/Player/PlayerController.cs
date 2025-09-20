@@ -78,10 +78,6 @@ namespace _GAME.Scripts.Player
             animationSync.SetAnimator(newAnimator);
     
             // Reinitialize systems với animator mới
-            if (_playerLocomotion != null)
-            {
-                _playerLocomotion.UpdateAnimator(newAnimator);
-            }
             if (_animationController != null)
             {
                 _animationController.UpdateAnimator(newAnimator);
@@ -120,7 +116,7 @@ namespace _GAME.Scripts.Player
         private void InitializeSystems()
         {
             // Initialize systems
-            _playerLocomotion = new PlayerLocomotion(playerConfig, characterController, animationSync.GetCurrentAnimator(), this);
+            _playerLocomotion = new PlayerLocomotion(playerConfig, characterController, this);
             _animationController = new PlayerLocomotionAnimator(animationSync.GetCurrentAnimator(), _playerLocomotion, this);
         }
 

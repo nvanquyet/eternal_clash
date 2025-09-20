@@ -13,6 +13,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         bool IsActive { get; set; }
         Vector3 Position { get; }
         
+        Collider InteractionCollider { get; }
         bool Interact(IInteractable target);
         void OnInteracted(IInteractable initiator);
     }

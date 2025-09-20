@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 4024818252d44d64d87d853380a90c65
+timeCreated: 1515082784
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Prefabs/Combat/Muzzleflash/Sci-Fi/Rocket/RocketMuzzlePurple.prefab
+  uploadId: 718776

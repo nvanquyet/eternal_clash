@@ -13,7 +13,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         protected string entityId;
 
         [SerializeField] protected bool isActive = true;
-
+        [SerializeField] private Collider interactionCollider;
         // Chỉ server được ghi
         private NetworkVariable<InteractionState> networkState =
             new NetworkVariable<InteractionState>(InteractionState.Enable, NetworkVariableReadPermission.Everyone,
@@ -27,6 +27,18 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         public virtual bool CanInteract => networkIsActive.Value && networkState.Value != InteractionState.Disabled;
         public Vector3 Position => transform.position;
+
+        public Collider InteractionCollider
+        {
+            get
+            {
+                if (interactionCollider != null) return interactionCollider;
+                interactionCollider = GetComponent<Collider>();
+                if(interactionCollider == null)
+                    Debug.LogWarning($"[InteractableBase] InteractionCollider not set and not found on {gameObject.name}");
+                return interactionCollider;
+            }
+        }
         public InteractionState CurrentState => networkState.Value;
 
         #region Unity Lifecycle
@@ -79,14 +91,14 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         }
 
         [ServerRpc(RequireOwnership = false)]
-        protected void SetStateServerRpc(InteractionState newState)
+        private void SetStateServerRpc(InteractionState newState)
         {
             // TODO: kiểm tra quyền nếu cần
             networkState.Value = newState;
         }
 
         [ServerRpc(RequireOwnership = false)]
-        protected void SetActiveServerRpc(bool active)
+        private void SetActiveServerRpc(bool active)
         {
             // TODO: kiểm tra quyền nếu cần
             networkIsActive.Value = active;
@@ -146,10 +158,12 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 nob = other.GetComponentInParent<NetworkObject>();
                 if (nob == null)
                 {
-                    Debug.LogWarning($"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or its parents");
+                    Debug.LogWarning(
+                        $"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or its parents");
                     return;
                 }
             }
+
             var clientId = nob.OwnerClientId; // chỉ player-controlled mới có ý nghĩa
             if (!nearbyInteractors.Contains(clientId))
             {
@@ -175,7 +189,8 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 nob = other.GetComponentInParent<NetworkObject>();
                 if (nob == null)
                 {
-                    Debug.LogWarning($"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or its parents");
+                    Debug.LogWarning(
+                        $"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or its parents");
                     return;
                 }
             }
@@ -210,6 +225,12 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         private void OnInteractorEnteredClientRpc(ClientRpcParams p = default)
         {
             Debug.Log($"[PassiveInteractable] Client entered trigger of {EntityId}");
+            OnInteractorEntered();
+            
+        }
+        
+        protected virtual void OnInteractorEntered()
+        {
             if (uiIndicator != null)
             {
                 uiIndicator.SetActive(true);
@@ -219,6 +240,12 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         [ClientRpc]
         private void OnInteractorExitedClientRpc(ClientRpcParams p = default)
+        {
+            Debug.Log($"[PassiveInteractable] Client Exit trigger of {EntityId}");
+            OnInteractorExited();
+        }
+        
+        protected virtual void OnInteractorExited()
         {
             if (uiIndicator != null)
             {
@@ -320,7 +347,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             {
                 return;
             }
-            
+
             // Server-side re-validate
             var senderId = rpcParams.Receive.SenderClientId;
             // Optional: kiểm tra actor gửi RPC có thật sự là owner của "this" (nếu cần)
@@ -353,7 +380,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 OnInteractionPerformed(null);
                 return;
             }
-            
+
             var passive = targNob.GetComponent<APassiveInteractable>();
             OnInteractionPerformed(passive);
         }
@@ -450,7 +477,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
     public abstract class AAttackable : InteractableBase, IAttackable
     {
         [Header("Attack Settings")] [SerializeField]
-        protected float baseDamage = 10f;
+        private float baseDamage = 10f;
 
         [SerializeField] protected float attackRange = 2f;
         [SerializeField] protected float attackCooldown = 1f;
@@ -465,10 +492,17 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         protected bool hasCollisionAttacked;
 
+        // Network synchronized damage
+        protected NetworkVariable<float> networkBaseDamage;
+
+        // Cache damage before NetworkVariable is ready
+        private float? pendingDamage = null;
+        private bool damageInitialized = false;
+
         // Dùng server-time để tránh lệch giờ client
         protected NetworkVariable<double> networkNextAttackServerTime = new NetworkVariable<double>(0d);
 
-        public float BaseDamage => baseDamage;
+        public float BaseDamage => networkBaseDamage?.Value ?? baseDamage;
         public float AttackRange => attackRange;
         public float AttackCooldown => attackCooldown;
         public float NextAttackTime => (float)networkNextAttackServerTime.Value;
@@ -482,6 +516,56 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             NetworkManager.Singleton.ServerTime.Time >= networkNextAttackServerTime.Value;
 
         public event Action<IAttackable, IDefendable, float> OnAttackPerformed;
+
+        #region Unity Lifecycle
+
+        protected override void Awake()
+        {
+            base.Awake();
+            networkBaseDamage = new NetworkVariable<float>(baseDamage);
+        }
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+            // Apply pending damage if any (only on server)
+            if (IsServer && !damageInitialized)
+            {
+                float finalDamage = pendingDamage ?? baseDamage;
+                networkBaseDamage.Value = finalDamage;
+                damageInitialized = true;
+            }
+        }
+
+        #endregion
+
+        // ========================= Damage Management =========================
+        /// <summary>
+        /// Set base damage before NetworkObject spawns. Safe to call anytime before spawn.
+        /// </summary>
+        public virtual void SetBaseDamage(float damage)
+        {
+            if (IsSpawned)
+            {
+                Debug.LogWarning(
+                    $"[{name}] Cannot set base damage after spawn. Use UpdateBaseDamageServerRpc instead.");
+                return;
+            }
+
+            // Always cache the damage - will be applied in OnNetworkSpawn
+            pendingDamage = damage;
+        }
+
+        /// <summary>
+        /// Server-only method to update damage during runtime
+        /// </summary>
+        [ServerRpc(RequireOwnership = false)]
+        public virtual void UpdateBaseDamageServerRpc(float newDamage)
+        {
+            if (!IsServer) return;
+
+            networkBaseDamage.Value = newDamage;
+        }
 
         // ========================= Active Attack =========================
         public virtual bool Attack(IDefendable target)
@@ -560,7 +644,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         public virtual bool IsInAttackRange(IDefendable target) =>
             target != null && Vector3.Distance(Position, target.Position) <= attackRange;
 
-        public virtual float CalculateDamage(IDefendable target) => baseDamage;
+        public virtual float CalculateDamage(IDefendable target) => BaseDamage;
 
         // ========================= Collision Attack =========================
         protected virtual void OnTriggerEnter(Collider other)
@@ -583,13 +667,13 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (!IsValidTarget(other.gameObject))
             {
-                //OnHitInvalidTarget(other);
+                OnHitInvalidTarget(other);
                 return;
             }
 
             if (!other.TryGetComponent<IDefendable>(out var target))
             {
-                //OnHitNonDefendableTarget(other);
+                OnHitNonDefendableTarget(other);
                 return;
             }
 
@@ -645,7 +729,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         protected abstract void OnHitNonDefendableTarget(Collider other);
         protected abstract void HandleDestruction();
     }
-
+    
 
     /// <summary>
     /// Base class for defendable entities with proper network health synchronization

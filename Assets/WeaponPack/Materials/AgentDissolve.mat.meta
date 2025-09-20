@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ecbca1243d71d394bb6c08364a8ba9f6
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/Materials/AgentDissolve.mat
+  uploadId: 718776

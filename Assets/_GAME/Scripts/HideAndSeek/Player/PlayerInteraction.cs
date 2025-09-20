@@ -13,7 +13,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         
         [SerializeField] protected PlayerEquipment playerEquipment;
         
-        private InputAction inputInteraction;
+        private InputAction _inputInteraction;
 
         public override void OnNetworkSpawn()
         {
@@ -31,9 +31,9 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             if (IsOwner && inputInteractionRef != null)
             {
-                inputInteraction = inputInteractionRef.action;
-                inputInteraction.Enable();
-                inputInteraction.performed += OnInputInteractionPerformed;
+                _inputInteraction = inputInteractionRef.action;
+                _inputInteraction.Enable();
+                _inputInteraction.performed += OnInputInteractionPerformed;
             }
         }
 
@@ -47,10 +47,10 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         private void HandleUnRegisterInput()
         {
-            if (IsOwner && inputInteraction != null)
+            if (IsOwner && _inputInteraction != null)
             {
-                inputInteraction.performed -= OnInputInteractionPerformed;
-                inputInteraction.Disable();
+                _inputInteraction.performed -= OnInputInteractionPerformed;
+                _inputInteraction.Disable();
             }
         }
 

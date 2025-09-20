@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 86889086497f4f4459550c816ab55e34
+timeCreated: 1509838764
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Shaders/Standard/PolyRimLightSolid.shader
+  uploadId: 718776

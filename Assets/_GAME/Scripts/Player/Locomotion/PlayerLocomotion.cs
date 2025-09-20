@@ -7,7 +7,6 @@ namespace _GAME.Scripts.Player.Locomotion
 {
     public class PlayerLocomotion
     {
-        private Animator _animator = null;
         private readonly Transform _playerTransform;
         private readonly PlayerMovementConfig _config;
         private readonly CharacterController _characterController;
@@ -42,13 +41,11 @@ namespace _GAME.Scripts.Player.Locomotion
         public int AirDashesRemaining => Mathf.Max(0, _config.DashConfig.MaxAirDashes - _airDashesUsed);
         #endregion
 
-        public PlayerLocomotion(PlayerMovementConfig config, CharacterController characterController, 
-            Animator animator, PlayerController playerController)
+        public PlayerLocomotion(PlayerMovementConfig config, CharacterController characterController, PlayerController playerController)
         {
             _playerTransform = characterController.transform;
             _config = config;
             _characterController = characterController;
-            _animator = animator;
             _playerController = playerController;
             
             SetState(new IdleMotion());
@@ -218,10 +215,6 @@ namespace _GAME.Scripts.Player.Locomotion
         public void ResetAirDashes() => _airDashesUsed = 0;
         public void ResetDashCooldown() => _dashCooldown = 0f;
         #endregion
-
-        public void UpdateAnimator(Animator newAnimator)
-        {
-            this._animator = newAnimator;
-        }
+        
     }
 }

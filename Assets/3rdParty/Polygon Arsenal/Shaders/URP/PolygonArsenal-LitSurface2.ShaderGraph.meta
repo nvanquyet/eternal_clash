@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: b44c0e637f2ab1f41a5e2939616e0ff9
+ScriptedImporter:
+  fileIDToRecycleName:
+    4800000: MainAsset
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 625f186215c104763be7675aa2d941aa, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Shaders/URP/PolygonArsenal-LitSurface2.ShaderGraph
+  uploadId: 718776

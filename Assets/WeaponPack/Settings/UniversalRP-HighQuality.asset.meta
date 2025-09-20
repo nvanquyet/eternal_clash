@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 19ba41d7c0026c3459d37c2fe90c55a0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/Settings/UniversalRP-HighQuality.asset
+  uploadId: 718776

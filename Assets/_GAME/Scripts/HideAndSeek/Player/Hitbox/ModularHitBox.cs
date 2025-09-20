@@ -55,7 +55,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
     {
         [Header("HitBox Settings")] 
         [SerializeField] private HitBoxInfo hitBoxInfo;
-
+        
         [SerializeField] private bool showDebugGizmos = true;
         [SerializeField] private Color debugColor = Color.red;
         [SerializeField] private Collider hitBoxCollider;
@@ -80,12 +80,18 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
             hitBoxCollider = GetComponent<Collider>();
         }
 #endif
-
+        
         protected override void Start()
         {
             ValidateRootDefender();
             ValidateSetup();
             base.Start();
+        }
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+            if(hitBoxCollider) hitBoxCollider.enabled = true;
         }
 
         public override float TakeDamage(IAttackable attacker, float damage,

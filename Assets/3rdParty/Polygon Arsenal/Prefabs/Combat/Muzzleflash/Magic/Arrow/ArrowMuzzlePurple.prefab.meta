@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: b440a2f266fe8754eaa195b8082cad42
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Prefabs/Combat/Muzzleflash/Magic/Arrow/ArrowMuzzlePurple.prefab
+  uploadId: 718776

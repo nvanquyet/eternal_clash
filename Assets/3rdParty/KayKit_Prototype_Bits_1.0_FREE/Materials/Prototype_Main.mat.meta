@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a5cc71facce68f444b5e2b5ad56487b3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/KayKit_Prototype_Bits_1.0_FREE/Materials/Prototype_Main.mat
+  uploadId: 718776

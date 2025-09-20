@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: cd387d43f82f26a4b83898587f566a3c
+timeCreated: 1449962047
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Kenney/Weapon Pack/Models/ammo_rocketModern.mtl
+  uploadId: 718776

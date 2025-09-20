@@ -7,13 +7,287 @@
     <list default="true" id="c4248c56-3a43-45df-be7f-25ce1da4ddd0" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/DefaultNetworkPrefabs.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/DefaultNetworkPrefabs.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/DOTween.XML" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/DOTween.XML" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/DOTween.XML.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/DOTween.XML.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/DOTween.dll" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/DOTween.dll" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/DOTween.dll.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/DOTween.dll.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.XML" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.XML" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.XML.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.XML.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.dll" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.dll.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.dll.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/DOTweenIcon.png.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/DOTweenIcon.png.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/DOTweenMiniIcon.png.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/DOTweenMiniIcon.png.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/Footer.png.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/Footer.png.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/Footer_dark.png.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/Footer_dark.png.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/Header.jpg.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Editor/Imgs/Header.jpg.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTween.Modules.asmdef.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTween.Modules.asmdef.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleAudio.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleAudio.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleAudio.cs.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleAudio.cs.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleEPOOutline.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleEPOOutline.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleEPOOutline.cs.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleEPOOutline.cs.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModulePhysics.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModulePhysics.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModulePhysics.cs.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModulePhysics.cs.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModulePhysics2D.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModulePhysics2D.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModulePhysics2D.cs.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModulePhysics2D.cs.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleSprite.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleSprite.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleSprite.cs.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleSprite.cs.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUI.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUI.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUI.cs.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUI.cs.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUnityVersion.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUnityVersion.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUnityVersion.cs.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUnityVersion.cs.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUtils.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUtils.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUtils.cs.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUtils.cs.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/readme.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/readme.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/readme.txt.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTween/readme.txt.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTweenPro/DOTweenAnimation.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTweenPro/DOTweenAnimation.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTweenPro/DOTweenPro.Scripts.asmdef.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTweenPro/DOTweenPro.Scripts.asmdef.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTweenPro/Editor/DOTweenAnimationInspector.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTweenPro/Editor/DOTweenAnimationInspector.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTweenPro/Editor/DOTweenPro.EditorScripts.asmdef.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Plugins/Demigiant/DOTweenPro/Editor/DOTweenPro.EditorScripts.asmdef.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Resources.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Resources/DOTweenSettings.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Resources/DOTweenSettings.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Android™ Profile 1.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Android™ Profile 1.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Android™ Profile.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Android™ Profile.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Windows Profile 1.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Windows Profile 1.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Windows Profile.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Windows Profile.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/cute_preview.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/cute_preview.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/horror_preview.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/horror_preview.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/pixel_preview.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/pixel_preview.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/scifi_preview.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/scifi_preview.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/settings.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/settings.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/simple_preview.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Editor/Sprites/simple_preview.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Examples.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Examples/Demo.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Examples/Demo.cs.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Examples/SceneToLoad.unity" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Examples/SceneToLoad.unity.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Examples/SimpleDemo.unity" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Examples/SimpleDemo.unity.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Audiowide.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Audiowide/Audiowide-Regular.ttf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Audiowide/Audiowide-Regular.ttf.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Audiowide/OFL.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Audiowide/OFL.txt.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Creepster.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Creepster/Creepster-Regular.ttf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Creepster/Creepster-Regular.ttf.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Creepster/OFL.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Creepster/OFL.txt.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Knewave.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Knewave/Knewave-Regular.ttf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Knewave/Knewave-Regular.ttf.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Knewave/OFL.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Knewave/OFL.txt.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Pixelify_Sans.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Pixelify_Sans/OFL.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Pixelify_Sans/OFL.txt.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Pixelify_Sans/PixelifySans-VariableFont_wght.ttf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Fonts/Pixelify_Sans/PixelifySans-VariableFont_wght.ttf.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Freeloader_Documentation.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Freeloader_Documentation.pdf.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/CuteLoadingScreen.uss" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/CuteLoadingScreen.uss.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/CuteLoadingScreen.uxml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/CuteLoadingScreen.uxml.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/LoadingScreen.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/LoadingScreen.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/Settings.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/Settings.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/pink.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Cute/pink.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/HorrorLoadingScreen.uss" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/HorrorLoadingScreen.uss.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/HorrorLoadingScreen.uxml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/HorrorLoadingScreen.uxml.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/LoadingScreen.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/LoadingScreen.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/Settings.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/Settings.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/horror.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Horror/horror.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/PanelSettings.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/PanelSettings.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/LoadingScreen.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/LoadingScreen.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/PixelLoadingScreen.uss" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/PixelLoadingScreen.uss.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/PixelLoadingScreen.uxml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/PixelLoadingScreen.uxml.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/Settings.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/Settings.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/mushroom_cave.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Pixel/mushroom_cave.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/LoadingScreen.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/LoadingScreen.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/SciFiLoadingScreen.uss" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/SciFiLoadingScreen.uss.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/SciFiLoadingScreen.uxml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/SciFiLoadingScreen.uxml.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/Settings.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/Settings.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/fade_bottom.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/fade_bottom.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/scifi1.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/scifi1.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/scifi2.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Sci-Fi/scifi2.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/LoadingScreen.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/LoadingScreen.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/Settings.asset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/Settings.asset.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/SimpleLoadingScreen.uss" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/SimpleLoadingScreen.uss.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/SimpleLoadingScreen.uxml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/SimpleLoadingScreen.uxml.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/simple1.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/simple1.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/simple2.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/Simple/simple2.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/UnityDefaultRuntimeTheme.tss" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/UnityDefaultRuntimeTheme.tss.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/UnityThemes.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/UnityThemes/UnityDefaultRuntimeTheme.tss" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/LoadingScreens/UnityThemes/UnityDefaultRuntimeTheme.tss.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/README.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/README.txt.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Editor.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Editor/FreeloaderEditorWindow.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Editor/FreeloaderEditorWindow.cs.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Editor/FreeloaderEditorWindow.uss" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Editor/FreeloaderEditorWindow.uss.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Editor/FreeloaderEditorWindow.uxml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Editor/FreeloaderEditorWindow.uxml.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Freeloader.asmdef" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/Freeloader.asmdef.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/LoadingProgressTracker.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/LoadingProgressTracker.cs.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/LoadingScreen.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/LoadingScreen.cs.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/LoadingScreenSettings.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Scripts/LoadingScreenSettings.cs.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/heart.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/heart.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/horror_loading_bar.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/horror_loading_bar.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/loading.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/loading.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/scythe.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/scythe.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/squares.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/Sprites/squares.png.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/third-party-notices.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/StylishEsper/Freeloader/third-party-notices.txt.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Fonts/LiberationSans.ttf.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Fonts/LiberationSans.ttf.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF - Drop Shadow.mat.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF - Drop Shadow.mat.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF - Fallback.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF - Fallback.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF - Fallback.asset.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF - Fallback.asset.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF - Outline.mat.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF - Outline.mat.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF.asset.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Fonts &amp; Materials/LiberationSans SDF.asset.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/LineBreaking Following Characters.txt.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/LineBreaking Following Characters.txt.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/LineBreaking Leading Characters.txt.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/LineBreaking Leading Characters.txt.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Sprite Assets/EmojiOne.asset.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Sprite Assets/EmojiOne.asset.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Style Sheets/Default Style Sheet.asset.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/Style Sheets/Default Style Sheet.asset.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/TMP Settings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/TMP Settings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/TMP Settings.asset.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Resources/TMP Settings.asset.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_Bitmap-Custom-Atlas.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_Bitmap-Custom-Atlas.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_Bitmap-Mobile.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_Bitmap-Mobile.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_Bitmap.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_Bitmap.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF Overlay.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF Overlay.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF SSD.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF SSD.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile Masking.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile Masking.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile Overlay.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile Overlay.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile SSD.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile SSD.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Surface-Mobile.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Surface-Mobile.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Surface.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF-Surface.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_SDF.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_Sprite.shader.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMP_Sprite.shader.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMPro.cginc.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMPro.cginc.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMPro_Mobile.cginc.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMPro_Mobile.cginc.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMPro_Properties.cginc.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMPro_Properties.cginc.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMPro_Surface.cginc.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Shaders/TMPro_Surface.cginc.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Sprites/EmojiOne Attribution.txt.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Sprites/EmojiOne Attribution.txt.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Sprites/EmojiOne.json.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Sprites/EmojiOne.json.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/TextMesh Pro/Sprites/EmojiOne.png.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/TextMesh Pro/Sprites/EmojiOne.png.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Animator/Character/Test.controller" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Animator/Character/Test.controller" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/ModelConfigSO.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/ModelConfigSO.asset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Input/HnS_Input.inputactions" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Input/HnS_Input.inputactions" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/Player.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/Player.prefab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/TestModel.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/TestModel/Human_DummyModel_M 1.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/TestModel/Human_DummyModel_M 1.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/TestModel/Human_DummyModel_M.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Data/HnS/Model/TestModel/Human_DummyModel_M.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/Gun.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/Gun.prefab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/HiderPlayer.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/HiderPlayer.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/Player 1.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/Player 1.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/Player.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/Player.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/SeekerPlayer.prefab" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Player/SeekerPlayer.prefab.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/PlayerTest.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/PlayerTest.prefab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/InteractScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/InteractScene.unity" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/LoadingScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/LoadingScene.unity" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/AInteractable.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/AInteractable.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/IInteractable.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/IInteractable.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/AProjectile.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/AProjectile.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/AssaultRifle.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/AssaultRifle.cs.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunPickup.cs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunPickup.cs.meta" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Interaction/SeekerInteraction.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Interaction/SeekerInteraction.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/RolePlayer.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/RolePlayer.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerAnimationSync.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerAnimationSync.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Hitbox/ModularHitBox.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Hitbox/ModularHitBox.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerEquipment.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerEquipment.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerInteraction.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerInteraction.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotion.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotion.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerController.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Settings/SampleSceneProfile.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Settings/SampleSceneProfile.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Settings/SampleSceneProfile.asset.meta" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Settings/SampleSceneProfile.asset.meta" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Packages/manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/Packages/manifest.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Packages/packages-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/Packages/packages-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/DynamicsManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/DynamicsManager.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/EditorBuildSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/EditorBuildSettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/EditorSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/EditorSettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/GraphicsSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/GraphicsSettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/InputManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/InputManager.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/Physics2DSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/Physics2DSettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/PresetManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/PresetManager.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/ProjectSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/ProjectSettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/QualitySettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/QualitySettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/TagManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/TagManager.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/TimeManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/TimeManager.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/UnityConnectSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/UnityConnectSettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/VFXManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/VFXManager.asset" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -38,10 +312,15 @@
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/5a41d6b7189842eca409fd0b1c3e3dcf17bf78/46/57194bb0/Action`2.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/ba26fa3b7e7a4e42a273a017a7353e4b34600/6b/5514cf2a/Animator.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/d819e76d2dac496782e863b6fab6eea3bcc00/2d/2e6c6798/NetworkBehaviour.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/d851e39d164043519e84d650683ea1592ac00/58/c8cedbf5/Collider.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/3ea01e77be99618395f448b16bd7cc2bd4248bd9e5d8474964b2d97f39c5d74/System.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/d44b17e136d09081da1e8fd0e8c83fde60e11818b9f2442d7ed8cb733fae895e/System.Collections.Generic.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunAttackComponent.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunReloadComponent.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Hitbox/ModularHitBox.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.netcode.gameobjects@f2477a6c90fe/Runtime/Core/NetworkBehaviour.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.netcode.gameobjects@f2477a6c90fe/Runtime/Core/NetworkObject.cs" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.netcode.gameobjects@f2477a6c90fe/Runtime/Spawning/NetworkSpawnManager.cs" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.services.multiplayer@dc9574e25bac/Runtime/Lobbies/Models/QueryResponse.cs" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Library/PackageCache/com.unity.services.multiplayer@dc9574e25bac/Runtime/Lobbies/SDK/ILobbyService.cs" root0="SKIP_HIGHLIGHTING" />
@@ -137,7 +416,11 @@
       <workItem from="1757870796194" duration="6331000" />
       <workItem from="1757886211887" duration="2814000" />
       <workItem from="1757959271756" duration="5072000" />
-      <workItem from="1758212535920" duration="6427000" />
+      <workItem from="1758212535920" duration="7192000" />
+      <workItem from="1758309914787" duration="3425000" />
+      <workItem from="1758314928488" duration="959000" />
+      <workItem from="1758319278523" duration="4746000" />
+      <workItem from="1758393206392" duration="15467000" />
     </task>
     <servers />
   </component>

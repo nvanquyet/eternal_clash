@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1d36b2159c2aa634fb7a7df8c109dec2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/Animations/UI/EmptyForTransition.anim
+  uploadId: 718776

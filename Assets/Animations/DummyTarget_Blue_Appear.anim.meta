@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5abbc74144b984c448635531afd5914f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/Animations/DummyTarget_Blue_Appear.anim
+  uploadId: 718776

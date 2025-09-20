@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ae2d849db27256f48886dbed68289408
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/Materials/Fonts/LeagueSpartan-Bold SDF Outline Thick.mat
+  uploadId: 718776

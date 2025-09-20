@@ -8,7 +8,8 @@ namespace _GAME.Scripts.HideAndSeek.Player
     {
         [SerializeField] private Vector3 weaponHoldPosition = Vector3.right;
         [SerializeField] private Vector3 weaponHoldRotation = Vector3.zero;
-        private NetworkVariable<NetworkBehaviourReference> currentGunRef =
+
+        private NetworkVariable<NetworkBehaviourReference> currentWeaponRef =
             new NetworkVariable<NetworkBehaviourReference>(
                 default,
                 NetworkVariableReadPermission.Everyone,
@@ -17,48 +18,50 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-            currentGunRef.OnValueChanged += OnGunRefChanged;
+            currentWeaponRef.OnValueChanged += OnWeaponRefChanged;
         }
 
         public override void OnNetworkDespawn()
         {
             base.OnNetworkDespawn();
-            currentGunRef.OnValueChanged -= OnGunRefChanged;
+            currentWeaponRef.OnValueChanged -= OnWeaponRefChanged;
         }
 
-        private void OnGunRefChanged(NetworkBehaviourReference prevRef, NetworkBehaviourReference newRef)
+        private void OnWeaponRefChanged(NetworkBehaviourReference prevRef, NetworkBehaviourReference newRef)
         {
-            // Xử lý weapon cũ - chỉ unparent, không despawn
-            if (prevRef.TryGet(out AGun prevGun))
-            {
-                UnequipWeapon(prevGun);
-            }
+            if (!IsServer) return; // parenting và drop chỉ làm ở server
 
-            // Xử lý weapon mới
-            if (newRef.TryGet(out AGun newGun))
-            {
-                EquipWeapon(newGun);
-            }
+            if (prevRef.TryGet(out WeaponInteraction prevWeapon))
+                UnequipWeapon(prevWeapon);
+
+            if (newRef.TryGet(out WeaponInteraction newWeapon))
+                EquipWeapon(newWeapon);
         }
 
-        private void EquipWeapon(AGun weapon)
+        private void EquipWeapon(WeaponInteraction weapon)
         {
             // Set parent using NetworkObject parenting (vì weaponHoldPoint là NetworkObject)
-            weapon.NetworkObject.TrySetParent(this.transform);
-            
+            //Try get net object component
+            if (weapon == null) return;
+            Debug.Log($"[PlayerEquipment] Equipping weapon: {weapon.name}");
+            if (gameObject.TryGetComponent<NetworkObject>(out var netObj))
+            {
+                weapon.NetworkObject.TrySetParent(this.transform);
+            }
+            else
+            {
+                weapon.NetworkObject.TrySetParent(this.transform.parent);
+            }
+
             weapon.transform.localPosition = weaponHoldPosition;
             weapon.transform.localRotation = Quaternion.Euler(weaponHoldRotation);
 
-            // Initialize weapon (chỉ owner)
-            if (IsOwner)
-            {
-                weapon.Initialize();
-            }
-
             Debug.Log($"[PlayerEquipment] Weapon equipped: {weapon.name}");
+            if (weapon.CurrentState != WeaponState.Equipped)
+                weapon.ShowWeapon();
         }
 
-        private void UnequipWeapon(AGun weapon)
+        private void UnequipWeapon(WeaponInteraction weapon)
         {
             if (weapon == null) return;
 
@@ -69,53 +72,48 @@ namespace _GAME.Scripts.HideAndSeek.Player
         }
 
         // API public cho client gọi
-        public void SetCurrentGun(AGun gun)
+        public void SetCurrentWeapon(WeaponInteraction weapon)
         {
             if (!IsOwner) return;
-            RequestSetGunServerRpc(gun ? gun.NetworkObject : default(NetworkObjectReference));
+            Debug.Log($"[PlayerEquipment] Requesting to set weapon: {(weapon ? weapon.name : "None")}");
+            RequestSetWeaponServerRpc(weapon ? weapon.NetworkObject : default(NetworkObjectReference));
+        }
+        
+        public void SetCurrentWeaponServer(WeaponInteraction weapon)
+        {
+            currentWeaponRef.Value = weapon ? new NetworkBehaviourReference(weapon) : default;
         }
 
         [ServerRpc(RequireOwnership = false)]
-        private void RequestSetGunServerRpc(NetworkObjectReference gunObjRef)
+        private void RequestSetWeaponServerRpc(NetworkObjectReference weaponObjRef)
         {
-            // Xử lý weapon cũ - KHÔNG despawn, chỉ clear reference
-            if (currentGunRef.Value.TryGet(out AGun prevGun))
-            {
-                Debug.Log($"[PlayerEquipment Server] Removing previous weapon: {prevGun.name}");
-                // Weapon cũ sẽ được unparent trong OnGunRefChanged
-            }
+            // Tháo súng cũ (DÙNG KIỂU ĐÚNG)
+            if (currentWeaponRef.Value.TryGet(out WeaponInteraction prevWeapon))
+                UnequipWeapon(prevWeapon);
 
-            // Set weapon mới
-            if (gunObjRef.TryGet(out NetworkObject gunNob))
+            if (weaponObjRef.TryGet(out NetworkObject weaponNob))
             {
-                var newGun = gunNob.GetComponent<AGun>();
-                if (newGun != null)
+                var newWeapon = weaponNob.GetComponent<WeaponInteraction>();
+                if (newWeapon != null)
                 {
-                    // Ensure weapon is spawned
-                    if (!gunNob.IsSpawned)
-                    {
-                        gunNob.Spawn(true);
-                    }
+                    // bảo đảm ownership đúng chủ
+                    if (weaponNob.OwnerClientId != OwnerClientId)
+                        weaponNob.ChangeOwnership(OwnerClientId);
 
-                    // Update NetworkVariable - OnGunRefChanged sẽ xử lý parenting
-                    currentGunRef.Value = new NetworkBehaviourReference(newGun);
+                    // set NV (OnWeaponRefChanged server sẽ parent + show)
+                    currentWeaponRef.Value = new NetworkBehaviourReference(newWeapon);
 
-                    Debug.Log($"[PlayerEquipment Server] Set new weapon: {newGun.name}");
-
-                    // Notify clients for effects/sounds
-                    NotifyEquippedClientRpc(gunNob);
+                    NotifyEquippedClientRpc(weaponObjRef);
                 }
             }
             else
             {
-                // Clear weapon reference
-                currentGunRef.Value = default;
-                Debug.Log("[PlayerEquipment Server] Weapon cleared");
+                currentWeaponRef.Value = default;
             }
         }
 
         [ClientRpc]
-        private void NotifyEquippedClientRpc(NetworkObjectReference gunObjRef)
+        private void NotifyEquippedClientRpc(NetworkObjectReference weaponObjRef)
         {
             // Play sound/animation effects khi equip weapon
             Debug.Log("[PlayerEquipment] Weapon equipped - playing effects");
@@ -125,19 +123,19 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public void ClearCurrentWeapon()
         {
             if (!IsOwner) return;
-            RequestSetGunServerRpc(default);
+            RequestSetWeaponServerRpc(default);
         }
 
         // Helper method để lấy current weapon
-        public AGun GetCurrentWeapon()
+        public WeaponInteraction GetCurrentWeapon()
         {
-            return currentGunRef.Value.TryGet(out AGun gun) ? gun : null;
+            return currentWeaponRef.Value.TryGet(out WeaponInteraction weapon) ? weapon : null;
         }
 
         // Helper method để check có weapon không
         public bool HasWeapon()
         {
-            return currentGunRef.Value.TryGet(out _);
+            return currentWeaponRef.Value.TryGet(out _);
         }
     }
 }

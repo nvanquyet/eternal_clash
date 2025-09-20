@@ -5,15 +5,14 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: Assets/_GAME/Scenes/LoadingScene.unity
-    guid: 560ba81c0992c484eaf6e20af8ceb315
-  - enabled: 0
-    path: Assets/_GAME/Scenes/LoginScene.unity
-    guid: 887f604b1cd246c4b80b3d0ee66426dc
   - enabled: 1
-    path: Assets/_GAME/Scenes/HomeScene.unity
-    guid: e11ff7746d042924596c44a729d6bf53
-  m_configObjects:
-    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+    path: Assets/WeaponPack/Scenes/Deathmatch.unity
+    guid: 4213cc4aa9415c94eb19e5e87b4316fb
+  - enabled: 0
+    path: Assets/WeaponPack/Scenes/Playground.unity
+    guid: b69d812ebe04e1648908c67abb8fa11a
+  - enabled: 1
+    path: Assets/_GAME/Scenes/InteractScene.unity
+    guid: f176b8845cd478a4d8ff992ce28f77c8
+  m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

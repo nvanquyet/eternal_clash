@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 94a9aa8a94e5b1b4d8c777819f86eb44
+timeCreated: 1509839552
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Shaders/Standard/PolyIntense.Shader
+  uploadId: 718776

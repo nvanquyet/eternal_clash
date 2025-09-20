@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7c13e7e9ea194bd4ebe2ec0671242185
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Prefabs/Combat/Explosions/Magic/Arrow/ArrowExplosionPurple.prefab
+  uploadId: 718776

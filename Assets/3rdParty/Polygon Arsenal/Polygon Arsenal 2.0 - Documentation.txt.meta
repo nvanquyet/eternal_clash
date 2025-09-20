@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 98a49eee5db6d244c89d17385a2e94aa
+timeCreated: 1516724575
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Polygon Arsenal 2.0 - Documentation.txt
+  uploadId: 718776

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 95270ff779ec9ed4889c50b8d4f2812e
+timeCreated: 1515542342
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Polygon Arsenal/Sound/Prefabs/Missile/PolyNukeMissileSND.prefab
+  uploadId: 718776

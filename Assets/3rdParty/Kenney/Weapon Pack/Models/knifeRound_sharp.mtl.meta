@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 636e2adac2872bd4f8c0b54e47fc3052
+timeCreated: 1449962046
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Kenney/Weapon Pack/Models/knifeRound_sharp.mtl
+  uploadId: 718776

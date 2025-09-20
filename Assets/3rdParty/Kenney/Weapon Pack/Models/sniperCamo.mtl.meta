@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d8f113b8aed3bd14b964b7b627677401
+timeCreated: 1449962047
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/3rdParty/Kenney/Weapon Pack/Models/sniperCamo.mtl
+  uploadId: 718776

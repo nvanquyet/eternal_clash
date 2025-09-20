@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ebe74336bdba80a45981459f64826198
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 286072
+  packageName: Projectiles Advanced Multiplayer - Photon Fusion
+  packageVersion: 2.0.3
+  assetPath: Assets/Animations/DummyTarget_Blue_Hit.anim
+  uploadId: 718776

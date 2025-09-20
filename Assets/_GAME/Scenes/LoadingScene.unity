@@ -1376,10 +1376,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 86f004f6398c4db4284c009a5695abca, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  networkShutdownTimeout: 3
-  lobbyCleanupTimeout: 2
-  _isExiting: 0
-  _isHost: 0
 --- !u!114 &1631848634
 MonoBehaviour:
   m_ObjectHideFlags: 0

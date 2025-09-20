@@ -15,7 +15,7 @@ MonoBehaviour:
   data:
   - modelName: Default 01
     modelType: 0
-    modelPrefab: {fileID: 4970921967684032763, guid: 35872c5a7ee917c4682e5c1e175da33e, type: 3}
+    modelPrefab: {fileID: 8921256698225966105, guid: 788e96266cdbe464ca4296cfdb8e1825, type: 3}
     overrideController: {fileID: 0}
     avatar: {fileID: 0}
     availableInPersonVsPerson: 1
@@ -24,7 +24,25 @@ MonoBehaviour:
     availableForSeeker: 1
   - modelName: Default 02
     modelType: 0
-    modelPrefab: {fileID: 7161076584356740902, guid: 84ea12690a0f1f1458858ea223e8aefd, type: 3}
+    modelPrefab: {fileID: 3720135182102022724, guid: 886e7ad0d89dc20408aa3bbfd0b1eb4e, type: 3}
+    overrideController: {fileID: 0}
+    avatar: {fileID: 0}
+    availableInPersonVsPerson: 1
+    availableInPersonVsObject: 1
+    availableForHider: 1
+    availableForSeeker: 1
+  - modelName: Default 03
+    modelType: 0
+    modelPrefab: {fileID: 6241911783582840570, guid: 39895e86bfe3ec74e8385766ed8fc1d9, type: 3}
+    overrideController: {fileID: 0}
+    avatar: {fileID: 0}
+    availableInPersonVsPerson: 1
+    availableInPersonVsObject: 1
+    availableForHider: 1
+    availableForSeeker: 1
+  - modelName: Default 03
+    modelType: 0
+    modelPrefab: {fileID: 6241911783582840570, guid: 39895e86bfe3ec74e8385766ed8fc1d9, type: 3}
     overrideController: {fileID: 0}
     avatar: {fileID: 0}
     availableInPersonVsPerson: 1

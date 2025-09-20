@@ -96,7 +96,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             // Copy properties from shooter
             if (shooter != null)
             {
-                baseDamage = shooter.BaseDamage;
+                //baseDamage = shooter.BaseDamage;
                 primaryDamageType = shooter.PrimaryDamageType;
             }
         }
