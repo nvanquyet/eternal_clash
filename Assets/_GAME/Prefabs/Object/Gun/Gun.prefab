@@ -594,10 +594,9 @@ GameObject:
   - component: {fileID: 7818634914337665036}
   - component: {fileID: 6406987423805388053}
   - component: {fileID: 2508421426252871674}
-  - component: {fileID: 3723433895301326875}
   m_Layer: 20
   m_Name: Gun
-  m_TagString: Interactable
+  m_TagString: Pickup
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -716,6 +715,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   entityId: 
   isActive: 1
+  interactionCollider: {fileID: 0}
   baseDamage: 10
   attackRange: 2
   attackCooldown: 1
@@ -740,29 +740,6 @@ MonoBehaviour:
   attackActionRef: {fileID: -8924780678998019253, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
   reloadActionRef: {fileID: 6045537755674109440, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
   lookAtPoint: {fileID: 6793240371901652740}
---- !u!114 &3723433895301326875
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9160020527832302563}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f7f8cadb822d06b45b39b5cb81023c01, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  entityId: 
-  isActive: 1
-  interactionLayer:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  interactionTags:
-  - Player
-  interactionCooldown: 0.5
-  uiIndicator: {fileID: 5501870189630170004}
-  gunReference: {fileID: 2508421426252871674}
 --- !u!1001 &2866532047921140731
 PrefabInstance:
   m_ObjectHideFlags: 0

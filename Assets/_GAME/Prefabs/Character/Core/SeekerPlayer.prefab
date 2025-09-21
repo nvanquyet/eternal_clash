@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: 3779050530778937582}
   m_Layer: 0
   m_Name: SeekerPlayer
-  m_TagString: Player
+  m_TagString: HitboxRoot
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 2147483647
@@ -125,6 +125,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   entityId: 
   isActive: 1
+  interactionCollider: {fileID: 0}
   maxHealth: 100
   defenseValue: 0
   isInvulnerable: 0
@@ -146,6 +147,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   entityId: 
   isActive: 1
+  interactionCollider: {fileID: 0}
   detectLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295

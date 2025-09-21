@@ -3,7 +3,15 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 3
-  tags: []
+  tags:
+  - Interactable
+  - Defendable
+  - HitboxRoot
+  - HitboxPart
+  - Projectile
+  - PlayerInteractor
+  - Pickup
+  - Environment
   layers:
   - Default
   - TransparentFX
@@ -17,13 +25,13 @@ TagManager:
   - Agent
   - Target
   - IgnoreCollision
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  - Player
+  - Enemy
+  - Hitbox
+  - Projectile
+  - Interactable
+  - Pickup
+  - Environment
   - 
   - 
   - 

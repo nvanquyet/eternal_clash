@@ -14,9 +14,9 @@ GameObject:
   - component: {fileID: 2517128450611499898}
   - component: {fileID: 136088599564820170}
   - component: {fileID: 7828428356017685873}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: SeekerInteraction
-  m_TagString: Player
+  m_TagString: PlayerInteractor
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 2147483647
@@ -139,12 +139,13 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   entityId: 
   isActive: 1
+  interactionCollider: {fileID: 0}
   detectLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
   detectTags:
   - Interactable
-  - Object
+  - Pickup
   interactionRange: 3
   inputInteractionRef: {fileID: -7541961867885620050, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
   playerEquipment: {fileID: 136088599564820170}

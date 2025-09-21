@@ -2773,9 +2773,9 @@ GameObject:
   - component: {fileID: 2851130073145013048}
   - component: {fileID: 4971507656536763414}
   - component: {fileID: 3765286688760888776}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: Character 01
-  m_TagString: Untagged
+  m_TagString: HitboxPart
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -2882,6 +2882,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   entityId: 
   isActive: 1
+  interactionCollider: {fileID: 4971507656536763414}
   maxHealth: 1
   defenseValue: 0
   isInvulnerable: 0
@@ -2896,7 +2897,6 @@ MonoBehaviour:
     specialEffectId: 
   showDebugGizmos: 1
   debugColor: {r: 1, g: 0, b: 0, a: 1}
-  hitBoxCollider: {fileID: 4971507656536763414}
 --- !u!1 &9113745920413902778
 GameObject:
   m_ObjectHideFlags: 0

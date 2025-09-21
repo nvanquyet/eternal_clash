@@ -5,7 +5,7 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/WeaponPack/Scenes/Deathmatch.unity
     guid: 4213cc4aa9415c94eb19e5e87b4316fb
   - enabled: 0

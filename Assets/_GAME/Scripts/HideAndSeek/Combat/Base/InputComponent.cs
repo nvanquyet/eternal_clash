@@ -76,7 +76,6 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             {
                 _attackAction = InputActionFactory.CreateUniqueAction(attackActionRef, GetInstanceID());
                 _attackAction.performed += OnAttackPress;
-                _attackAction.Enable();
             }
         }
 

@@ -206,7 +206,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             AProjectile bullet = Instantiate(bulletPrefab);
             
             // Initialize bullet
-            bullet.Initialize(this, spawnPosition, direction);
+            //bullet.Initialize(this, spawnPosition, direction);
             
             // Spawn on network
             bullet.NetworkObject.Spawn(true);

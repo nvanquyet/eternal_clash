@@ -21,13 +21,13 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         protected NetworkVariable<double> networkSpawnTime = new NetworkVariable<double>(
             writePerm: NetworkVariableWritePermission.Server);
         protected int currentPierceCount;
-        protected IAttackable owner;
+        protected ulong owner;
         
         // Properties
         public float Speed => speed;
         public float Lifetime => lifetime;
         public Vector3 Direction => direction;
-        public IAttackable Owner => owner;
+        public ulong Owner => owner;
         
         // Override CanAttack from new base system
         public override bool CanAttack => 
@@ -86,23 +86,29 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             }
         }
         
-        public virtual void Initialize(IAttackable shooter, Vector3 startPosition, Vector3 shootDirection)
+        public virtual void Initialize(ulong shooter, Vector3 startPosition, Vector3 shootDirection)
         {
             owner = shooter;
             direction = shootDirection.normalized;
             transform.position = startPosition;
             transform.rotation = Quaternion.LookRotation(direction);
-            
-            // Copy properties from shooter
-            if (shooter != null)
-            {
-                //baseDamage = shooter.BaseDamage;
-                primaryDamageType = shooter.PrimaryDamageType;
-            }
         }
         
         #region New Base System Overrides
-        
+
+        protected override bool IsOwnerAttackable(GameObject target)
+        {
+            // Additional logic can be added here if needed
+            //Try get network object
+            var targetNetworkObject = target.GetComponentInParent<NetworkObject>();
+            if (targetNetworkObject != null)
+            {
+                // If target is the owner, not attackable
+                if (targetNetworkObject.OwnerClientId == owner) return true;
+            }
+            return base.IsOwnerAttackable(target);
+        }
+
         protected override void OnSuccessfulAttack(IDefendable target, float actualDamage)
         {
             OnHitTarget(target, actualDamage);

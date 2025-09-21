@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7920822236109091388}
   - component: {fileID: 751201382258049766}
-  m_Layer: 20
+  m_Layer: 0
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -248,13 +248,13 @@ GameObject:
   - component: {fileID: 2968783815633969488}
   - component: {fileID: 5180025071745442566}
   - component: {fileID: 3020762019542799169}
-  m_Layer: 20
+  m_Layer: 0
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &3476855009545056288
 RectTransform:
   m_ObjectHideFlags: 0
@@ -263,17 +263,16 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4010214363065495366}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -0.003}
+  m_LocalPosition: {x: 0, y: 0, z: 0.15296748}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7920822236109091388}
-  - {fileID: 6312198721450398731}
-  m_Father: {fileID: 9073898159700964828}
+  m_Father: {fileID: 6312198721450398731}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 1.37}
+  m_AnchoredPosition: {x: 0.0031559218, y: 1.4500002}
   m_SizeDelta: {x: 3, y: 1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!223 &5581216012695022227
@@ -378,9 +377,9 @@ GameObject:
   - component: {fileID: 132231500809755908}
   - component: {fileID: 7913267130845342146}
   - component: {fileID: 6128064617160490005}
-  m_Layer: 20
+  m_Layer: 17
   m_Name: New Gun
-  m_TagString: Interactable
+  m_TagString: Pickup
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -399,7 +398,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4884538193385610467}
-  - {fileID: 3476855009545056288}
+  - {fileID: 6312198721450398731}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &1728745078132760659
@@ -435,7 +434,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 3947320050
+  GlobalObjectIdHash: 3836259406
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -499,18 +498,18 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   entityId: 
   isActive: 1
-  interactionCollider: {fileID: 0}
+  interactionCollider: {fileID: 1728745078132760659}
   interactionLayer:
     serializedVersion: 2
     m_Bits: 4294967295
   interactionTags:
-  - Player
+  - PlayerInteractor
   interactionCooldown: 0.5
-  uiIndicator: {fileID: 0}
+  uiIndicator: {fileID: 4010214363065495366}
   weaponName: Base Weapon
   weaponType: 0
   weaponIcon: {fileID: 0}
-  pickupModel: {fileID: 4010214363065495366}
+  pickupModel: {fileID: 5273686833297602839}
   equippedModel: {fileID: 5429465896162649959}
   inputComponent: {fileID: 132231500809755908}
 --- !u!114 &7170320314067950521
@@ -601,8 +600,9 @@ MonoBehaviour:
   inputComponent: {fileID: 132231500809755908}
   magazineComponent: {fileID: 4641513670209537577}
   effectsComponent: {fileID: 3406547959543967568}
+  weaponInteraction: {fileID: 4256697574199840341}
   clientSideFXPrediction: 1
-  bulletPrefab: {fileID: 0}
+  bulletPrefab: {fileID: 4309935383660666368, guid: 6420cb63c4540a94a8ff4f0df5ff1e6f, type: 3}
   firePoint: {fileID: 1037847377391070709}
   bulletSpeed: 100
 --- !u!82 &6128064617160490005
@@ -729,11 +729,12 @@ Transform:
   m_GameObject: {fileID: 5273686833297602839}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.9999469, z: -0, w: 0.01031402}
-  m_LocalPosition: {x: 0, y: -1.45, z: 0.15299998}
+  m_LocalPosition: {x: 0, y: -0.08000004, z: 0.14999998}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 3476855009545056288}
+  m_Children:
+  - {fileID: 3476855009545056288}
+  m_Father: {fileID: 9073898159700964828}
   m_LocalEulerAnglesHint: {x: 0, y: 178.81808, z: 0}
 --- !u!33 &1842519774707081437
 MeshFilter:
@@ -870,7 +871,7 @@ GameObject:
   - component: {fileID: 6574038593797539318}
   - component: {fileID: 3835597008112340383}
   - component: {fileID: 3801494509826199814}
-  m_Layer: 20
+  m_Layer: 0
   m_Name: Image
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1039,7 +1040,7 @@ GameObject:
   - component: {fileID: 5355579093956722530}
   - component: {fileID: 3306134212761563313}
   - component: {fileID: 2257256406049765722}
-  m_Layer: 20
+  m_Layer: 0
   m_Name: Image (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}

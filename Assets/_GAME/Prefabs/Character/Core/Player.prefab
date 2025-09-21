@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2566790195391202074}
   - component: {fileID: 6651960881270237277}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Camera_FPS
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 712041781050104008}
   - component: {fileID: 8763382896193912978}
   - component: {fileID: 5353556325740960388}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -235,7 +235,7 @@ GameObject:
   - component: {fileID: 7302646551190624464}
   - component: {fileID: 7784533644962129565}
   - component: {fileID: 8242996907076080792}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Dash (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -369,7 +369,7 @@ GameObject:
   - component: {fileID: 7681841682931711137}
   - component: {fileID: 3319090652616352114}
   - component: {fileID: 5745728870866950997}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Dash
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -491,7 +491,7 @@ GameObject:
   - component: {fileID: 8131330423252905504}
   - component: {fileID: 5727756822260522212}
   - component: {fileID: 1632075290499207401}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Run (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -624,7 +624,7 @@ GameObject:
   - component: {fileID: 7383619507774631162}
   - component: {fileID: 2214292015484909912}
   - component: {fileID: 7696137769377085401}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -758,7 +758,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 501713118633169322}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: R Panel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -797,7 +797,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7589786280905559849}
   - component: {fileID: 1414949432823081584}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Button
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -864,7 +864,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4895588568873799595}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Camera
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -901,7 +901,7 @@ GameObject:
   - component: {fileID: 3931943672728848983}
   - component: {fileID: 3804261848532980580}
   - component: {fileID: 7800663677759365668}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Run
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1031,7 +1031,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 996880227716988012}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Model
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1070,9 +1070,9 @@ GameObject:
   - component: {fileID: 5910943126999775176}
   - component: {fileID: 1391047841026438271}
   - component: {fileID: 2685882311992654988}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Player
-  m_TagString: Player
+  m_TagString: HitboxRoot
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1292,7 +1292,7 @@ GameObject:
   - component: {fileID: 5206841332395113488}
   - component: {fileID: 4381847261360216728}
   - component: {fileID: 1885177093469919805}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Interact
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1425,7 +1425,7 @@ GameObject:
   - component: {fileID: 2392931684453385570}
   - component: {fileID: 5631813663571339252}
   - component: {fileID: 3519148494253535620}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1561,7 +1561,7 @@ GameObject:
   - component: {fileID: 7413263265383292518}
   - component: {fileID: 3640154309376240766}
   - component: {fileID: 3920788729100154006}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1698,7 +1698,7 @@ GameObject:
   - component: {fileID: 5696406299915523953}
   - component: {fileID: 8734292307940629241}
   - component: {fileID: 5264615313415947635}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Dash
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1819,7 +1819,7 @@ GameObject:
   - component: {fileID: 3336591927308722805}
   - component: {fileID: 8732643107930251015}
   - component: {fileID: 9075221209714922521}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Joystick
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1931,7 +1931,7 @@ GameObject:
   - component: {fileID: 4840970876013469098}
   - component: {fileID: 7324241576955006447}
   - component: {fileID: 1494958370811740551}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Attack
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2064,7 +2064,7 @@ GameObject:
   - component: {fileID: 3554022370394791808}
   - component: {fileID: 8258457214118787852}
   - component: {fileID: 7123456341622266441}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2200,7 +2200,7 @@ GameObject:
   - component: {fileID: 4969580116335701497}
   - component: {fileID: 5500990061345516015}
   - component: {fileID: 5190971410197320547}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2336,7 +2336,7 @@ GameObject:
   - component: {fileID: 476496632521644968}
   - component: {fileID: 4426109505418462763}
   - component: {fileID: 7482537815432598838}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2473,7 +2473,7 @@ GameObject:
   - component: {fileID: 6569362192045527493}
   - component: {fileID: 1046064966036743474}
   - component: {fileID: 6571189405068144680}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: cm
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2544,7 +2544,7 @@ GameObject:
   - component: {fileID: 7187505366028301300}
   - component: {fileID: 5969567294330256299}
   - component: {fileID: 7155654430837193028}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2683,7 +2683,7 @@ GameObject:
   - component: {fileID: 9159961194131618389}
   - component: {fileID: 5374768488051870809}
   - component: {fileID: 1882110624636111328}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Jump
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2801,7 +2801,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 281452617143648949}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Look_At_Point
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2834,7 +2834,7 @@ GameObject:
   - component: {fileID: 8776017678082250948}
   - component: {fileID: 8818179648108481005}
   - component: {fileID: 9160154612603890953}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2969,7 +2969,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6041465867477402087}
   - component: {fileID: 7976148229956483534}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Button (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3040,7 +3040,7 @@ GameObject:
   - component: {fileID: 927984066563291185}
   - component: {fileID: 8339000338330290024}
   - component: {fileID: 4468803496353377627}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Jump (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3175,7 +3175,7 @@ GameObject:
   - component: {fileID: 5851298125261565793}
   - component: {fileID: 5603090789052243430}
   - component: {fileID: 1378325966116117963}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Run
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3307,7 +3307,7 @@ GameObject:
   - component: {fileID: 5776739988662235338}
   - component: {fileID: 6998316374978052377}
   - component: {fileID: 2030395183084805382}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3446,7 +3446,7 @@ GameObject:
   - component: {fileID: 3326638022393643310}
   - component: {fileID: 947978150192274411}
   - component: {fileID: 1974828171524657201}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Camera_TPS
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3642,8 +3642,6 @@ MonoBehaviour:
       Input:
         InputAction: {fileID: -6516022567857389328, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
         Gain: 1
-        LegacyInput: 
-        LegacyGain: 1
         CancelDeltaTime: 0
       InputValue: 0
       Driver:
@@ -3655,8 +3653,6 @@ MonoBehaviour:
       Input:
         InputAction: {fileID: -6516022567857389328, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
         Gain: -1
-        LegacyInput: 
-        LegacyGain: 1
         CancelDeltaTime: 0
       InputValue: -0
       Driver:
@@ -3668,8 +3664,6 @@ MonoBehaviour:
       Input:
         InputAction: {fileID: -423771258819551211, guid: 1d6e640e716dc4ff6989b73d02023f2b, type: 3}
         Gain: -1
-        LegacyInput: 
-        LegacyGain: 1
         CancelDeltaTime: 0
       InputValue: -0
       Driver:
@@ -3688,7 +3682,7 @@ GameObject:
   - component: {fileID: 6673013995563277298}
   - component: {fileID: 1558225638074425318}
   - component: {fileID: 4881422771722359403}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3824,7 +3818,7 @@ GameObject:
   - component: {fileID: 776312224732644446}
   - component: {fileID: 8992394875829550541}
   - component: {fileID: 6286721064824102066}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3961,7 +3955,7 @@ GameObject:
   - component: {fileID: 8680144927341144136}
   - component: {fileID: 905247000980857428}
   - component: {fileID: 3441814344881155057}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Jump
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4079,7 +4073,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5506065471547493678}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Joystick
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4119,7 +4113,7 @@ GameObject:
   - component: {fileID: 6907220984614244071}
   - component: {fileID: 5216929138771944773}
   - component: {fileID: 8400973416970944589}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: OnScreenTick
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4231,7 +4225,7 @@ GameObject:
   - component: {fileID: 609901543998784282}
   - component: {fileID: 5545374945215153304}
   - component: {fileID: 2753344219842689357}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Jump (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4362,7 +4356,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 9162799878136637319}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: L Panel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4416,7 +4410,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5652311928991170581, guid: c01f222863811604399fdd2dd02614c6, type: 3}
       propertyPath: m_Layer
-      value: 8
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7196498779483888934, guid: c01f222863811604399fdd2dd02614c6, type: 3}
       propertyPath: m_Pivot.x
@@ -4649,7 +4643,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3881087803549984437, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_Layer
-      value: 8
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3881087803549984437, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_IsActive
@@ -4661,11 +4655,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3881087803815115468, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_Layer
-      value: 8
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3881087804030458063, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_Layer
-      value: 8
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

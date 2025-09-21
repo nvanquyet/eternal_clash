@@ -14,6 +14,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         [SerializeField] private GunInputComponent inputComponent;
         [SerializeField] private GunMagazineComponent magazineComponent;
         [SerializeField] private EffectsComponent effectsComponent;
+        [SerializeField] private WeaponInteraction weaponInteraction;
 
         [Header("Fire Config")] 
         [SerializeField] private bool clientSideFXPrediction = true;
@@ -22,6 +23,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         [SerializeField] private AProjectile bulletPrefab;
         [SerializeField] private Transform firePoint;
         [SerializeField] private float bulletSpeed = 100f;
+        
        
         public override bool CanAttack
         {
@@ -126,15 +128,20 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         {
             if (bulletPrefab == null) return;
 
-            var rot = Quaternion.LookRotation(direction);
-            var bullet = Instantiate(bulletPrefab, origin, rot);
+            var bullet = Instantiate(bulletPrefab);
 
             // thiết lập thông số đạn
             bullet.SetBaseDamage(BaseDamage);
             
             if (bullet.TryGetComponent<NetworkObject>(out var nob))
             {
-                nob.Spawn(true);
+                var currentObj = weaponInteraction.CurrentHolder;
+                if (currentObj != null)
+                {
+                    nob.SpawnWithOwnership(currentObj.OwnerClientId, true);
+                    bullet.Initialize(currentObj.OwnerClientId, origin, direction);
+                }
+                
             }
 
             // nếu AProjectile hỗ trợ vận tốc:

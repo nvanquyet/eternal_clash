@@ -16,8 +16,8 @@ GameObject:
   - component: {fileID: 6384719953585072006}
   - component: {fileID: 4309935383660666368}
   m_Layer: 0
-  m_Name: Bullet 1
-  m_TagString: Untagged
+  m_Name: New Bullet
+  m_TagString: Projectile
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -186,8 +186,12 @@ MonoBehaviour:
   enableCollisionAttack: 1
   attackableLayers:
     serializedVersion: 2
-    m_Bits: 0
-  attackableTags: []
+    m_Bits: 4294967295
+  attackableTags:
+  - HitboxPart
+  - HitboxRoot
+  - Defendable
+  - Environment
   destroyAfterCollisionAttack: 1
   speed: 20
   lifetime: 5

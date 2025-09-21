@@ -18,7 +18,6 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
             {
                 _reloadAction = InputActionFactory.CreateUniqueAction(reloadActionRef, GetInstanceID());
                 _reloadAction.performed += OnReloadPress;
-                _reloadAction.Enable();
             }
         }
 

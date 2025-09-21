@@ -58,51 +58,45 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
         
         [SerializeField] private bool showDebugGizmos = true;
         [SerializeField] private Color debugColor = Color.red;
-        [SerializeField] private Collider hitBoxCollider;
-
         private ModularRootHitBox rootModule;
+
+        public ModularRootHitBox RootModule
+        {
+            get
+            {
+                if(rootModule == null)
+                    rootModule = GetComponentInParent<ModularRootHitBox>();
+                return rootModule;
+            }
+        }
+        
 
         // Events
         public event Action<ModularHitBox, HitBoxDamageInfo> OnHitBoxDamaged;
 
         // Properties
-        public ModularRootHitBox RootModule => rootModule;
-
         public HitBoxType HitBoxType => hitBoxInfo.hitBoxType;
         public string HitBoxId => hitBoxInfo.HitBoxId;
         public HitBoxCategory Category => hitBoxInfo.Category;
 
         #region Unity Lifecycle
-
-#if UNITY_EDITOR
-        private void OnValidate()
-        {
-            hitBoxCollider = GetComponent<Collider>();
-        }
-#endif
         
         protected override void Start()
         {
-            ValidateRootDefender();
             ValidateSetup();
             base.Start();
         }
-
-        public override void OnNetworkSpawn()
-        {
-            base.OnNetworkSpawn();
-            if(hitBoxCollider) hitBoxCollider.enabled = true;
-        }
+        
 
         public override float TakeDamage(IAttackable attacker, float damage,
             DamageType damageType = DamageType.Physical)
         {
-            if (rootModule == null || !IsAlive)
+            if (RootModule == null || !IsAlive)
                 return 0f;
 
             // Forward to root module
             var actualDamage = ProcessHit(attacker, damage, damageType);
-            return rootModule.TakeDamage(attacker, actualDamage, damageType);
+            return RootModule.TakeDamage(attacker, actualDamage, damageType);
         }
 
         public override bool Interact(IInteractable target) => false;
@@ -114,11 +108,6 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
         #endregion
 
         #region Setup
-        
-        private void ValidateRootDefender()
-        {
-            rootModule = GetComponentInParent<ModularRootHitBox>();
-        }
         
         private void ValidateSetup()
         {
@@ -143,7 +132,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
         /// </summary>
         private float ProcessHit(IAttackable attacker, float damage, DamageType damageType)
         {
-            if (!IsAlive || rootModule == null)
+            if (!IsAlive || RootModule == null)
                 return 0f;
 
             // Calculate final damage
@@ -172,21 +161,21 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
 
         private void OnDrawGizmos()
         {
-            if (!showDebugGizmos || hitBoxCollider == null) return;
+            if (!showDebugGizmos || InteractionCollider == null) return;
 
             Gizmos.color = IsAlive ? debugColor : Color.gray;
 
-            if (hitBoxCollider is BoxCollider box)
+            if (InteractionCollider is BoxCollider box)
             {
                 Gizmos.matrix = transform.localToWorldMatrix;
                 Gizmos.DrawWireCube(box.center, box.size);
             }
-            else if (hitBoxCollider is SphereCollider sphere)
+            else if (InteractionCollider is SphereCollider sphere)
             {
                 Gizmos.matrix = transform.localToWorldMatrix;
                 Gizmos.DrawWireSphere(sphere.center, sphere.radius);
             }
-            else if (hitBoxCollider is CapsuleCollider capsule)
+            else if (InteractionCollider is CapsuleCollider capsule)
             {
                 Gizmos.matrix = transform.localToWorldMatrix;
                 // Simplified capsule visualization

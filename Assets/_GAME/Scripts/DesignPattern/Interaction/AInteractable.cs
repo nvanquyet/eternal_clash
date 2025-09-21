@@ -665,6 +665,9 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         private void Server_ProcessCollision(Collider other)
         {
+            if (other == null || other.gameObject == null) return;
+            if (other.gameObject == this.gameObject) return; // ignore self
+            if (IsOwnerAttackable(other.gameObject)) return; // ignore owner
             if (!IsValidTarget(other.gameObject))
             {
                 OnHitInvalidTarget(other);
@@ -721,6 +724,15 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             }
 
             return true;
+        }
+        
+        protected virtual bool IsOwnerAttackable(GameObject target)
+        {
+            if (target.TryGetComponent<NetworkObject>(out var nob))
+            {
+                return nob.OwnerClientId == OwnerClientId;
+            }
+            return false;
         }
 
         // ========================= Abstract hooks =========================

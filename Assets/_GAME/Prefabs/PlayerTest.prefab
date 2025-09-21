@@ -17,9 +17,10 @@ GameObject:
   - component: {fileID: 604159961280395001}
   - component: {fileID: 887289375038384706}
   - component: {fileID: 2378724524221646153}
-  m_Layer: 8
+  - component: {fileID: 6476685495238133597}
+  m_Layer: 0
   m_Name: PlayerTest
-  m_TagString: Player
+  m_TagString: HitboxRoot
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -39,6 +40,7 @@ Transform:
   m_Children:
   - {fileID: 1886187194094668250}
   - {fileID: 5888572011944894113}
+  - {fileID: 4687562183544892477}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &5556594912535669474
@@ -129,7 +131,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 2382701798
+  GlobalObjectIdHash: 1071573147
   InScenePlacedSourceGlobalObjectIdHash: 1071573147
   DeferredDespawnTick: 0
   Ownership: 1
@@ -249,6 +251,25 @@ MonoBehaviour:
   m_DefaultActionMap: GamePlay
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
+--- !u!114 &6476685495238133597
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 364981254667871040}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68d5a5cb288445d6b87ca8ab510d38f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  entityId: 
+  isActive: 1
+  interactionCollider: {fileID: 6631393840375740808}
+  maxHealth: 100
+  defenseValue: 0
+  isInvulnerable: 0
 --- !u!1 &4282032889667733533
 GameObject:
   m_ObjectHideFlags: 0
@@ -262,9 +283,9 @@ GameObject:
   - component: {fileID: 5973621048567361818}
   - component: {fileID: 691879182613923018}
   - component: {fileID: 1308327550562853365}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: PlayerInteraction
-  m_TagString: Player
+  m_TagString: PlayerInteractor
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 2147483647
@@ -353,7 +374,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   detectTags:
   - Interactable
-  - Object
+  - Pickup
   interactionRange: 3
   inputInteractionRef: {fileID: -7541961867885620050, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
   playerEquipment: {fileID: 1308327550562853365}
@@ -386,7 +407,7 @@ GameObject:
   - component: {fileID: 2282882607783107772}
   - component: {fileID: 6002875899393339740}
   - component: {fileID: 159950637275012870}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Camera_TPS (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -611,6 +632,92 @@ MonoBehaviour:
         DecelTime: 0
   PlayerIndex: -1
   AutoEnableInputs: 1
+--- !u!1 &4736812458666581082
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4687562183544892477}
+  - component: {fileID: 7082835571095876743}
+  - component: {fileID: 8728998930479540374}
+  m_Layer: 0
+  m_Name: PlayerModule
+  m_TagString: HitboxPart
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4687562183544892477
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4736812458666581082}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 841693843331484679}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7082835571095876743
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4736812458666581082}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aecd042f98299c74cb7fee4f4e423d89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  entityId: 
+  isActive: 1
+  interactionCollider: {fileID: 8728998930479540374}
+  maxHealth: 100
+  defenseValue: 0
+  isInvulnerable: 0
+  hitBoxInfo:
+    hitBoxType: -1
+    category: 1
+    customId: 
+    damageMultiplier: 1
+    armorValue: 0
+    isPenetrable: 0
+    hasSpecialEffect: 0
+    specialEffectId: 
+  showDebugGizmos: 0
+  debugColor: {r: 1, g: 0, b: 0, a: 1}
+--- !u!136 &8728998930479540374
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4736812458666581082}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &5274539086571825996
 GameObject:
   m_ObjectHideFlags: 0
@@ -620,7 +727,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1886187194094668250}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Cam
   m_TagString: Untagged
   m_Icon: {fileID: 0}
