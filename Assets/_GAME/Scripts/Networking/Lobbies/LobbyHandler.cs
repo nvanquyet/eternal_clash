@@ -483,8 +483,6 @@ namespace _GAME.Scripts.Networking.Lobbies
                         (lobby.Data?.Count ?? 0) != (CachedLobby.Data?.Count ?? 0);
                 }
             }
-
-            Debug.Log($"[LobbyHandler] RaiseLobbyUpdated: shouldUpdate={shouldUpdate}");
             if (!shouldUpdate) return;
 
             UpdateCachedLobby(lobby);

@@ -6,32 +6,28 @@
   <component name="ChangeListManager">
     <list default="true" id="c4248c56-3a43-45df-be7f-25ce1da4ddd0" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Bullet 1.prefab" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Bullet 1.prefab.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Character 01.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Character 01.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Character 02.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Character 02.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Character 03.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Character 03.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Character 04.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Character 04.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/HiderPlayer.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/HiderPlayer.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/Player 1.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/Player 1.prefab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Windows Profile.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Settings/Build Profiles/New Windows Profile.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/UniversalRenderPipelineGlobalSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/UniversalRenderPipelineGlobalSettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/WeaponPack/Settings/Build Profiles/New Windows Profile 1.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/WeaponPack/Settings/Build Profiles/New Windows Profile 1.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/WeaponPack/Settings/UniversalRP-HighQuality.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/WeaponPack/Settings/UniversalRP-HighQuality.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/WeaponPack/Settings/UniversalRP-LowQuality.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/WeaponPack/Settings/UniversalRP-LowQuality.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/WeaponPack/Settings/UniversalRP-MediumQuality.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/WeaponPack/Settings/UniversalRP-MediumQuality.asset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/Player.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/Player.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/SeekerPlayer.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/SeekerPlayer.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Intreraction/HiderInteraction.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Intreraction/HiderInteraction.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Intreraction/SeekerInteraction.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Intreraction/SeekerInteraction.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/Gun.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/Gun.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/New Gun.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/New Gun.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/PlayerTest.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/PlayerTest.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/InteractScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/InteractScene.unity" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/AInteractable.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/AInteractable.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/AGun.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/AGun.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/AProjectile.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/AProjectile.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/InputComponent.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/InputComponent.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunAttackComponent.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunAttackComponent.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunInputComponent.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Gun/GunInputComponent.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Hitbox/ModularHitBox.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Hitbox/ModularHitBox.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectSettings/DynamicsManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/DynamicsManager.asset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectSettings/EditorBuildSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/EditorBuildSettings.asset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProjectSettings/TagManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/TagManager.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/New Bullet.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/New Bullet.prefab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/GamePlayScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/GamePlayScene.unity" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Config/GameSettingsConfig.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Config/GameSettingsConfig.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/EnumType.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/EnumType.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/GameManager.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/GameManager.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/HiderPlayer.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/HiderPlayer.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerInteraction.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/PlayerInteraction.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/RolePlayer.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/RolePlayer.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/SeekerPlayer.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/SeekerPlayer.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/SkillSystem/BaseSkill.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/SkillSystem/BaseSkill.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/SkillSystem/SkillManager.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/SkillSystem/SkillManager.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/Lobbies/LobbyHandler.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Networking/Lobbies/LobbyHandler.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotionAnimator.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/Locomotion/PlayerLocomotionAnimator.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerAnimationSync.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerAnimationSync.cs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -166,6 +162,8 @@
       <workItem from="1758319278523" duration="4746000" />
       <workItem from="1758393206392" duration="15710000" />
       <workItem from="1758491977393" duration="4220000" />
+      <workItem from="1758572237100" duration="9000" />
+      <workItem from="1758572275782" duration="6263000" />
     </task>
     <servers />
   </component>

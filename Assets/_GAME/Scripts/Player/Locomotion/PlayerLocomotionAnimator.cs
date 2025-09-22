@@ -59,7 +59,7 @@ namespace _GAME.Scripts.Player.Locomotion
             float currentXVel = _animator.GetFloat(XVelocity);
             float currentZVel = _animator.GetFloat(ZVelocity);
             float currentYVel = _animator.GetFloat(YVelocity);
-            _playerController.AnimationSync.SyncAnimationRpc(currentXVel, currentZVel, currentYVel, isGrounded);
+            _playerController.AnimationSync.UpdateMovementAnimation(currentXVel, currentZVel, currentYVel, isGrounded);
         }
 
         private void SmoothInputDirection(Vector3 targetDirection)
@@ -138,7 +138,7 @@ namespace _GAME.Scripts.Player.Locomotion
             _animator.SetTrigger(triggerName);
             
             // Sync to other clients
-            _playerController.AnimationSync.SyncTriggerRpc(triggerName);
+            _playerController.AnimationSync.TriggerAnimation(triggerName);
         }
 
         /// Reset về trạng thái mặc định (owner side).
@@ -154,7 +154,7 @@ namespace _GAME.Scripts.Player.Locomotion
             // Sync reset state to other clients
             if (_playerController.IsOwner)
             {
-                _playerController.AnimationSync.SyncAnimationRpc(0f, 0f, 0f, true);
+                _playerController.AnimationSync.UpdateMovementAnimation(0f, 0f, 0f, true);
             }
         }
 

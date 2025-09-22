@@ -23,7 +23,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
         private Transform modelContainer;
 
         // Network Variables
-        private NetworkVariable<int> currentModelIndex = new NetworkVariable<int>(0);
+        private NetworkVariable<int> currentModelIndex = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
         // Current State
         private GameObject currentModel;
@@ -82,7 +82,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
 
         #region Network Lifecycle
 
-        private void Start()
+        public override void OnNetworkSpawn()
         {
             currentModelIndex.OnValueChanged += OnModelIndexChanged;
 
@@ -94,7 +94,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
             {
                 SwitchToModelServerRpc(0);
                 
-                //Setup input action
+                // Setup input action
                 if (switchModelAction != null)
                 {
                     _switchModelAction = switchModelAction.action;
@@ -102,9 +102,12 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
                     _switchModelAction.performed += OnSwitchModelPerformed;
                 }
             }
+            else
+            {
+                // For non-owners, update model immediately with current network value
+                UpdateModel(currentModelIndex.Value);
+            }
         }
-
-       
 
         public override void OnNetworkDespawn()
         {
@@ -113,16 +116,12 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
                 currentModelIndex.OnValueChanged -= OnModelIndexChanged;
             }
 
-            if (IsOwner)
+            if (IsOwner && _switchModelAction != null)
             {
-                //Setup input action
-                if (switchModelAction != null)
-                {
-                    _switchModelAction = switchModelAction.action;
-                    _switchModelAction.Enable();
-                    _switchModelAction.performed += OnSwitchModelPerformed;
-                }
+                _switchModelAction.performed -= OnSwitchModelPerformed;
+                _switchModelAction.Disable();
             }
+            
             base.OnNetworkDespawn();
         }
 
@@ -190,10 +189,19 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
         {
             if (currentModel != null)
             {
-                if (Application.isPlaying)
-                    Destroy(currentModel);
+                // If model has NetworkObject, despawn it properly
+                if (currentModel.TryGetComponent<NetworkObject>(out var netObj) && netObj.IsSpawned)
+                {
+                    netObj.Despawn(true);
+                }
                 else
-                    DestroyImmediate(currentModel);
+                {
+                    if (Application.isPlaying)
+                        Destroy(currentModel);
+                    else
+                        DestroyImmediate(currentModel);
+                }
+                
                 currentModel = null;
                 CurrentAnimator = null;
             }
@@ -209,14 +217,22 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
 
             // Instantiate new model
             currentModel = Instantiate(modelData.modelPrefab, modelContainer);
+            
+            // Handle NetworkObject spawning if needed
+            if (currentModel.TryGetComponent<NetworkObject>(out var netObj) && !netObj.IsSpawned)
+            {
+                // Only spawn on server/host
+                if (IsServer)
+                {
+                    netObj.SpawnWithOwnership(OwnerClientId);
+                }
+            }
+            
+            // Set parent and transform
+            currentModel.transform.SetParent(modelContainer ?? this.transform);
             currentModel.transform.localPosition = Vector3.zero;
             currentModel.transform.localRotation = Quaternion.identity;
             
-            if(currentModel.TryGetComponent<NetworkObject>(out var netObj))
-            {
-                netObj.SpawnWithOwnership(OwnerClientId);
-            }
-
             // Setup animator - Model prefab should already have Animator with OverrideController
             SetupModelAnimator(modelData);
 
@@ -250,7 +266,16 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
             }
             
             CurrentAnimator = modelAnimator;
-            animationSync.SetAnimator(modelAnimator);
+            
+            // CRITICAL FIX: Set animator on animation sync component
+            if (animationSync != null)
+            {
+                animationSync.SetAnimator(modelAnimator);
+            }
+            else
+            {
+                Debug.LogError($"PlayerAnimationSync is not assigned on {gameObject.name}!");
+            }
         }
 
         private void DisableModelColliders()

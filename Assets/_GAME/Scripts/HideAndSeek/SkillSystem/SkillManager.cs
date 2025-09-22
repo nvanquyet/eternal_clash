@@ -40,9 +40,6 @@ namespace _GAME.Scripts.HideAndSeek.SkillSystem
                 case SkillType.Teleport:
                     skill = parent.AddComponent<TeleportSkill>();
                     break;
-                case SkillType.ShapeShift:
-                    skill = parent.AddComponent<ShapeShiftSkill>();
-                    break;
                 case SkillType.Detect:
                     skill = parent.AddComponent<DetectSkill>();
                     break;

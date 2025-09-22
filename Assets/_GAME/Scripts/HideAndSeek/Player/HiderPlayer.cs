@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using _GAME.Scripts.HideAndSeek.SkillSystem;
 using Unity.Netcode;
@@ -9,35 +10,63 @@ namespace _GAME.Scripts.HideAndSeek.Player
 {
     /// <summary>
     /// Hider player implementation with stealth and task completion abilities
+    /// Network synchronized with proper validation
     /// </summary>
     public class HiderPlayer : RolePlayer
     {
-        [Header("Hider Settings")] [SerializeField]
-        private int totalTasks = 5;
-
+        [Header("Hider Settings")] 
+        [SerializeField] private int totalTasks = 5;
         [SerializeField] private Transform ghostCamera; // For soul mode
+        [SerializeField] private LayerMask normalLayer = 0;
+        [SerializeField] private LayerMask soulLayer = 1;
+
+        [Header("Input References")]
         [SerializeField] private InputActionReference teleportSkillRef;
         [SerializeField] private InputActionReference freezeSkillRef;
-        [SerializeField] private InputActionReference shapeshiftSkillRef;
         [SerializeField] private InputActionReference toggleSoulModeRef;
 
+        // Input Actions
         private InputAction teleportSkillAction;
         private InputAction freezeSkillAction;
-        private InputAction shapeshiftSkillAction;
         private InputAction toggleSoulModeAction;
 
-        // Network variables
-        private NetworkVariable<int> networkCompletedTasks = new NetworkVariable<int>(0);
-        private NetworkVariable<bool> networkInSoulMode = new NetworkVariable<bool>(false);
+        // Network Variables (Server Authoritative)
+        private NetworkVariable<int> networkCompletedTasks = new NetworkVariable<int>(
+            0, 
+            NetworkVariableReadPermission.Everyone, 
+            NetworkVariableWritePermission.Server
+        );
 
-        // IHider implementation
+        private NetworkVariable<bool> networkInSoulMode = new NetworkVariable<bool>(
+            false, 
+            NetworkVariableReadPermission.Everyone, 
+            NetworkVariableWritePermission.Server
+        );
+
+        private NetworkVariable<float> networkSoulModeEnergy = new NetworkVariable<float>(
+            100f, 
+            NetworkVariableReadPermission.Everyone, 
+            NetworkVariableWritePermission.Server
+        );
+
+        // Server-side task validation
+        private readonly HashSet<int> completedTaskIds = new HashSet<int>();
+        private readonly Dictionary<int, float> taskCompletionTimes = new Dictionary<int, float>();
+
+        // Events
+        public static event Action<int, int> OnTaskProgressChanged;
+        public static event Action<bool> OnSoulModeChanged;
+        public static event Action<float> OnSoulEnergyChanged;
+
+        #region IGamePlayer Implementation
+
         public int CompletedTasks => networkCompletedTasks.Value;
         public int TotalTasks => totalTasks;
         public bool IsInSoulMode => networkInSoulMode.Value;
-        public override bool HasSkillsAvailable => Skills.Values.Any(s => s.CanUse);
+        public float SoulModeEnergy => networkSoulModeEnergy.Value;
+        public override bool HasSkillsAvailable => Skills.Values.Any(s => s.CanUse) && IsAlive;
 
-        public static event Action<int, int> OnTaskProgressChanged;
-        public static event Action<bool> OnSoulModeChanged;
+        #endregion
 
         #region Network Lifecycle
 
@@ -45,24 +74,43 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             base.OnNetworkSpawn();
 
+            // Subscribe to network variable changes
             networkCompletedTasks.OnValueChanged += OnTasksNetworkChanged;
             networkInSoulMode.OnValueChanged += OnSoulModeNetworkChanged;
+            networkSoulModeEnergy.OnValueChanged += OnSoulEnergyNetworkChanged;
 
+            // Initialize server-side values
             if (IsServer)
             {
                 networkCompletedTasks.Value = 0;
                 networkInSoulMode.Value = false;
+                networkSoulModeEnergy.Value = 100f;
+                totalTasks = GameManager?.Settings?.tasksToComplete ?? 5;
             }
+
+            LogNetworkState("HiderPlayer spawned");
         }
 
         public override void OnNetworkDespawn()
         {
             base.OnNetworkDespawn();
 
+            // Cleanup subscriptions
             if (networkCompletedTasks != null)
                 networkCompletedTasks.OnValueChanged -= OnTasksNetworkChanged;
             if (networkInSoulMode != null)
                 networkInSoulMode.OnValueChanged -= OnSoulModeNetworkChanged;
+            if (networkSoulModeEnergy != null)
+                networkSoulModeEnergy.OnValueChanged -= OnSoulEnergyNetworkChanged;
+
+            // Cleanup server-side data
+            if (IsServer)
+            {
+                completedTaskIds.Clear();
+                taskCompletionTimes.Clear();
+            }
+
+            LogNetworkState("HiderPlayer despawned");
         }
 
         #endregion
@@ -73,20 +121,22 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             if (Role != Role.Hider) return;
 
-            // Add hider skills
-            var freezeSkill = gameObject.AddComponent<FreezeSkill>();
-            freezeSkill.Initialize(SkillType.FreezeSeeker, GameManager.GetSkillData(SkillType.FreezeSeeker));
-            Skills[SkillType.FreezeSeeker] = freezeSkill;
+            try
+            {
+                // Initialize hider skills with proper validation
+                var freezeSkill = gameObject.GetComponent<FreezeSkill>() ?? gameObject.AddComponent<FreezeSkill>();
+                freezeSkill.Initialize(SkillType.FreezeSeeker, GameManager.GetSkillData(SkillType.FreezeSeeker));
+                Skills[SkillType.FreezeSeeker] = freezeSkill;
 
-            var teleportSkill = gameObject.AddComponent<TeleportSkill>();
-            teleportSkill.Initialize(SkillType.Teleport, GameManager.GetSkillData(SkillType.Teleport));
-            Skills[SkillType.Teleport] = teleportSkill;
-
-            var shapeshiftSkill = gameObject.AddComponent<ShapeShiftSkill>();
-            shapeshiftSkill.Initialize(SkillType.ShapeShift, GameManager.GetSkillData(SkillType.ShapeShift));
-            Skills[SkillType.ShapeShift] = shapeshiftSkill;
-
-            Debug.Log($"[HiderPlayer] Skills initialized: {Skills.Count}");
+                var teleportSkill = gameObject.GetComponent<TeleportSkill>() ?? gameObject.AddComponent<TeleportSkill>();
+                teleportSkill.Initialize(SkillType.Teleport, GameManager.GetSkillData(SkillType.Teleport));
+                Skills[SkillType.Teleport] = teleportSkill;
+                Debug.Log($"[HiderPlayer] Skills initialized: {Skills.Count}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[HiderPlayer] Failed to initialize skills: {ex.Message}");
+            }
         }
 
         #endregion
@@ -97,33 +147,37 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             if (!IsOwner) return;
 
-            // Skill inputs
-            if (teleportSkillRef != null)
+            try
             {
-                teleportSkillAction = teleportSkillRef.action;
-                teleportSkillAction.performed += OnTeleportSkillPerformed;
-                teleportSkillAction.Enable();
-            }
+                // Teleport skill
+                if (teleportSkillRef?.action != null)
+                {
+                    teleportSkillAction = teleportSkillRef.action;
+                    teleportSkillAction.performed += OnTeleportSkillPerformed;
+                    teleportSkillAction.Enable();
+                }
 
-            if (freezeSkillRef != null)
-            {
-                freezeSkillAction = freezeSkillRef.action;
-                freezeSkillAction.performed += OnFreezeSkillPerformed;
-                freezeSkillAction.Enable();
-            }
+                // Freeze skill
+                if (freezeSkillRef?.action != null)
+                {
+                    freezeSkillAction = freezeSkillRef.action;
+                    freezeSkillAction.performed += OnFreezeSkillPerformed;
+                    freezeSkillAction.Enable();
+                }
 
-            if (shapeshiftSkillRef != null)
-            {
-                shapeshiftSkillAction = shapeshiftSkillRef.action;
-                shapeshiftSkillAction.performed += OnShapeshiftSkillPerformed;
-                shapeshiftSkillAction.Enable();
-            }
+                // Soul mode toggle
+                if (toggleSoulModeRef?.action != null)
+                {
+                    toggleSoulModeAction = toggleSoulModeRef.action;
+                    toggleSoulModeAction.performed += OnToggleSoulModePerformed;
+                    toggleSoulModeAction.Enable();
+                }
 
-            if (toggleSoulModeRef != null)
+                Debug.Log("[HiderPlayer] Input registered successfully");
+            }
+            catch (System.Exception ex)
             {
-                toggleSoulModeAction = toggleSoulModeRef.action;
-                toggleSoulModeAction.performed += OnToggleSoulModePerformed;
-                toggleSoulModeAction.Enable();
+                Debug.LogError($"[HiderPlayer] Failed to register input: {ex.Message}");
             }
         }
 
@@ -131,85 +185,157 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             if (!IsOwner) return;
 
-            teleportSkillAction?.Disable();
-            freezeSkillAction?.Disable();
-            shapeshiftSkillAction?.Disable();
-            toggleSoulModeAction?.Disable();
+            try
+            {
+                teleportSkillAction?.Disable();
+                freezeSkillAction?.Disable();
+                toggleSoulModeAction?.Disable();
+
+                Debug.Log("[HiderPlayer] Input unregistered successfully");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[HiderPlayer] Failed to unregister input: {ex.Message}");
+            }
         }
+
+        #region Input Callbacks
 
         private void OnTeleportSkillPerformed(InputAction.CallbackContext context)
         {
-            if (!context.performed) return;
-
-            // Teleport to a safe location or specific point
-            UseSkill(SkillType.Teleport, GetTeleportDestination());
+            if (!context.performed || !IsAlive) return;
+            
+            Vector3 destination = GetSafeTeleportDestination();
+            UseSkill(SkillType.Teleport, destination);
         }
 
         private void OnFreezeSkillPerformed(InputAction.CallbackContext context)
         {
-            if (!context.performed) return;
-
+            if (!context.performed || !IsAlive) return;
+            
             UseSkill(SkillType.FreezeSeeker, transform.position);
         }
-
-        private void OnShapeshiftSkillPerformed(InputAction.CallbackContext context)
-        {
-            if (!context.performed) return;
-
-            UseSkill(SkillType.ShapeShift);
-        }
+        
 
         private void OnToggleSoulModePerformed(InputAction.CallbackContext context)
         {
-            if (!context.performed) return;
-
+            if (!context.performed || !IsAlive) return;
+            
             ToggleSoulMode();
         }
 
-        private Vector3 GetTeleportDestination()
+        private Vector3 GetSafeTeleportDestination()
         {
-            // Find a safe teleport location
-            // This could be random, or based on specific logic
-            return transform.position + transform.forward * 10f;
+            // Implement safe teleport location finding
+            Vector3 currentPos = transform.position;
+            Vector3 randomDirection = UnityEngine.Random.insideUnitSphere;
+            randomDirection.y = 0; // Keep on ground level
+            
+            Vector3 destination = currentPos + randomDirection.normalized * 10f;
+            
+            // Add ground check and obstacle avoidance logic here
+            if (Physics.Raycast(destination + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 5f))
+            {
+                destination = hit.point;
+            }
+            
+            return destination;
         }
 
         #endregion
 
-        #region Task System
+        #endregion
+
+        #region Task System (Server Authoritative)
 
         public void CompleteTask(int taskId)
         {
-            if (IsOwner)
+            if (!IsOwner) return;
+            
+            // Client-side validation
+            if (!CanCompleteTaskLocally(taskId))
             {
-                CompleteTaskServerRpc(taskId);
+                ShowTaskErrorMessage("Cannot complete this task");
+                return;
             }
+
+            // Send to server for authoritative validation
+            CompleteTaskServerRpc(taskId, transform.position);
         }
 
         [ServerRpc]
-        private void CompleteTaskServerRpc(int taskId)
+        private void CompleteTaskServerRpc(int taskId, Vector3 playerPosition)
         {
-            networkCompletedTasks.Value++;
-            GameManager.PlayerTaskCompletedServerRpc(ClientId, taskId);
+            if (!IsServer) return;
 
-            OnTaskCompletedClientRpc(taskId);
+            // Server-side validation
+            if (!ValidateTaskCompletionServer(taskId, playerPosition))
+            {
+                NotifyTaskFailedClientRpc(taskId, "Server validation failed");
+                return;
+            }
+
+            // Mark task as completed
+            completedTaskIds.Add(taskId);
+            taskCompletionTimes[taskId] = Time.time;
+            networkCompletedTasks.Value++;
+
+            // Notify game manager
+            GameManager?.OnPlayerTaskCompleted(ClientId, taskId);
+
+            // Notify all clients
+            OnTaskCompletedClientRpc(taskId, playerPosition);
+
+            Debug.Log($"[HiderPlayer] Task {taskId} completed by client {ClientId}. Progress: {networkCompletedTasks.Value}/{totalTasks}");
         }
 
         [ClientRpc]
-        private void OnTaskCompletedClientRpc(int taskId)
+        private void OnTaskCompletedClientRpc(int taskId, Vector3 completionPosition)
         {
-            OnTaskCompletedLocal(taskId);
+            OnTaskCompletedLocal(taskId, completionPosition);
         }
 
-        private void OnTaskCompletedLocal(int taskId)
+        [ClientRpc]
+        private void NotifyTaskFailedClientRpc(int taskId, string reason)
         {
-            Debug.Log($"Task {taskId} completed by {playerName}");
-
             if (IsOwner)
             {
-                // Update task UI
-                // Play completion sound
-                // Show feedback
+                ShowTaskErrorMessage($"Task {taskId} failed: {reason}");
             }
+        }
+
+        #region Task Validation
+
+        private bool CanCompleteTaskLocally(int taskId)
+        {
+            if (!IsAlive || !IsOwner) return false;
+            if (completedTaskIds.Contains(taskId)) return false;
+            if (networkCompletedTasks.Value >= totalTasks) return false;
+            
+            return true;
+        }
+
+        private bool ValidateTaskCompletionServer(int taskId, Vector3 playerPosition)
+        {
+            if (!IsServer) return false;
+            
+            // Check if task already completed
+            if (completedTaskIds.Contains(taskId)) return false;
+            
+            // Check if player is alive
+            if (!networkIsAlive.Value) return false;
+            
+            // Check task limit
+            if (networkCompletedTasks.Value >= totalTasks) return false;
+            
+            // Validate task exists and is accessible at player position
+            if (!GameManager.IsTaskValidAtPosition(taskId, playerPosition, ClientId))
+            {
+                Debug.LogWarning($"[HiderPlayer] Task {taskId} not valid at position {playerPosition} for client {ClientId}");
+                return false;
+            }
+            
+            return true;
         }
 
         private void OnTasksNetworkChanged(int previousValue, int newValue)
@@ -220,24 +346,71 @@ namespace _GAME.Scripts.HideAndSeek.Player
             {
                 UpdateTaskUI(newValue, totalTasks);
             }
+
+            // Check win condition
+            if (newValue >= totalTasks && IsServer)
+            {
+                GameManager?.CheckHiderWinCondition(ClientId);
+            }
+        }
+
+        private void OnTaskCompletedLocal(int taskId, Vector3 position)
+        {
+            // Local effects
+            if (IsOwner)
+            {
+                ShowTaskCompletedFeedback(taskId);
+            }
+
+            // Play completion effect at position for all clients
+            PlayTaskCompletionEffect(position);
         }
 
         #endregion
 
-        #region Soul Mode System
+        #endregion
+
+        #region Soul Mode System (Server Authoritative)
 
         public void ToggleSoulMode()
         {
-            if (IsOwner)
+            if (!IsOwner) return;
+            
+            // Client-side validation
+            if (!CanToggleSoulModeLocally())
             {
-                ToggleSoulModeServerRpc();
+                ShowSoulModeErrorMessage("Cannot toggle soul mode");
+                return;
             }
+
+            ToggleSoulModeServerRpc();
         }
 
         [ServerRpc]
         private void ToggleSoulModeServerRpc()
         {
-            networkInSoulMode.Value = !networkInSoulMode.Value;
+            if (!IsServer) return;
+
+            // Server-side validation
+            if (!ValidateSoulModeToggleServer())
+            {
+                NotifySoulModeFailedClientRpc("Soul mode toggle failed");
+                return;
+            }
+
+            bool newSoulMode = !networkInSoulMode.Value;
+            networkInSoulMode.Value = newSoulMode;
+
+            Debug.Log($"[HiderPlayer] Soul mode toggled to {newSoulMode} for client {ClientId}");
+        }
+
+        [ClientRpc]
+        private void NotifySoulModeFailedClientRpc(string reason)
+        {
+            if (IsOwner)
+            {
+                ShowSoulModeErrorMessage(reason);
+            }
         }
 
         private void OnSoulModeNetworkChanged(bool previousValue, bool newValue)
@@ -251,123 +424,177 @@ namespace _GAME.Scripts.HideAndSeek.Player
             }
         }
 
+        private void OnSoulEnergyNetworkChanged(float previousValue, float newValue)
+        {
+            OnSoulEnergyChanged?.Invoke(newValue);
+
+            if (IsOwner)
+            {
+                UpdateSoulEnergyUI(newValue);
+            }
+        }
+
+        #region Soul Mode Validation
+
+        private bool CanToggleSoulModeLocally()
+        {
+            if (!IsAlive || !IsOwner) return false;
+            if (networkSoulModeEnergy.Value < 10f) return false; // Minimum energy required
+            
+            return true;
+        }
+
+        private bool ValidateSoulModeToggleServer()
+        {
+            if (!IsServer) return false;
+            if (!networkIsAlive.Value) return false;
+            if (networkSoulModeEnergy.Value < 10f) return false;
+            
+            return true;
+        }
+
         private void ApplySoulMode(bool soulMode)
         {
-            if (soulMode)
+            try
             {
-                // Enable ghost camera for owner
-                if (IsOwner && ghostCamera != null)
+                if (soulMode)
                 {
-                    ghostCamera.gameObject.SetActive(true);
+                    EnableSoulMode();
                 }
-
-                // Make player invisible to seekers but visible to other hiders
-                SetLayerRecursively(gameObject, LayerMask.NameToLayer("HiderSoul"));
-
-                // Reduce collision detection
-                var collider = GetComponent<Collider>();
-                if (collider != null)
+                else
                 {
-                    collider.isTrigger = true;
+                    DisableSoulMode();
                 }
             }
-            else
+            catch (System.Exception ex)
             {
-                // Disable ghost camera for owner
-                if (IsOwner && ghostCamera != null)
-                {
-                    ghostCamera.gameObject.SetActive(false);
-                }
-
-                // Return to normal layer
-                SetLayerRecursively(gameObject, LayerMask.NameToLayer("Player"));
-
-                // Restore collision detection
-                var collider = GetComponent<Collider>();
-                if (collider != null)
-                {
-                    collider.isTrigger = false;
-                }
+                Debug.LogError($"[HiderPlayer] Failed to apply soul mode: {ex.Message}");
             }
+        }
+
+        private void EnableSoulMode()
+        {
+            // Enable ghost camera for owner
+            if (IsOwner && ghostCamera != null)
+            {
+                ghostCamera.gameObject.SetActive(true);
+            }
+
+            // Change layer for visibility
+            SetLayerRecursively(gameObject, soulLayer);
+
+            // Reduce collision detection
+            var collider = GetComponent<Collider>();
+            if (collider != null)
+            {
+                collider.isTrigger = true;
+            }
+
+            // Start energy drain if on server
+            if (IsServer)
+            {
+                StartSoulModeEnergyDrain();
+            }
+
+            Debug.Log("[HiderPlayer] Soul mode enabled");
+        }
+
+        private void DisableSoulMode()
+        {
+            // Disable ghost camera for owner
+            if (IsOwner && ghostCamera != null)
+            {
+                ghostCamera.gameObject.SetActive(false);
+            }
+
+            // Return to normal layer
+            SetLayerRecursively(gameObject, normalLayer);
+
+            // Restore collision detection
+            var collider = GetComponent<Collider>();
+            if (collider != null)
+            {
+                collider.isTrigger = false;
+            }
+
+            // Stop energy drain if on server
+            if (IsServer)
+            {
+                StopSoulModeEnergyDrain();
+            }
+
+            Debug.Log("[HiderPlayer] Soul mode disabled");
         }
 
         private void SetLayerRecursively(GameObject obj, int layer)
         {
+            if (obj == null) return;
+            
             obj.layer = layer;
             foreach (Transform child in obj.transform)
             {
-                SetLayerRecursively(child.gameObject, layer);
+                if (child != null)
+                    SetLayerRecursively(child.gameObject, layer);
             }
         }
 
         #endregion
 
+        #region Soul Mode Energy Management
 
-        #region UI Updates
-
-        protected virtual void UpdateTaskUI(int completedTasks, int totalTasks)
+        private void StartSoulModeEnergyDrain()
         {
-            // Update task progress UI cho owner only
-            if (IsOwner)
+            if (!IsServer) return;
+            
+            InvokeRepeating(nameof(DrainSoulModeEnergy), 1f, 1f);
+        }
+
+        private void StopSoulModeEnergyDrain()
+        {
+            if (!IsServer) return;
+            
+            CancelInvoke(nameof(DrainSoulModeEnergy));
+            InvokeRepeating(nameof(RegenerateSoulModeEnergy), 1f, 1f);
+        }
+
+        private void DrainSoulModeEnergy()
+        {
+            if (!IsServer || !networkInSoulMode.Value) return;
+
+            float newEnergy = Mathf.Max(0f, networkSoulModeEnergy.Value - 2f);
+            networkSoulModeEnergy.Value = newEnergy;
+
+            // Auto-disable soul mode when energy depleted
+            if (newEnergy <= 0f)
             {
-                // HiderUI.Instance.UpdateTaskProgress(completedTasks, totalTasks);
-                Debug.Log($"[HiderPlayer] Task Progress: {completedTasks}/{totalTasks}");
+                networkInSoulMode.Value = false;
+                CancelInvoke(nameof(DrainSoulModeEnergy));
             }
         }
 
-        protected virtual void UpdateSoulModeUI(bool soulMode)
+        private void RegenerateSoulModeEnergy()
         {
-            // Update soul mode indicator cho owner only
-            if (IsOwner)
-            {
-                // HiderUI.Instance.UpdateSoulModeIndicator(soulMode);
-                Debug.Log($"[HiderPlayer] Soul Mode: {(soulMode ? "ON" : "OFF")}");
-            }
-        }
+            if (!IsServer || networkInSoulMode.Value) return;
 
-        protected override void UpdateHealthUI(float currentHealth, float maxHealth)
-        {
-            // Hiders thường không có health bar, hoặc có thể ẩn
-            if (IsOwner)
+            float newEnergy = Mathf.Min(100f, networkSoulModeEnergy.Value + 1f);
+            networkSoulModeEnergy.Value = newEnergy;
+
+            // Stop regeneration when full
+            if (newEnergy >= 100f)
             {
-                // HiderUI.Instance.UpdateHealthBar(currentHealth / maxHealth);
+                CancelInvoke(nameof(RegenerateSoulModeEnergy));
             }
         }
 
         #endregion
-
-        #region UI Helper Methods
-
-        private void ShowInteractionPrompt(string message)
-        {
-            // HiderUI.Instance.ShowInteractionPrompt(message);
-            Debug.Log($"[HiderPlayer] Interaction: {message}");
-        }
-
-        private void HideInteractionPrompt()
-        {
-            // HiderUI.Instance.HideInteractionPrompt();
-        }
-
-        private void ShowTaskErrorMessage(string message)
-        {
-            // HiderUI.Instance.ShowErrorMessage(message);
-            Debug.LogWarning($"[HiderPlayer] Task Error: {message}");
-        }
-
-        private void ShowDisguiseErrorMessage(string message)
-        {
-            // HiderUI.Instance.ShowErrorMessage(message);
-            Debug.LogWarning($"[HiderPlayer] Disguise Error: {message}");
-        }
 
         #endregion
 
         #region Skill System Override
 
-        protected override void OnSkillUsedLocal(SkillType skillType)
+        protected override void OnSkillExecutedLocal(SkillType skillType, Vector3? target)
         {
-            base.OnSkillUsedLocal(skillType);
+            base.OnSkillExecutedLocal(skillType, target);
 
             if (IsOwner)
             {
@@ -375,38 +602,186 @@ namespace _GAME.Scripts.HideAndSeek.Player
                 {
                     case SkillType.Teleport:
                         ShowSkillFeedback("Teleported!");
+                        PlayTeleportEffect();
                         break;
                     case SkillType.FreezeSeeker:
                         ShowSkillFeedback("Seeker Frozen!");
-                        break;
-                    case SkillType.ShapeShift:
-                        ShowSkillFeedback("Shape Shifted!");
+                        PlayFreezeEffect(target ?? transform.position);
                         break;
                 }
             }
         }
 
-        private void ShowSkillFeedback(string message)
+        protected override void OnSkillUsageFailedLocal(SkillType skillType, string reason)
         {
-            // HiderUI.Instance.ShowSkillFeedback(message);
-            Debug.Log($"[HiderPlayer] Skill: {message}");
+            base.OnSkillUsageFailedLocal(skillType, reason);
+            
+            if (IsOwner)
+            {
+                ShowSkillErrorMessage($"{skillType}: {reason}");
+            }
+        }
+
+        protected override void UpdateSkillCooldownUI()
+        {
+            if (!IsOwner) return;
+
+            foreach (var skill in Skills)
+            {
+                UpdateSkillCooldownDisplay(skill.Key, skill.Value.GetCooldownTime());
+            }
         }
 
         #endregion
 
-        #region Game Mode Specific Logic
+        #region UI Updates
+
+        protected virtual void UpdateTaskUI(int completedTasks, int totalTasks)
+        {
+            if (!IsOwner) return;
+            
+            // Update task progress UI
+            Debug.Log($"[HiderPlayer] Task Progress: {completedTasks}/{totalTasks}");
+            // HiderUI.Instance?.UpdateTaskProgress(completedTasks, totalTasks);
+        }
+
+        protected virtual void UpdateSoulModeUI(bool soulMode)
+        {
+            if (!IsOwner) return;
+            
+            Debug.Log($"[HiderPlayer] Soul Mode: {(soulMode ? "ON" : "OFF")}");
+            // HiderUI.Instance?.UpdateSoulModeIndicator(soulMode);
+        }
+
+        protected virtual void UpdateSoulEnergyUI(float energy)
+        {
+            if (!IsOwner) return;
+            
+            Debug.Log($"[HiderPlayer] Soul Energy: {energy:F1}%");
+            // HiderUI.Instance?.UpdateSoulEnergyBar(energy / 100f);
+        }
+
+        protected override void UpdateHealthUI(float currentHealth, float maxHealth)
+        {
+            if (!IsOwner) return;
+            
+            // Hiders may have reduced health UI
+            Debug.Log($"[HiderPlayer] Health: {currentHealth}/{maxHealth}");
+            // HiderUI.Instance?.UpdateHealthBar(currentHealth / maxHealth);
+        }
+
+        protected override void UpdateAliveStateUI(bool isAlive)
+        {
+            if (!IsOwner) return;
+            
+            if (!isAlive)
+            {
+                ShowDeathUI();
+            }
+        }
+
+        private void UpdateSkillCooldownDisplay(SkillType skillType, float remainingCooldown)
+        {
+            // Update individual skill cooldown in UI
+            Debug.Log($"[HiderPlayer] {skillType} cooldown: {remainingCooldown:F1}s");
+            // HiderUI.Instance?.UpdateSkillCooldown(skillType, remainingCooldown);
+        }
+
+        #endregion
+
+        #region UI Feedback Methods
+
+        private void ShowTaskCompletedFeedback(int taskId)
+        {
+            Debug.Log($"[HiderPlayer] Task {taskId} completed!");
+            // HiderUI.Instance?.ShowTaskCompletedFeedback(taskId);
+        }
+
+        private void ShowTaskErrorMessage(string message)
+        {
+            Debug.LogWarning($"[HiderPlayer] Task Error: {message}");
+            // HiderUI.Instance?.ShowErrorMessage(message);
+        }
+
+        private void ShowSoulModeErrorMessage(string message)
+        {
+            Debug.LogWarning($"[HiderPlayer] Soul Mode Error: {message}");
+            // HiderUI.Instance?.ShowErrorMessage(message);
+        }
+
+        private void ShowSkillFeedback(string message)
+        {
+            Debug.Log($"[HiderPlayer] Skill: {message}");
+            // HiderUI.Instance?.ShowSkillFeedback(message);
+        }
+
+        private void ShowSkillErrorMessage(string message)
+        {
+            Debug.LogWarning($"[HiderPlayer] Skill Error: {message}");
+            // HiderUI.Instance?.ShowErrorMessage(message);
+        }
+
+        private void ShowDeathUI()
+        {
+            Debug.Log("[HiderPlayer] Player died - showing death UI");
+            // HiderUI.Instance?.ShowDeathScreen();
+        }
+
+        private void ShowSkillHints()
+        {
+            Debug.Log("[HiderPlayer] Skills: Q-Teleport, R-Freeze, T-Shapeshift, F-SoulMode");
+            // HiderUI.Instance?.ShowSkillHints("Q - Teleport | R - Freeze Seeker | T - Shape Shift | F - Soul Mode");
+        }
+
+        private void ShowEndGameResults(Role winner)
+        {
+            string resultMessage = winner == Role.Hider ? "HIDERS WIN!" : "SEEKERS WIN!";
+            Debug.Log($"[HiderPlayer] {resultMessage}");
+            // HiderUI.Instance?.ShowGameResult(resultMessage, winner == Role.Hider);
+        }
+
+        #endregion
+
+        #region Visual Effects
+
+        private void PlayTaskCompletionEffect(Vector3 position)
+        {
+            // Play task completion particle effect
+            Debug.Log($"[HiderPlayer] Playing task completion effect at {position}");
+            // EffectManager.Instance?.PlayTaskCompletionEffect(position);
+        }
+
+        private void PlayTeleportEffect()
+        {
+            Debug.Log("[HiderPlayer] Playing teleport effect");
+            // EffectManager.Instance?.PlayTeleportEffect(transform.position);
+        }
+
+        private void PlayFreezeEffect(Vector3 position)
+        {
+            Debug.Log($"[HiderPlayer] Playing freeze effect at {position}");
+            // EffectManager.Instance?.PlayFreezeEffect(position);
+        }
+
+        private void PlayShapeshiftEffect()
+        {
+            Debug.Log("[HiderPlayer] Playing shapeshift effect");
+            // EffectManager.Instance?.PlayShapeshiftEffect(transform.position);
+        }
+
+        #endregion
+
+        #region Game Mode Initialization
 
         private void InitializePersonVsPerson()
         {
-            totalTasks = GameManager.Settings.tasksToComplete;
+            totalTasks = GameManager?.Settings?.tasksToComplete ?? 5;
 
             if (IsOwner)
             {
-                // Enable task UI
-                // HiderUI.Instance.ShowTaskProgress(true);
-                // HiderUI.Instance.UpdateTaskProgress(0, totalTasks);
-
                 Debug.Log($"[HiderPlayer] Person vs Person mode - Need to complete {totalTasks} tasks");
+                // HiderUI.Instance?.ShowTaskProgress(true);
+                // HiderUI.Instance?.UpdateTaskProgress(0, totalTasks);
             }
         }
 
@@ -414,10 +789,8 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             if (IsOwner)
             {
-                // Enable disguise UI
-                // HiderUI.Instance.ShowDisguiseIndicator(true);
-
                 Debug.Log("[HiderPlayer] Person vs Object mode - Find disguises to hide");
+                // HiderUI.Instance?.ShowDisguiseIndicator(true);
             }
         }
 
@@ -432,18 +805,19 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         public bool CanWin()
         {
-            return GameManager.CurrentMode switch
+            if (!IsAlive) return false;
+            
+            return GameManager?.CurrentMode switch
             {
                 GameMode.PersonVsPerson => HasCompletedAllTasks(),
-                GameMode.PersonVsObject => true // Survive until timer runs out
-                ,
+                GameMode.PersonVsObject => true, // Survive until timer runs out
                 _ => false
             };
         }
 
         #endregion
 
-        #region Override Game Events with Complete Implementation
+        #region Game Events Override
 
         public override void OnGameStart()
         {
@@ -452,7 +826,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
             if (IsOwner)
             {
                 // Initialize based on game mode
-                switch (GameManager.CurrentMode)
+                switch (GameManager?.CurrentMode)
                 {
                     case GameMode.PersonVsPerson:
                         InitializePersonVsPerson();
@@ -463,11 +837,24 @@ namespace _GAME.Scripts.HideAndSeek.Player
                 }
 
                 // Enable hider-specific UI
-                // HiderUI.Instance.ShowHiderUI(true);
-                // HiderUI.Instance.UpdateSkillCooldowns(Skills);
+                // HiderUI.Instance?.ShowHiderUI(true);
+                // HiderUI.Instance?.UpdateSkillCooldowns(Skills);
 
                 // Setup input prompts
                 ShowSkillHints();
+            }
+
+            // Server initialization
+            if (IsServer)
+            {
+                // Reset all network variables
+                networkCompletedTasks.Value = 0;
+                networkInSoulMode.Value = false;
+                networkSoulModeEnergy.Value = 100f;
+                
+                // Clear server-side tracking
+                completedTaskIds.Clear();
+                taskCompletionTimes.Clear();
             }
         }
 
@@ -484,7 +871,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
                 }
 
                 // Disable UI
-                // HiderUI.Instance.ShowHiderUI(false);
+                // HiderUI.Instance?.ShowHiderUI(false);
 
                 // Disable controls
                 HandleUnRegisterInput();
@@ -492,25 +879,57 @@ namespace _GAME.Scripts.HideAndSeek.Player
                 // Show end game UI
                 ShowEndGameResults(winnerRole);
             }
-        }
 
-        private void ShowSkillHints()
-        {
-            if (IsOwner)
+            // Server cleanup
+            if (IsServer)
             {
-                // HiderUI.Instance.ShowSkillHints(
-                //     "Q - Teleport | R - Freeze Seeker | T - Shape Shift | F - Soul Mode"
-                // );
-                Debug.Log("[HiderPlayer] Skills: Q-Teleport, R-Freeze, T-Shapeshift, F-SoulMode");
+                // Cancel all recurring invokes
+                CancelInvoke();
+                
+                // Reset states
+                networkInSoulMode.Value = false;
+                networkSoulModeEnergy.Value = 100f;
             }
         }
 
-        private void ShowEndGameResults(Role winner)
-        {
-            string resultMessage = winner == Role.Hider ? "HIDERS WIN!" : "SEEKERS WIN!";
+        #endregion
 
-            // HiderUI.Instance.ShowGameResult(resultMessage, winner == PlayerRole.Hider);
-            Debug.Log($"[HiderPlayer] {resultMessage}");
+        #region Update Loop for Energy Management
+
+        private void Update()
+        {
+            // Only run energy management on server
+            if (!IsServer) return;
+
+            // Handle soul mode energy drain/regen
+            HandleSoulModeEnergyUpdate();
+        }
+
+        private void HandleSoulModeEnergyUpdate()
+        {
+            if (!IsServer) return;
+
+            // This provides a backup to the InvokeRepeating system
+            // Could be used for more precise energy management if needed
+        }
+
+        #endregion
+
+        #region Debug and Logging
+
+        public override string ToString()
+        {
+            return $"HiderPlayer[{ClientId}] - Role:{Role}, Alive:{IsAlive}, Tasks:{CompletedTasks}/{TotalTasks}, SoulMode:{IsInSoulMode}, Energy:{SoulModeEnergy:F1}";
+        }
+
+        private void LogTaskCompletion(int taskId)
+        {
+            LogNetworkState($"Task {taskId} completed. Progress: {CompletedTasks}/{TotalTasks}");
+        }
+
+        private void LogSoulModeChange(bool enabled)
+        {
+            LogNetworkState($"Soul mode {(enabled ? "enabled" : "disabled")}. Energy: {SoulModeEnergy:F1}");
         }
 
         #endregion

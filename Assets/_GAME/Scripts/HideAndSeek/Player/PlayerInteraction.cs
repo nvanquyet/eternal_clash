@@ -18,13 +18,26 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-            HandleRegisterInput();
+            if (IsOwner)
+            {
+                HandleRegisterInput();
+            }
+            else
+            {
+                //Disable the collider for non-owners to prevent interaction issues
+                InteractionCollider.enabled = false;
+            }
+            
+           
         }
         
         public override void OnNetworkDespawn()
         {
             base.OnNetworkDespawn();
-            HandleUnRegisterInput();
+            if (IsOwner)
+            {
+                HandleUnRegisterInput();
+            }
         }
 
         private void HandleRegisterInput()

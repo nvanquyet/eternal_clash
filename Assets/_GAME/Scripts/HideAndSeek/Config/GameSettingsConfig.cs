@@ -10,6 +10,10 @@ namespace _GAME.Scripts.HideAndSeek.Config
         public int tasksToComplete;      // Số nhiệm vụ cần hoàn thành (Case 1)
         public float seekerHealth;       // Máu người tìm
         public float environmentDamage;  // Sát thương khi bắn vào môi trường
-        public float hiderKillReward; 
+        public float hiderKillReward;
+        public float hiderMoveSpeed;
+        public float seekerMoveSpeed;
+        public float seekerDetectionRange;
+        public float seekerCatchRange;
     }
 }

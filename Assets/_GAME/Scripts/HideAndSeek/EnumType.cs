@@ -37,14 +37,15 @@ namespace _GAME.Scripts.HideAndSeek
     
     public enum SkillType
     {
+        None,
         // Hider skills
         FreezeSeeker,      // Đóng băng người tìm
         Teleport,          // Dịch chuyển
-        ShapeShift,        // Thay đổi hình dạng
         
         // Seeker skills  
         Detect,            // Phát hiện người trốn
-        FreezeHider        // Đóng băng người trốn
+        FreezeHider,        // Đóng băng người trốn
+        Rush
     }
     
     public enum ObjectType
@@ -73,6 +74,7 @@ namespace _GAME.Scripts.HideAndSeek
         bool HasSkillsAvailable { get; }
         
         void UseSkill(SkillType skillType, Vector3? targetPosition = null);
+        void SetAliveState(bool b);
     }
     
     public interface IHider : IGamePlayer
@@ -115,6 +117,8 @@ namespace _GAME.Scripts.HideAndSeek
         
         void UseSkill(IGamePlayer caster, Vector3? targetPosition = null);
         void StartCooldown();
+        float GetCooldownTime();
+        float GetEffectDuration();
     }
 
     #endregion

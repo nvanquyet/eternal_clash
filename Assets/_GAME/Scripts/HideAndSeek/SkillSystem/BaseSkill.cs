@@ -90,7 +90,24 @@ namespace _GAME.Scripts.HideAndSeek.SkillSystem
                 OnSkillCooldownStarted?.Invoke(skillType, cooldown);
             }
         }
-        
+
+        public virtual float GetCooldownTime()
+        {
+            if (IsServer)
+            {
+                return Mathf.Max(0f, networkNextUseTime.Value - Time.time);
+            }
+            else
+            {
+                return Mathf.Max(0f, networkNextUseTime.Value - Time.time);
+            }
+        }
+
+        public virtual float GetEffectDuration()
+        {
+            return duration;
+        }
+
         protected abstract void ExecuteSkillEffect(IGamePlayer caster, Vector3? targetPosition);
         
         [ClientRpc]

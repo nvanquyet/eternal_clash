@@ -189,7 +189,6 @@ MonoBehaviour:
     m_Bits: 4294967295
   attackableTags:
   - HitboxPart
-  - HitboxRoot
   - Defendable
   - Environment
   destroyAfterCollisionAttack: 1
