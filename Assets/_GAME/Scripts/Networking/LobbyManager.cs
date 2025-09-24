@@ -6,6 +6,7 @@ using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.Networking.StateMachine;
 using _GAME.Scripts.Networking.Relay;
 using GAME.Scripts.DesignPattern;
+using Unity.Services.Core;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
@@ -98,7 +99,6 @@ namespace _GAME.Scripts.Networking
         private void InitializeComponents()
         {
             if (_isInitialized || _isDisposed) return;
-
             try
             {
                 // Initialize components với null checks

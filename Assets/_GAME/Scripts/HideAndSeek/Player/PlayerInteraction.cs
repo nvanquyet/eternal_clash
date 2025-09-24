@@ -1,5 +1,6 @@
 using _GAME.Scripts.DesignPattern.Interaction;
 using _GAME.Scripts.HideAndSeek.Combat.Base;
+using _GAME.Scripts.HideAndSeek.Player.Rig;
 using _GAME.Scripts.Test;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -12,6 +13,8 @@ namespace _GAME.Scripts.HideAndSeek.Player
         [SerializeField] private InputActionReference inputInteractionRef;
         
         [SerializeField] protected PlayerEquipment playerEquipment;
+            
+        public PlayerEquipment PlayerEquipment => playerEquipment;
         
         private InputAction _inputInteraction;
 
@@ -56,8 +59,9 @@ namespace _GAME.Scripts.HideAndSeek.Player
             //Call method OnInteract 
             OnInteractInput();
         }
-
-
+        
+        
+        
         private void HandleUnRegisterInput()
         {
             if (IsOwner && _inputInteraction != null)

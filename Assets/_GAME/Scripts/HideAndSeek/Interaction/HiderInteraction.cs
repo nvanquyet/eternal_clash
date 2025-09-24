@@ -9,7 +9,7 @@ namespace _GAME.Scripts.HideAndSeek.Interaction
 	{
 		public override void OnInteracted(IInteractable initiator)
 		{
-			if (initiator is AGun gun)
+			if (initiator is WeaponInteraction weapon)
 			{
 				Debug.Log($"[HiderInteraction] Hiders cannot pick up guns. Interaction ignored.");
 			}

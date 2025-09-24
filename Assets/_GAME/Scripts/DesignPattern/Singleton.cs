@@ -13,7 +13,6 @@ namespace GAME.Scripts.DesignPattern
     {
         private static T _instance;
         private static readonly object _lock = new object();
-        private static bool _isShuttingDown = false;
         
         protected virtual bool DontDestroyOnLoad => false;
     
@@ -24,12 +23,6 @@ namespace GAME.Scripts.DesignPattern
         {
             get
             {
-                if (_isShuttingDown)
-                { 
-                    Debug.LogWarning($"[Singleton] Instance '{typeof(T)}' already destroyed. Returning null.");
-                    return null;
-                }
-    
                 lock (_lock)
                 {
                     if (_instance != null) 
@@ -50,11 +43,11 @@ namespace GAME.Scripts.DesignPattern
                 }
             }
         }
-        
+
         /// <summary>
         /// Check if instance exists without creating one
         /// </summary>
-        public static bool HasInstance => _instance != null && !_isShuttingDown;
+        public static bool HasInstance => _instance != null;
         
         protected virtual void Awake()
         {
@@ -82,17 +75,11 @@ namespace GAME.Scripts.DesignPattern
         /// </summary>
         protected virtual void OnAwake() { }
         
-        protected virtual void OnApplicationQuit()
-        {
-            _isShuttingDown = true;
-        }
-        
         protected virtual void OnDestroy()
         {
             if (_instance == this)
             {
                 _instance = null;
-                _isShuttingDown = true;
             }
         }
     }

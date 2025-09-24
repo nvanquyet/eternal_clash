@@ -24,7 +24,6 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         [SerializeField] private Transform firePoint;
         [SerializeField] private float bulletSpeed = 100f;
         
-       
         public override bool CanAttack
         {
             get
@@ -67,7 +66,16 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
                 }
                 return;
             }
+            
+            //Aim callback
+            OnPreFire?.Invoke();
+            
+            //Delay to aim successfully
+            Invoke(nameof(DoFire), 0.12f);
+        }
 
+        private void DoFire()
+        {
             // Lấy hướng/điểm bắn phía client (máy chủ sẽ vẫn quyết định cuối)
             var origin = firePoint ? firePoint.position : transform.position;
             var dir = firePoint ? firePoint.forward : transform.forward;

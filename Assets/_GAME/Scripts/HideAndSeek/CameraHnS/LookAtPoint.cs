@@ -1,5 +1,4 @@
 using System;
-using _GAME.Scripts.HideAndSeek.Camera;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Animations;

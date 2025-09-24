@@ -1,4 +1,6 @@
 using _GAME.Scripts.HideAndSeek.Combat.Base;
+using _GAME.Scripts.HideAndSeek.Player.Graphics;
+using _GAME.Scripts.HideAndSeek.Player.Rig;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -6,15 +8,16 @@ namespace _GAME.Scripts.HideAndSeek.Player
 {
     public class PlayerEquipment : NetworkBehaviour
     {
-        [SerializeField] private Vector3 weaponHoldPosition = Vector3.right;
-        [SerializeField] private Vector3 weaponHoldRotation = Vector3.zero;
-
+        [SerializeField] private PlayerRigCtrl playerRigCtrl;
         private NetworkVariable<NetworkBehaviourReference> currentWeaponRef =
             new NetworkVariable<NetworkBehaviourReference>(
                 default,
                 NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Server);
+        
+        public WeaponInteraction CurrentWeaponRef => currentWeaponRef.Value.TryGet(out WeaponInteraction weapon) ? weapon : null;
 
+        
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
@@ -44,17 +47,14 @@ namespace _GAME.Scripts.HideAndSeek.Player
             //Try get net object component
             if (weapon == null) return;
             Debug.Log($"[PlayerEquipment] Equipping weapon: {weapon.name}");
-            if (gameObject.TryGetComponent<NetworkObject>(out var netObj))
+            
+            weapon.NetworkObject.TrySetParent(this.NetworkObject);
+            if(playerRigCtrl != null) playerRigCtrl.PickUpWeapon(weapon.RigSetup);
+            
+            weapon.AttackComponent.OnPreFire += () =>
             {
-                weapon.NetworkObject.TrySetParent(this.transform);
-            }
-            else
-            {
-                weapon.NetworkObject.TrySetParent(this.transform.parent);
-            }
-
-            weapon.transform.localPosition = weaponHoldPosition;
-            weapon.transform.localRotation = Quaternion.Euler(weaponHoldRotation);
+                if (playerRigCtrl != null) playerRigCtrl.EnableAimingRig(true);
+            };
 
             Debug.Log($"[PlayerEquipment] Weapon equipped: {weapon.name}");
             if (weapon.CurrentState != WeaponState.Equipped)
@@ -75,7 +75,6 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public void SetCurrentWeapon(WeaponInteraction weapon)
         {
             if (!IsOwner) return;
-            Debug.Log($"[PlayerEquipment] Requesting to set weapon: {(weapon ? weapon.name : "None")}");
             RequestSetWeaponServerRpc(weapon ? weapon.NetworkObject : default(NetworkObjectReference));
         }
         
@@ -136,6 +135,24 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public bool HasWeapon()
         {
             return currentWeaponRef.Value.TryGet(out _);
+        }
+
+        public void RefeshEquipableItemsForModel()
+        {
+            var weapon = GetCurrentWeapon();
+            if (weapon != null)
+            {
+                weapon.RefreshEquipModel();
+                weapon.gameObject.SetActive(false);
+            }
+        }
+
+        public void ReEquipWeapon()
+        {
+            var weapon = GetCurrentWeapon();
+            if (weapon == null) return;
+            weapon.gameObject.SetActive(true);
+            playerRigCtrl.PickUpWeapon(weapon.RigSetup);
         }
     }
 }

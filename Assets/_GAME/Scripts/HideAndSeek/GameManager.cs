@@ -23,53 +23,69 @@ namespace _GAME.Scripts.HideAndSeek
         [SerializeField] private ObjectDataConfig objectDatabase;
         [SerializeField] private TaskDataConfig taskDatabase;
 
-        [Header("Spawn Points")] [SerializeField]
-        private Transform[] hiderSpawnPoints;
-
+        [Header("Spawn Points")] 
+        [SerializeField] private Transform[] hiderSpawnPoints;
         [SerializeField] private Transform[] seekerSpawnPoints;
         [SerializeField] private Transform[] taskSpawnPoints;
         [SerializeField] private Transform[] objectSpawnPoints;
 
-        [Header("References")] [SerializeField]
-        private TimeCountDown timeCountDown;
-
+        [Header("References")] 
+        [SerializeField] private TimeCountDown timeCountDown;
         [SerializeField] private SpawnerController spawnerController;
 
         // Network Variables
-        private NetworkVariable<NetworkGameState> networkGameState = new NetworkVariable<NetworkGameState>();
-        private NetworkList<NetworkPlayerData> networkPlayers;
+        private readonly NetworkVariable<NetworkGameState> _networkGameState = new NetworkVariable<NetworkGameState>(NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private NetworkList<NetworkPlayerData> _networkAllPlayers = new NetworkList<NetworkPlayerData>(NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         // Game State
-        private Dictionary<ulong, IGamePlayer> players = new Dictionary<ulong, IGamePlayer>();
-        private List<IGameTask> gameTasks = new List<IGameTask>();
-        private Dictionary<int, IGameTask> taskIdMapping = new Dictionary<int, IGameTask>();
-
-
-        private readonly Dictionary<ulong, Action<Role>> _roleChangedSubs = new();
-        private readonly Dictionary<ulong, Action<float, float>> _hpChangedSubs = new();
-        private readonly Dictionary<ulong, Action<IDefendable, IAttackable>> _diedSubs = new();
-
-
-        // Events
-        public static event Action<GameState> OnGameStateChanged;
-        public static event Action<Role> OnGameEnded;
-        public static event Action<int, int> OnTaskProgressUpdated;
+        private Dictionary<ulong, IGamePlayer> Players
+        {
+            get
+            {
+                var players = new Dictionary<ulong, IGamePlayer>();
+                foreach (var playerData in _networkAllPlayers)
+                {
+                    if (players.TryGetValue(playerData.clientId, out var player))
+                    {
+                        players[playerData.clientId] = player;
+                    }
+                }
+                return players;
+            }
+        }
+        
+        public List<IGamePlayer> HidersList
+        {
+            get
+            {
+                return Players.Values.Where(playerData => playerData.Role == Role.Hider).ToList();
+            }
+        }
+        
+        public List<IGamePlayer> SeekersList
+        {
+            get
+            {
+                return Players.Values.Where(playerData => playerData.Role == Role.Seeker).ToList();
+            }
+        }
+        
 
         // Properties
-        public GameState CurrentState => networkGameState.Value.state;
-        public GameMode CurrentMode => networkGameState.Value.mode;
+        public GameState CurrentState => _networkGameState.Value.state;
+        public GameMode CurrentMode => _networkGameState.Value.mode;
         public GameSettingsConfig Settings => gameSettings;
 
         private void Awake()
         {
-            networkPlayers = new NetworkList<NetworkPlayerData>();
+            _networkAllPlayers = new NetworkList<NetworkPlayerData>();
         }
 
         public override void OnNetworkSpawn()
         {
             if (IsServer)
             {
-                networkGameState.Value = new NetworkGameState
+                _networkGameState.Value = new NetworkGameState
                 {
                     state = GameState.Preparation,
                     mode = gameSettings.gameMode,
@@ -77,8 +93,8 @@ namespace _GAME.Scripts.HideAndSeek
                     totalTasks = gameSettings.tasksToComplete,
                     alivePlayers = 0
                 };
-                networkGameState.OnValueChanged += OnGameStateNetworkChanged;
-                networkPlayers.OnListChanged += OnPlayersListChanged;
+                _networkGameState.OnValueChanged += OnGameStateNetworkChanged;
+                _networkAllPlayers.OnListChanged += AllPlayersListChanged;
                 if (timeCountDown) timeCountDown.OnCountdownFinished += TimeDurationEnded;
                 if (spawnerController) spawnerController.OnFinishSpawning += StartGameServerRpc;
 
@@ -91,10 +107,10 @@ namespace _GAME.Scripts.HideAndSeek
 
         public override void OnNetworkDespawn()
         {
-            networkGameState.OnValueChanged -= OnGameStateNetworkChanged;
-            if (networkPlayers != null)
+            _networkGameState.OnValueChanged -= OnGameStateNetworkChanged;
+            if (_networkAllPlayers != null)
             {
-                networkPlayers.OnListChanged -= OnPlayersListChanged;
+                _networkAllPlayers.OnListChanged -= AllPlayersListChanged;
             }
 
             if (spawnerController) spawnerController.OnFinishSpawning -= StartGameServerRpc;
@@ -111,13 +127,13 @@ namespace _GAME.Scripts.HideAndSeek
         {
             if (!IsServer) return;
 
-            for (int i = 0; i < networkPlayers.Count; i++)
+            for (int i = 0; i < _networkAllPlayers.Count; i++)
             {
-                var playerData = networkPlayers[i];
+                var playerData = _networkAllPlayers[i];
                 if (playerData.clientId == clientId)
                 {
                     playerData.position = position;
-                    networkPlayers[i] = playerData;
+                    _networkAllPlayers[i] = playerData;
                     break;
                 }
             }
@@ -128,9 +144,9 @@ namespace _GAME.Scripts.HideAndSeek
         {
             if (!IsServer) return;
 
-            for (int i = 0; i < networkPlayers.Count; i++)
+            for (int i = 0; i < _networkAllPlayers.Count; i++)
             {
-                var playerData = networkPlayers[i];
+                var playerData = _networkAllPlayers[i];
                 if (playerData.clientId == clientId)
                 {
                     playerData.health = Mathf.Clamp(health, 0f,
@@ -141,7 +157,7 @@ namespace _GAME.Scripts.HideAndSeek
                         playerData.isAlive = false;
                     }
 
-                    networkPlayers[i] = playerData;
+                    _networkAllPlayers[i] = playerData;
                     break;
                 }
             }
@@ -200,9 +216,9 @@ namespace _GAME.Scripts.HideAndSeek
             AssignRoles();
             SpawnGameElements();
 
-            var newState = networkGameState.Value;
+            var newState = _networkGameState.Value;
             newState.state = GameState.Preparation;
-            networkGameState.Value = newState;
+            _networkGameState.Value = newState;
 
             // Start game after preparation time
             StartCoroutine(StartPlayingPhaseCoroutine());
@@ -216,9 +232,9 @@ namespace _GAME.Scripts.HideAndSeek
 
         private void StartPlayingPhase()
         {
-            var newState = networkGameState.Value;
+            var newState = _networkGameState.Value;
             newState.state = GameState.Playing;
-            networkGameState.Value = newState;
+            _networkGameState.Value = newState;
 
             // Notify all players
             foreach (var player in players.Values)
@@ -273,6 +289,9 @@ namespace _GAME.Scripts.HideAndSeek
                     AssignPlayerRole(client.ClientId, role);
                 }
             }
+            
+            //Trigger event 
+            GameEvent.OnRoleAssignedSuccess?.Invoke();
         }
 
         private void AssignPlayerRole(ulong clientId, Role role)
@@ -286,7 +305,7 @@ namespace _GAME.Scripts.HideAndSeek
                 health = role == Role.Seeker ? gameSettings.seekerHealth : 100f
             };
 
-            networkPlayers.Add(playerData);
+            _networkAllPlayers.Add(playerData);
         }
 
         private void SpawnGameElements()
@@ -350,12 +369,12 @@ namespace _GAME.Scripts.HideAndSeek
 
         private void CheckWinConditions()
         {
-            if (networkPlayers == null || networkPlayers.Count == 0) return;
+            if (_networkAllPlayers == null || _networkAllPlayers.Count == 0) return;
 
             if (CurrentMode == GameMode.PersonVsPerson)
             {
                 // Check if all tasks completed
-                if (networkGameState.Value.completedTasks >= networkGameState.Value.totalTasks)
+                if (_networkGameState.Value.completedTasks >= _networkGameState.Value.totalTasks)
                 {
                     EndGame(Role.Hider);
                     return;
@@ -365,7 +384,7 @@ namespace _GAME.Scripts.HideAndSeek
                 int aliveHiders = 0;
                 int aliveSeekers = 0;
 
-                foreach (var player in networkPlayers)
+                foreach (var player in _networkAllPlayers)
                 {
                     if (player.isAlive)
                     {
@@ -393,7 +412,7 @@ namespace _GAME.Scripts.HideAndSeek
                 int aliveHiders = 0;
                 int aliveSeekers = 0;
 
-                foreach (var player in networkPlayers)
+                foreach (var player in _networkAllPlayers)
                 {
                     if (player.isAlive)
                     {
@@ -425,9 +444,9 @@ namespace _GAME.Scripts.HideAndSeek
 
         private void EndGame(Role winnerRole)
         {
-            var newState = networkGameState.Value;
+            var newState = _networkGameState.Value;
             newState.state = GameState.GameOver;
-            networkGameState.Value = newState;
+            _networkGameState.Value = newState;
 
             OnGameEnded?.Invoke(winnerRole);
 
@@ -446,9 +465,9 @@ namespace _GAME.Scripts.HideAndSeek
         [ServerRpc(RequireOwnership = false)]
         public void PlayerTaskCompletedServerRpc(ulong playerId, int taskId)
         {
-            var newState = networkGameState.Value;
+            var newState = _networkGameState.Value;
             newState.completedTasks++;
-            networkGameState.Value = newState;
+            _networkGameState.Value = newState;
 
             OnTaskProgressUpdated?.Invoke(newState.completedTasks, newState.totalTasks);
 
@@ -460,13 +479,13 @@ namespace _GAME.Scripts.HideAndSeek
         public void PlayerKilledServerRpc(ulong killerId, ulong victimId)
         {
             // Update victim status
-            for (int i = 0; i < networkPlayers.Count; i++)
+            for (int i = 0; i < _networkAllPlayers.Count; i++)
             {
-                var playerData = networkPlayers[i];
+                var playerData = _networkAllPlayers[i];
                 if (playerData.clientId == victimId)
                 {
                     playerData.isAlive = false;
-                    networkPlayers[i] = playerData;
+                    _networkAllPlayers[i] = playerData;
                     break;
                 }
             }
@@ -477,17 +496,17 @@ namespace _GAME.Scripts.HideAndSeek
             bool killerFound = false;
             bool victimFound = false;
 
-            for (int i = 0; i < networkPlayers.Count; i++)
+            for (int i = 0; i < _networkAllPlayers.Count; i++)
             {
-                if (networkPlayers[i].clientId == killerId)
+                if (_networkAllPlayers[i].clientId == killerId)
                 {
-                    killer = networkPlayers[i];
+                    killer = _networkAllPlayers[i];
                     killerFound = true;
                 }
 
-                if (networkPlayers[i].clientId == victimId)
+                if (_networkAllPlayers[i].clientId == victimId)
                 {
-                    victim = networkPlayers[i];
+                    victim = _networkAllPlayers[i];
                     victimFound = true;
                 }
 
@@ -497,14 +516,14 @@ namespace _GAME.Scripts.HideAndSeek
             // If seeker killed hider, restore health
             if (killerFound && victimFound && killer.role == Role.Seeker && victim.role == Role.Hider)
             {
-                for (int i = 0; i < networkPlayers.Count; i++)
+                for (int i = 0; i < _networkAllPlayers.Count; i++)
                 {
-                    var playerData = networkPlayers[i];
+                    var playerData = _networkAllPlayers[i];
                     if (playerData.clientId == killerId)
                     {
                         playerData.health = Mathf.Min(gameSettings.seekerHealth,
                             playerData.health + gameSettings.hiderKillReward);
-                        networkPlayers[i] = playerData;
+                        _networkAllPlayers[i] = playerData;
                         break;
                     }
                 }
@@ -516,9 +535,9 @@ namespace _GAME.Scripts.HideAndSeek
         [ServerRpc(RequireOwnership = false)]
         public void PlayerTookDamageServerRpc(ulong playerId, float damage)
         {
-            for (int i = 0; i < networkPlayers.Count; i++)
+            for (int i = 0; i < _networkAllPlayers.Count; i++)
             {
-                var playerData = networkPlayers[i];
+                var playerData = _networkAllPlayers[i];
                 if (playerData.clientId == playerId)
                 {
                     playerData.health = Mathf.Max(0, playerData.health - damage);
@@ -527,7 +546,7 @@ namespace _GAME.Scripts.HideAndSeek
                         playerData.isAlive = false;
                     }
 
-                    networkPlayers[i] = playerData;
+                    _networkAllPlayers[i] = playerData;
                     break;
                 }
             }
@@ -565,21 +584,21 @@ namespace _GAME.Scripts.HideAndSeek
             OnTaskProgressUpdated?.Invoke(newValue.completedTasks, newValue.totalTasks);
         }
 
-        private void OnPlayersListChanged(NetworkListEvent<NetworkPlayerData> changeEvent)
+        private void AllPlayersListChanged(NetworkListEvent<NetworkPlayerData> changeEvent)
         {
             // Handle player list changes
-            var newState = networkGameState.Value;
+            var newState = _networkGameState.Value;
 
             // Count alive players manually
             int aliveCount = 0;
-            foreach (var player in networkPlayers)
+            foreach (var player in _networkAllPlayers)
             {
                 if (player.isAlive)
                     aliveCount++;
             }
 
             newState.alivePlayers = aliveCount;
-            networkGameState.Value = newState;
+            _networkGameState.Value = newState;
         }
 
         #endregion
@@ -596,7 +615,7 @@ namespace _GAME.Scripts.HideAndSeek
             if (IsServer)
             {
                 bool playerExists = false;
-                foreach (var networkPlayer in networkPlayers)
+                foreach (var networkPlayer in _networkAllPlayers)
                 {
                     if (networkPlayer.clientId == player.ClientId)
                     {
@@ -615,7 +634,7 @@ namespace _GAME.Scripts.HideAndSeek
                         isAlive = player.IsAlive,
                         health = 1,
                     };
-                    networkPlayers.Add(playerData);
+                    _networkAllPlayers.Add(playerData);
                 }
             }
 
@@ -661,11 +680,11 @@ namespace _GAME.Scripts.HideAndSeek
                 players.Remove(clientId);
             }
 
-            for (int i = networkPlayers.Count - 1; i >= 0; i--)
+            for (int i = _networkAllPlayers.Count - 1; i >= 0; i--)
             {
-                if (networkPlayers[i].clientId == clientId)
+                if (_networkAllPlayers[i].clientId == clientId)
                 {
-                    networkPlayers.RemoveAt(i);
+                    _networkAllPlayers.RemoveAt(i);
                     break;
                 }
             }
@@ -724,7 +743,7 @@ namespace _GAME.Scripts.HideAndSeek
             int seekerCount = 0;
             int hiderCount = 0;
 
-            foreach (var playerData in networkPlayers)
+            foreach (var playerData in _networkAllPlayers)
             {
                 if (playerData.clientId == clientId) continue; // Skip current player
 
@@ -735,7 +754,7 @@ namespace _GAME.Scripts.HideAndSeek
             }
 
             // Enforce role balance (at least 1 seeker, max 1/3 seekers)
-            int totalPlayers = networkPlayers.Count;
+            int totalPlayers = _networkAllPlayers.Count;
             int maxSeekers = Mathf.Max(1, totalPlayers / 3);
 
             if (newRole == Role.Seeker && seekerCount >= maxSeekers)
@@ -786,7 +805,7 @@ namespace _GAME.Scripts.HideAndSeek
             if (!IsServer) return;
 
             // Check if all tasks are completed
-            if (networkGameState.Value.completedTasks >= networkGameState.Value.totalTasks)
+            if (_networkGameState.Value.completedTasks >= _networkGameState.Value.totalTasks)
             {
                 EndGame(Role.Hider);
             }
@@ -840,13 +859,13 @@ namespace _GAME.Scripts.HideAndSeek
             if (!IsServer) return;
 
             // Cập nhật networkPlayers entry tương ứng
-            for (int i = 0; i < networkPlayers.Count; i++)
+            for (int i = 0; i < _networkAllPlayers.Count; i++)
             {
-                if (networkPlayers[i].clientId == player.ClientId)
+                if (_networkAllPlayers[i].clientId == player.ClientId)
                 {
-                    var d = networkPlayers[i];
+                    var d = _networkAllPlayers[i];
                     d.role = newRole;
-                    networkPlayers[i] = d;
+                    _networkAllPlayers[i] = d;
                     break;
                 }
             }
@@ -865,14 +884,14 @@ namespace _GAME.Scripts.HideAndSeek
         {
             if (!IsServer) return;
 
-            for (int i = 0; i < networkPlayers.Count; i++)
+            for (int i = 0; i < _networkAllPlayers.Count; i++)
             {
-                if (networkPlayers[i].clientId == player.ClientId)
+                if (_networkAllPlayers[i].clientId == player.ClientId)
                 {
-                    var d = networkPlayers[i];
+                    var d = _networkAllPlayers[i];
                     d.health = Mathf.Clamp(cur, 0, max);
                     d.isAlive = d.health > 0f;
-                    networkPlayers[i] = d;
+                    _networkAllPlayers[i] = d;
                     break;
                 }
             }

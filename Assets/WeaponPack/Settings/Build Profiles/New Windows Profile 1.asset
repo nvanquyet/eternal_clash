@@ -30,6 +30,8 @@ MonoBehaviour:
     m_path: Assets/_GAME/Scenes/WaitingScene.unity
   - m_enabled: 1
     m_path: Assets/_GAME/Scenes/GamePlayScene.unity
+  - m_enabled: 1
+    m_path: Assets/_GAME/Scenes/InteractScene.unity
   m_ScriptingDefines: []
   m_PlayerSettingsYaml:
     m_Settings:

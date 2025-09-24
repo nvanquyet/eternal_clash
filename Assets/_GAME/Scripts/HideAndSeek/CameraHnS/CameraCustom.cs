@@ -1,7 +1,7 @@
 using GAME.Scripts.DesignPattern;
 using UnityEngine;
 
-namespace _GAME.Scripts.HideAndSeek.Camera
+namespace _GAME.Scripts.HideAndSeek.CameraHnS
 {
     public class CameraCustom : Singleton<CameraCustom>
     {

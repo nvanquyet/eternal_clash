@@ -18,3 +18,7 @@ MonoBehaviour:
   seekerHealth: 10
   environmentDamage: 1
   hiderKillReward: 2
+  hiderMoveSpeed: 0
+  seekerMoveSpeed: 0
+  seekerDetectionRange: 15
+  seekerCatchRange: 2

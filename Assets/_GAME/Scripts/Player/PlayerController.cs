@@ -22,10 +22,9 @@ namespace _GAME.Scripts.Player
     {
         [SerializeField] private PlayerMovementConfig playerConfig;
         [SerializeField] private CharacterController characterController;
-        
-        [SerializeField] private GameObject fppCamera;
-        [SerializeField] private GameObject tppCamera;
 
+        [SerializeField] private PlayerCamera playerCamera;
+        
         [SerializeField] private PlayerRoleSO playerRoleSO;
         [Header("Input")] [SerializeField] private MobileInputBridge playerInput;
         
@@ -34,15 +33,7 @@ namespace _GAME.Scripts.Player
         [SerializeField] private PlayerAnimationSync animationSync;
 
         public PlayerAnimationSync AnimationSync => animationSync;
-
-        private Transform CameraTransform
-        {
-            get
-            {
-                var activeCamera = tppCamera.activeSelf ? tppCamera : fppCamera;
-                return activeCamera.transform;
-            }
-        }
+        public PlayerCamera PlayerCamera => playerCamera;
 
         // Core systems
         private PlayerLocomotion _playerLocomotion;
@@ -70,7 +61,7 @@ namespace _GAME.Scripts.Player
                 animationSync = modelSwitcher.GetAnimationSync();
                 modelSwitcher.OnAnimatorChanged += OnAnimatorChanged;
             }
-            DeactivateAllCameras();
+            PlayerCamera.DisableAllCams();
         }
 
         private void OnAnimatorChanged(Animator newAnimator)
@@ -122,7 +113,7 @@ namespace _GAME.Scripts.Player
 
         private void SetupOwner()
         {
-            ActivateTppCamera();
+            PlayerCamera.EnableTppCam();
             // Owner có CharacterController để local movement
             if (characterController) characterController.enabled = true;
 
@@ -131,7 +122,7 @@ namespace _GAME.Scripts.Player
 
         private void SetupNonOwner()
         {
-            DeactivateAllCameras();
+            PlayerCamera.DisableAllCams();
             // Non-owners tắt CharacterController, để NetworkTransform sync
             if (characterController) characterController.enabled = false;
 
@@ -180,56 +171,7 @@ namespace _GAME.Scripts.Player
 
         #endregion
 
-        #region Public Methods for PlayerLocomotion
-
-        public Vector3 GetCameraForward()
-        {
-            if (IsLocalOwner && CameraTransform != null)
-            {
-                return CameraTransform.forward;
-            }
-
-            // Non-owners: fallback to transform forward
-            return transform.forward;
-        }
-
-        public Vector3 GetCameraRight()
-        {
-            if (IsLocalOwner && CameraTransform != null)
-            {
-                return CameraTransform.right;
-            }
-
-            // Non-owners: fallback to transform right
-            return transform.right;
-        }
-
-        #endregion
-
-        #region Camera Management
-
-        private void ActivateTppCamera()
-        {
-            SetCameraState(false, true);
-        }
-
-        private void ActivateFppCamera()
-        {
-            SetCameraState(true, false);
-        }
-
-        private void DeactivateAllCameras()
-        {
-            SetCameraState(false, false);
-        }
-
-        private void SetCameraState(bool fppActive, bool tppActive)
-        {
-            if (fppCamera) fppCamera.SetActive(fppActive);
-            if (tppCamera) tppCamera.SetActive(tppActive);
-        }
-
-        #endregion
+       
 
         #region Role System - COMPLETELY FIXED
         

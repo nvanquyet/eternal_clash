@@ -12,6 +12,7 @@ TagManager:
   - PlayerInteractor
   - Pickup
   - Environment
+  - Object
   layers:
   - Default
   - TransparentFX

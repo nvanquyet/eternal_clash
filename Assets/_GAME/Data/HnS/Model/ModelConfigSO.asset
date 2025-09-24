@@ -31,21 +31,3 @@ MonoBehaviour:
     availableInPersonVsObject: 1
     availableForHider: 1
     availableForSeeker: 1
-  - modelName: Default 03
-    modelType: 0
-    modelPrefab: {fileID: 6241911783582840570, guid: 39895e86bfe3ec74e8385766ed8fc1d9, type: 3}
-    overrideController: {fileID: 0}
-    avatar: {fileID: 0}
-    availableInPersonVsPerson: 1
-    availableInPersonVsObject: 1
-    availableForHider: 1
-    availableForSeeker: 1
-  - modelName: Default 03
-    modelType: 0
-    modelPrefab: {fileID: 6241911783582840570, guid: 39895e86bfe3ec74e8385766ed8fc1d9, type: 3}
-    overrideController: {fileID: 0}
-    avatar: {fileID: 0}
-    availableInPersonVsPerson: 1
-    availableInPersonVsObject: 1
-    availableForHider: 1
-    availableForSeeker: 1

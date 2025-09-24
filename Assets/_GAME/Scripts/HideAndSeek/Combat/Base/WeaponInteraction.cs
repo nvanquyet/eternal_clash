@@ -1,8 +1,11 @@
 ﻿using System;
 using _GAME.Scripts.DesignPattern.Interaction;
+using _GAME.Scripts.HideAndSeek.Combat.Gun;
 using _GAME.Scripts.HideAndSeek.Player;
+using _GAME.Scripts.HideAndSeek.Player.Rig;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace _GAME.Scripts.HideAndSeek.Combat.Base
 {
@@ -38,6 +41,12 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         
         [Header("References")]
         [SerializeField] protected InputComponent inputComponent;
+        [SerializeField] protected AttackComponent attackComponent;
+        
+        [SerializeField] private WeaponRig rigSetup;
+        
+        public WeaponRig RigSetup => rigSetup;
+        public AttackComponent AttackComponent => attackComponent;
         
         // Network Variables
         protected NetworkVariable<WeaponState> networkWeaponState = new NetworkVariable<WeaponState>(
@@ -107,6 +116,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             SetModelsActive(pickupActive: true, equippedActive: false);
             SetInteractionEnabled(true);
         }
+        
 
         #endregion
 
@@ -218,15 +228,15 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             // chuyển ownership vũ khí cho người nhặt
             if (NetworkObject && NetworkObject.OwnerClientId != player.OwnerClientId)
                 NetworkObject.ChangeOwnership(player.OwnerClientId);
-
+            
             // gắn vào tay (server side → tự replicate)
-            var equip = player.GetComponent<PlayerEquipment>();
+            var equip = player.PlayerEquipment;
             var hold = equip ? equip.transform : player.transform;
             NetworkObject.TrySetParent(hold);
 
             // cập nhật state (mọi client sẽ nhận OnValueChanged)
             networkWeaponState.Value = WeaponState.Equipped;
-
+            
             // đồng bộ PlayerEquipment.currentGunRef ngay tại server (1 nguồn sự thật)
             if (equip) equip.SetCurrentWeaponServer(this);
 
@@ -248,6 +258,18 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
                 transform.position = previousHolder.transform.position + Vector3.forward;
                 transform.rotation = Quaternion.identity;
             }
+            
+            //Change parent equipment model
+            var model = rigSetup.weaponTransform;
+            if (model != null)
+            {
+                model.SetParent(this.transform);
+                model.position = Vector3.zero;
+                model.rotation = Quaternion.identity;
+            }
+            
+            //Clear callbacks
+            attackComponent.OnPreFire = null;
             
             OnWeaponDropped?.Invoke(previousHolder);
             OnDropped(previousHolder);
@@ -290,5 +312,10 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         protected virtual void OnDropped(PlayerInteraction player) { }
 
         #endregion
+
+        public void RefreshEquipModel()
+        {
+            this.equippedModel.transform.SetParent(this.transform);
+        }
     }
 }

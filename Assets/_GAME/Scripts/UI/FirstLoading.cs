@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using _GAME.Scripts.Authenticator;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Data;
+using Unity.Services.Core;
 using UnityEngine;
 
 namespace _GAME.Scripts.UI
@@ -36,6 +37,7 @@ namespace _GAME.Scripts.UI
                 // Example: Check if user is logged in
                 if (await UserIsLoggedIn())
                 {
+                    await UnityServices.InitializeAsync();
                     SceneController.Instance.LoadSceneAsync((int)SceneDefinitions.Home);
                 }
                 else

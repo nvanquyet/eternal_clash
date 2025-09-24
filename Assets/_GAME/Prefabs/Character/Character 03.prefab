@@ -2127,7 +2127,6 @@ GameObject:
   m_Component:
   - component: {fileID: 4450355230670382709}
   - component: {fileID: 8327585497613311501}
-  - component: {fileID: 6247110500408503819}
   - component: {fileID: 3904356273511063654}
   - component: {fileID: 8127830090730288131}
   m_Layer: 14
@@ -2176,31 +2175,6 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
---- !u!114 &6247110500408503819
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6241911783582840570}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 4100407702
-  InScenePlacedSourceGlobalObjectIdHash: 0
-  DeferredDespawnTick: 0
-  Ownership: 1
-  AlwaysReplicateAsRoot: 0
-  SynchronizeTransform: 1
-  ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
-  SpawnWithObservers: 1
-  DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
-  SyncOwnerTransformWhenParented: 1
-  AllowOwnerToParent: 0
 --- !u!136 &3904356273511063654
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2236,13 +2210,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aecd042f98299c74cb7fee4f4e423d89, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  entityId: 
-  isActive: 1
-  interactionCollider: {fileID: 0}
-  maxHealth: 1
-  defenseValue: 0
-  isInvulnerable: 0
   hitBoxInfo:
     hitBoxType: -1
     category: 1

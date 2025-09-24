@@ -13,6 +13,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         public float AttackRate => attackRate;
         public float BaseDamage => damage;
 
+        public Action OnPreFire = null;
         protected Action<Vector3, Vector3> OnWeaponAttacked = null;
         // Server writes; everyone reads
         protected readonly NetworkVariable<double> LastFireServerTime = new(

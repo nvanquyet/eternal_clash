@@ -109,8 +109,8 @@ namespace _GAME.Scripts.Player.Locomotion.States
                 PlayerController playerController = locomotion.CharacterController.GetComponentInParent<PlayerController>();
                 if (playerController != null)
                 {
-                    Vector3 camForward = playerController.GetCameraForward();
-                    Vector3 camRight = playerController.GetCameraRight();
+                    Vector3 camForward = playerController.PlayerCamera.GetCameraForward();
+                    Vector3 camRight = playerController.PlayerCamera.GetCameraRight();
                     
                     direction = Vector3.Normalize(camForward * input.moveInput.y + camRight * input.moveInput.x);
                     direction.y = 0; // Keep horizontal

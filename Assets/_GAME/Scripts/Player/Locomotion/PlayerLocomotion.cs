@@ -124,8 +124,8 @@ namespace _GAME.Scripts.Player.Locomotion
             if (inputDirection.magnitude > 0)
             {
                 // Camera relative movement
-                Vector3 camForward = _playerController.GetCameraForward();
-                Vector3 camRight = _playerController.GetCameraRight();
+                Vector3 camForward = _playerController.PlayerCamera.GetCameraForward();
+                Vector3 camRight = _playerController.PlayerCamera.GetCameraRight();
                 
                 Vector3 moveDir = Vector3.Normalize(camForward * inputDirection.z + camRight * inputDirection.x);
                 moveDir.y = 0;
@@ -160,8 +160,8 @@ namespace _GAME.Scripts.Player.Locomotion
 
             if (inputDirection.magnitude > 0)
             {
-                Vector3 camForward = _playerController.GetCameraForward();
-                Vector3 camRight = _playerController.GetCameraRight();
+                Vector3 camForward = _playerController.PlayerCamera.GetCameraForward();
+                Vector3 camRight = _playerController.PlayerCamera.GetCameraRight();
                 
                 Vector3 moveDir = Vector3.Normalize(camForward * inputDirection.z + camRight * inputDirection.x);
                 moveDir.y = 0;
