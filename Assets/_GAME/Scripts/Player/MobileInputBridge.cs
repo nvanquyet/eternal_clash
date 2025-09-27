@@ -30,6 +30,8 @@ namespace _GAME.Scripts.Player
         
         // Flag để đảm bảo chỉ owner mới process input actions
         private bool _isOwner = false;
+        
+        
 
         // ======== Lifecycle ========
         private void Awake()
@@ -119,19 +121,7 @@ namespace _GAME.Scripts.Player
             if (!_acceptInput || !_isOwner) 
                 return PlayerInputData.Empty;
 
-            Vector2 move = Vector2.zero;
-
-            // Ưu tiên joystick nếu đang sử dụng
-            if (usingJoystick && joystick != null)
-            {
-                move = new Vector2(joystick.Horizontal, joystick.Vertical);
-            }
-            // Nếu không dùng joystick thì đọc từ Input Action
-            else if (_move != null && _move.enabled)
-            {
-                move = _move.ReadValue<Vector2>();
-            }
-
+         
             // Lấy one-shot values và clear ngay
             bool jump = _jumpOneShot;
             bool dash = _dashOneShot;
@@ -140,13 +130,34 @@ namespace _GAME.Scripts.Player
 
             return new PlayerInputData
             {
-                moveInput = move,
+                moveInput =  GetDirectionInput(),
                 jumpPressed = jump,
                 sprintHeld = _runHeld,
                 dashPressed = dash
             };
         }
 
+
+        private Vector2 GetDirectionInput()
+        {
+            if (!_acceptInput || !_isOwner) 
+                return Vector2.zero;
+
+            // Ưu tiên joystick nếu đang sử dụng
+            if (usingJoystick && joystick != null)
+            {
+                return new Vector2(joystick.Horizontal, joystick.Vertical);
+            }
+            // Nếu không dùng joystick thì đọc từ Input Action
+            else if (_move != null && _move.enabled)
+            {
+                return _move.ReadValue<Vector2>();
+            }
+
+            return Vector2.zero;
+        }
+        
+        
         public void UseJoystick(bool use)
         {
             usingJoystick = use;

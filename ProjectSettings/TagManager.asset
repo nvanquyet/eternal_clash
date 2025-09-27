@@ -9,10 +9,10 @@ TagManager:
   - HitboxRoot
   - HitboxPart
   - Projectile
-  - PlayerInteractor
   - Pickup
   - Environment
-  - Object
+  - HiderInteractor
+  - SeekerInteractor
   layers:
   - Default
   - TransparentFX

@@ -1,12 +1,27 @@
 using System;
+using System.Collections.Generic;
+using JetBrains.Annotations;
 
 namespace _GAME.Scripts.HideAndSeek
 {
     public static class GameEvent
     {
-        public static Action<bool> OnGameEnd;
-        public static Action OnGameStart;
+        #region Game Play Event
+        // EVENTS - Được trigger trên tất cả clients thông qua ClientRpc
+        public static Action OnGameStarted;
+        public static Action OnRoleAssigned;
+        public static Action<Role> OnGameEnded;
+        public static Action<ulong, ulong> OnPlayerKilled; // killer, victim
+
+        //Game Loop Events
         
-        public static Action OnRoleAssignedSuccess;
+        //Task Progess Events
+        public static Action<ulong, int> OnTaskCompletion; // ClientId, TasksID
+        public static Action<int, int> OnTaskProgressUpdated;
+        
+        //Player Events
+        public static Action<ulong> OnClientDisconnect;
+        
+        #endregion 
     }
 }

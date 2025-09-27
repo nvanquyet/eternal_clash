@@ -15,23 +15,10 @@ namespace _GAME.Scripts.HideAndSeek.Player
         [Header("Player Settings")] 
         [SerializeField] protected string playerName = "Player";
 
-        // Network Variables - Synchronized across all clients
+        // Network Variables - Synchronized across all clients (server-write)
         protected NetworkVariable<Role> networkRole = new NetworkVariable<Role>(
-            Role.None, 
-            NetworkVariableReadPermission.Everyone, 
-            NetworkVariableWritePermission.Server
-        );
-
-        protected NetworkVariable<bool> networkIsAlive = new NetworkVariable<bool>(
-            true, 
-            NetworkVariableReadPermission.Everyone, 
-            NetworkVariableWritePermission.Server
-        );
-
-        // Skill cooldown tracking (server authoritative)
-        protected NetworkVariable<float> networkLastSkillTime = new NetworkVariable<float>(
-            0f, 
-            NetworkVariableReadPermission.Everyone, 
+            Role.None,
+            NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server
         );
 
@@ -49,7 +36,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public ulong ClientId => NetworkObject.OwnerClientId;
         public Role Role => networkRole.Value; 
         public string PlayerName => playerName;
-        public bool IsAlive => networkIsAlive.Value;
+        public bool IsAlive => CurrentHealth > 0;
         public abstract bool HasSkillsAvailable { get; }
 
         #endregion
@@ -62,24 +49,21 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
             // Subscribe to network variable changes
             networkRole.OnValueChanged += OnRoleNetworkChanged;
-            networkIsAlive.OnValueChanged += OnAliveStateNetworkChanged;
-            networkLastSkillTime.OnValueChanged += OnSkillTimeNetworkChanged;
-
-            // Initialize server-side values
-            if (IsServer)
-            {
-                networkIsAlive.Value = true;
-            }
 
             // Invoke spawn callback
             OnNetworkSpawned?.Invoke();
             OnNetworkSpawned = null; // Clear after invoking
             
-            // Register input and player for owner only
+            // ✅ Đăng ký player với GameManager TRÊN SERVER
+            if (IsServer)
+            {
+                GameManager?.RegisterPlayer(this);
+            }
+
+            // Đăng ký input CHỈ phía owner
             if (IsOwner)
             {
                 HandleRegisterInput();
-                GameManager?.RegisterPlayer(this);
             }
 
             Debug.Log($"[RolePlayer] {gameObject.name} spawned. Owner: {IsOwner}, Server: {IsServer}");
@@ -87,27 +71,21 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         public override void OnNetworkDespawn()
         {
-            base.OnNetworkDespawn();
-
             // Cleanup subscriptions
             if (networkRole != null)
                 networkRole.OnValueChanged -= OnRoleNetworkChanged;
-            if (networkIsAlive != null)
-                networkIsAlive.OnValueChanged -= OnAliveStateNetworkChanged;
-            if (networkLastSkillTime != null)
-                networkLastSkillTime.OnValueChanged -= OnSkillTimeNetworkChanged;
 
-            // Unregister input for owner
+            // Hủy đăng ký input phía owner
             if (IsOwner)
             {
                 HandleUnRegisterInput();
-                GameManager?.RemovePlayer(this);
             }
 
             // Cleanup skills
             CleanupSkills();
 
             Debug.Log($"[RolePlayer] {gameObject.name} despawned");
+            base.OnNetworkDespawn();
         }
 
         #endregion
@@ -115,7 +93,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         #region Role Management (Server Authoritative)
 
         /// <summary>
-        /// Client requests role assignment (called by GameManager)
+        /// Public API: Yêu cầu set role (GM gọi trực tiếp trên server; client gọi sẽ đi qua RPC)
         /// </summary>
         public void SetRole(Role role)
         {
@@ -130,8 +108,12 @@ namespace _GAME.Scripts.HideAndSeek.Player
         }
         
         [ServerRpc(RequireOwnership = false)]
-        private void RequestRoleAssignmentServerRpc(Role newRole)
+        private void RequestRoleAssignmentServerRpc(Role newRole, ServerRpcParams rpc = default)
         {
+            // Anti-spoof (nếu cần): client tự xin đổi role → check điều kiện cho client này
+            if (!IsServer) return;
+
+            // Gọi AssignRoleServer luôn, nhưng dùng GameManager.CanAssignRole để lọc
             AssignRoleServer(newRole);
         }
 
@@ -142,8 +124,8 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             if (!IsServer) return;
 
-            // Validate role assignment
-            if (!GameManager.CanAssignRole(ClientId, newRole))
+            // Validate role assignment qua GameManager
+            if (GameManager != null && !GameManager.CanAssignRole(ClientId, newRole))
             {
                 Debug.LogWarning($"[RolePlayer] Cannot assign role {newRole} to client {ClientId}");
                 return;
@@ -173,157 +155,15 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         protected virtual void OnRoleAssigned(Role role)
         {
-            // Initialize skills for this role
-            //InitializeSkills();
+            // Nếu cần, bật lại InitializeSkills()
+            // InitializeSkills();
 
             // Role-specific initialization
             OnRoleInitialized();
         }
 
         #endregion
-
-        #region Skill System (Server Authoritative)
-
-        public virtual void UseSkill(SkillType skillType, Vector3? targetPosition = null)
-        {
-            if (!IsOwner) return;
-
-            // Client-side validation before sending to server
-            if (!CanUseSkillLocally(skillType))
-            {
-                OnSkillUsageFailedLocal(skillType, "Skill not available or on cooldown");
-                return;
-            }
-
-            // Send to server for authoritative execution
-            UseSkillServerRpc(skillType, targetPosition ?? Vector3.zero, targetPosition.HasValue);
-        }
-
-        [ServerRpc]
-        protected virtual void UseSkillServerRpc(SkillType skillType, Vector3 targetPosition, bool hasTarget)
-        {
-            if (!IsServer) return;
-
-            // Server-side validation
-            if (!CanUseSkillServer(skillType))
-            {
-                NotifySkillFailedClientRpc(skillType, "Server validation failed");
-                return;
-            }
-
-            // Execute skill on server
-            Vector3? target = hasTarget ? targetPosition : null;
-            bool success = ExecuteSkillServer(skillType, target);
-
-            if (success)
-            {
-                // Update cooldown tracking
-                networkLastSkillTime.Value = Time.time;
-                UpdateSkillCooldownServer(skillType);
-
-                // Notify all clients about successful skill usage
-                OnSkillUsedClientRpc(skillType, targetPosition, hasTarget);
-            }
-            else
-            {
-                NotifySkillFailedClientRpc(skillType, "Skill execution failed");
-            }
-        }
-
-        [ClientRpc]
-        protected virtual void OnSkillUsedClientRpc(SkillType skillType, Vector3 targetPosition, bool hasTarget)
-        {
-            Vector3? target = hasTarget ? targetPosition : null;
-            OnSkillExecutedLocal(skillType, target);
-        }
-
-        [ClientRpc]
-        protected virtual void NotifySkillFailedClientRpc(SkillType skillType, string reason)
-        {
-            if (IsOwner)
-            {
-                OnSkillUsageFailedLocal(skillType, reason);
-            }
-        }
-
-        #region Skill Helper Methods
-
-        private bool CanUseSkillLocally(SkillType skillType)
-        {
-            if (!Skills.ContainsKey(skillType)) return false;
-            if (!Skills[skillType].CanUse) return false;
-            if (!networkIsAlive.Value) return false;
-            
-            return true;
-        }
-
-        private bool CanUseSkillServer(SkillType skillType)
-        {
-            if (!IsServer) return false;
-            if (!Skills.ContainsKey(skillType)) return false;
-            if (!Skills[skillType].CanUse) return false;
-            if (!networkIsAlive.Value) return false;
-
-            // Server-side cooldown check
-            if (skillCooldowns.ContainsKey(skillType))
-            {
-                float timeSinceLastUse = Time.time - skillCooldowns[skillType];
-                float requiredCooldown = Skills[skillType].GetCooldownTime();
-                if (timeSinceLastUse < requiredCooldown) return false;
-            }
-
-            return true;
-        }
-
-        private bool ExecuteSkillServer(SkillType skillType, Vector3? target)
-        {
-            if (!Skills.ContainsKey(skillType)) return false;
-
-            try
-            {
-                Skills[skillType].UseSkill(this, target);
-                return true;
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[RolePlayer] Skill execution error: {ex.Message}");
-                return false;
-            }
-        }
-
-        private void UpdateSkillCooldownServer(SkillType skillType)
-        {
-            if (!IsServer) return;
-            skillCooldowns[skillType] = Time.time;
-        }
-
-        protected virtual void OnSkillExecutedLocal(SkillType skillType, Vector3? target)
-        {
-            // Override in derived classes for local effects (UI, sounds, etc.)
-            Debug.Log($"[RolePlayer] Skill executed locally: {skillType}");
-        }
-
-        protected virtual void OnSkillUsageFailedLocal(SkillType skillType, string reason)
-        {
-            Debug.LogWarning($"[RolePlayer] Skill usage failed: {skillType} - {reason}");
-            // Show error message to owner
-        }
-
-        private void OnSkillTimeNetworkChanged(float previousTime, float newTime)
-        {
-            // Update UI cooldowns for owner
-            if (IsOwner)
-            {
-                UpdateSkillCooldownUI();
-            }
-        }
-
-        protected virtual void UpdateSkillCooldownUI()
-        {
-            // Override in derived classes
-        }
-
-        #endregion
+        
 
         private void CleanupSkills()
         {
@@ -339,52 +179,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
             Skills.Clear();
             skillCooldowns.Clear();
         }
-
-        #endregion
-
-        #region Player State Management (Server Authoritative)
-
-        public void SetAliveState(bool isAlive)
-        {
-            if (IsServer)
-            {
-                SetAliveStateServer(isAlive);
-            }
-            else
-            {
-                SetAliveStateServerRpc(isAlive);
-            }
-        }
-
-        [ServerRpc(RequireOwnership = false)]
-        private void SetAliveStateServerRpc(bool isAlive)
-        {
-            SetAliveStateServer(isAlive);
-        }
-
-        private void SetAliveStateServer(bool isAlive)
-        {
-            if (!IsServer) return;
-            if (networkIsAlive.Value == isAlive) return;
-
-            networkIsAlive.Value = isAlive;
-            Debug.Log($"[RolePlayer] {gameObject.name} alive state: {isAlive}");
-        }
-
-        private void OnAliveStateNetworkChanged(bool previousState, bool newState)
-        {
-            OnAliveStateChanged(newState);
-        }
-
-        protected virtual void OnAliveStateChanged(bool isAlive)
-        {
-            if (IsOwner)
-            {
-                UpdateAliveStateUI(isAlive);
-            }
-        }
-
-        #endregion
+        
 
         #region Input System
 
@@ -403,19 +198,57 @@ namespace _GAME.Scripts.HideAndSeek.Player
         #region Abstract Methods
 
         protected abstract void InitializeSkills();
+        public abstract void UseSkill(SkillType skillType, Vector3? targetPosition = null);
 
         protected virtual void OnRoleInitialized()
         {
             // Override in derived classes
         }
 
+        /// <summary>
+        /// Server nhận thông tin killer từ hệ thống combat (Projectile/Melee),
+        /// phát sự kiện để GameManager xử lý (đồng bộ với OnPlayerDeathRequested đã subscribe).
+        /// </summary>
         public override void OnDeath(IAttackable killer)
         {
             if (IsServer)
             {
-                //Check if bullet get bullet's owner and get killer from owner id and notify to clients
+                ulong killerId = ResolveKillerClientId(killer);
+                // Thông báo cho GameManager qua event chung
+                GameEvent.OnPlayerKilled?.Invoke(killerId, ClientId);
             }
+
             base.OnDeath(killer);
+        }
+
+        private ulong ResolveKillerClientId(IAttackable killer)
+        {
+            if (killer == null) return 0UL;
+
+            // Ưu tiên projectile có trường Owner
+            if (killer is MonoBehaviour mb)
+            {
+                // Nếu là projectile custom có property Owner (vd AProjectile)
+                // dùng reflection nhẹ để không bị phụ thuộc kiểu:
+                try
+                {
+                    var t = killer.GetType();
+                    var ownerProp = t.GetProperty("Owner");
+                    if (ownerProp != null && ownerProp.PropertyType == typeof(ulong))
+                    {
+                        var val = ownerProp.GetValue(killer);
+                        if (val is ulong ownerId) return ownerId;
+                    }
+                }
+                catch { /* ignore */ }
+
+                // fallback: lấy OwnerClientId của NetworkObject
+                if (mb.TryGetComponent<NetworkObject>(out var aNob))
+                {
+                    return aNob.OwnerClientId;
+                }
+            }
+            return 0UL;
         }
 
         #endregion
@@ -424,55 +257,14 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         protected override void OnHealthChangedLocal(float previousHealth, float newHealth)
         {
-            // Sync health changes to server if owner
-            if (IsOwner && !Mathf.Approximately(previousHealth, newHealth))
-            {
-                SyncHealthToServerRpc(newHealth);
-            }
-
+            // ⚠️ Không gọi OnDeath từ client – server sẽ RPC OnDeathClientRpc rồi
             if (IsOwner)
             {
                 UpdateHealthUI(newHealth, MaxHealth);
             }
-
-            // Check for death
-            if (newHealth <= 0 && networkIsAlive.Value)
-            {
-                SetAliveState(false);
-            }
         }
 
-        [ServerRpc]
-        private void SyncHealthToServerRpc(float newHealth)
-        {
-            if (IsServer)
-            {
-                // Server validates and updates
-                var clampedHealth = Mathf.Clamp(newHealth, 0f, MaxHealth);
-                if (Math.Abs(CurrentHealth - clampedHealth) > 0.01f)
-                {
-                    // Update health on server and sync to all clients
-                    SyncHealthToClientsClientRpc(clampedHealth);
-                }
-            }
-        }
-
-        [ClientRpc]
-        private void SyncHealthToClientsClientRpc(float newHealth)
-        {
-            if (!IsOwner) // Don't update owner's health as it's the source
-            {
-                //networkCurrentHealth.Value = newHealth;
-            }
-        }
-        
-
-        protected virtual void UpdateHealthUI(float currentHealth, float maxHealth)
-        {
-            // Override in derived classes
-        }
-
-        protected virtual void UpdateAliveStateUI(bool isAlive)
+        protected virtual void UpdateHealthUI(float newValue, float maxValue)
         {
             // Override in derived classes
         }

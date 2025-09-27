@@ -2,18 +2,16 @@ using _GAME.Scripts.DesignPattern.Interaction;
 using _GAME.Scripts.HideAndSeek.Combat.Base;
 using _GAME.Scripts.HideAndSeek.Player.Rig;
 using _GAME.Scripts.Test;
+using _GAME.Scripts.Utils;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Serialization;
 
 namespace _GAME.Scripts.HideAndSeek.Player
 {
     public class PlayerInteraction : AActiveInteractable
     {
         [SerializeField] private InputActionReference inputInteractionRef;
-        
         [SerializeField] protected PlayerEquipment playerEquipment;
-            
         public PlayerEquipment PlayerEquipment => playerEquipment;
         
         private InputAction _inputInteraction;
@@ -27,13 +25,11 @@ namespace _GAME.Scripts.HideAndSeek.Player
             }
             else
             {
-                //Disable the collider for non-owners to prevent interaction issues
-                InteractionCollider.enabled = false;
+                // Ngăn non-owner va chạm chủ động
+                if (InteractionCollider) InteractionCollider.enabled = false;
             }
-            
-           
         }
-        
+         
         public override void OnNetworkDespawn()
         {
             base.OnNetworkDespawn();
@@ -47,20 +43,23 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             if (IsOwner && inputInteractionRef != null)
             {
-                _inputInteraction = inputInteractionRef.action;
+                _inputInteraction = InputActionFactory.CreateUniqueAction(inputInteractionRef, GetInstanceID());
                 _inputInteraction.Enable();
                 _inputInteraction.performed += OnInputInteractionPerformed;
+                Debug.Log($"[PlayerInteraction] Interaction input registered for {OwnerClientId}");
             }
         }
 
         private void OnInputInteractionPerformed(InputAction.CallbackContext obj)
         {
             Debug.Log($"[PlayerInteraction] Interaction input performed by {OwnerClientId}");
-            //Call method OnInteract 
             OnInteractInput();
         }
-        
-        
+
+        protected override void OnInteractionPerformed(APassiveInteractable interactable)
+        {
+            // Logic pick/drop nằm trong WeaponInteraction/PlayerEquipment
+        }
         
         private void HandleUnRegisterInput()
         {
@@ -71,16 +70,8 @@ namespace _GAME.Scripts.HideAndSeek.Player
             }
         }
 
-        protected override void OnStateChanged(InteractionState previousState, InteractionState newState)
-        {
-        }
-
-        protected override void OnNearInteractable(APassiveInteractable interactable)
-        {
-        }
-
-        protected override void OnLeftInteractable(APassiveInteractable interactable)
-        {
-        }
+        protected override void OnStateChanged(InteractionState previousState, InteractionState newState) {}
+        protected override void OnNearInteractable(APassiveInteractable interactable) {}
+        protected override void OnLeftInteractable(APassiveInteractable interactable) {}
     }
 }

@@ -1,11 +1,11 @@
+// PlayFabAuthManager.cs — optimized & aligned with CloudScript (unified parsing, rate-limit safe, resilient session)
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GAME.Scripts.DesignPattern;
-using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using PlayFab;
-using System.Linq;
 using PlayFab.ClientModels;
 using UnityEngine;
 
@@ -21,45 +21,56 @@ namespace _GAME.Scripts.Authenticator
 
     public class PlayFabAuthManager : SingletonDontDestroy<PlayFabAuthManager>, IAuthManager<PlayFabAuthManager>
     {
-        [Header("Session Settings")] [SerializeField]
-        private bool enableSessionProtection = true;
+        [Header("Session Settings")]
+        [SerializeField] private bool  enableSessionProtection            = true;
+        [SerializeField] private float loginProcessTimeoutSeconds         = 30f;
+        [SerializeField] private float sessionHeartbeatIntervalSeconds    = 45f;
+        [SerializeField] private float sessionTimeoutSeconds              = 300f; // 5 phút
+        [SerializeField] private float securityAlertCheckIntervalSeconds  = 30f;  // mỗi 30s
 
-        [SerializeField] private float loginProcessTimeoutSeconds = 30f;
-        [SerializeField] private float sessionHeartbeatIntervalSeconds = 45f;
-        [SerializeField] private float sessionTimeoutSeconds = 300f; // 5 phút
-        [SerializeField] private float securityAlertCheckIntervalSeconds = 30f; // Check alerts mỗi 30s
+        // limits
+        private const float MIN_HEARTBEAT_GAP_SECONDS = 30f;
+        private const float MIN_LOGIN_RETRY_INTERVAL  = 3f;
+        private const int   MAX_SESSION_RETRY         = 2;
 
-        private bool isLoggedIn;
-        private string userId = string.Empty;
-        private string currentSessionId = string.Empty;
-        private bool isCurrentlyLoggingIn = false;
+        // CloudScript function names (avoid typo)
+        private static class CS
+        {
+            public const string CheckExistingOnlineSessions = "CheckExistingOnlineSessions";
+            public const string EstablishNewSession         = "EstablishNewSession";
+            public const string UpdateHeartbeat             = "UpdateHeartbeat";          // dùng bản thường (server đã chuẩn hoá)
+            public const string SecureLogout                = "SecureLogout";
+            public const string GetPendingSecurityAlerts    = "GetPendingSecurityAlerts";
+            public const string MarkSecurityAlertRead       = "MarkSecurityAlertRead";
+            public const string NotifySecurityAlert         = "NotifySecurityAlert";
+            public const string CheckUserOnlineStatus       = "CheckUserOnlineStatus";
+        }
+
+        private bool     isLoggedIn;
+        private string   userId = string.Empty;
+        private string   currentSessionId = string.Empty;
+        private bool     isCurrentlyLoggingIn = false;
         private DateTime loginStartTime;
         private DateTime lastHeartbeat;
         private DateTime lastLoginAttempt = DateTime.MinValue;
-        private int loginAttemptCount = 0;
-        private const float MIN_LOGIN_RETRY_INTERVAL = 3f; // 3 giây giữa các lần thử
+        private int      loginAttemptCount = 0;
+        private int      sessionRetryCount = 0;
+        private bool     maintenanceStarted = false;
 
         private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
 
         // Events
-        public event Action<SecurityAlertInfo> OnSecurityAlert; // Player A nhận cảnh báo
-        public event Action OnSessionExpired; // Session hết hạn
-        public event Action<string> OnLoginSuccess; // Login thành công
-        public event Action<string> OnLoginFailed; // Login thất bại
+        public event Action<SecurityAlertInfo> OnSecurityAlert;
+        public event Action OnSessionExpired;
+        public event Action<string> OnLoginSuccess;
+        public event Action<string> OnLoginFailed;
 
         public PlayFabAuthManager Singleton => Instance;
-        public bool IsLoggedIn => isLoggedIn;
-        public string UserId => userId;
-        public string CurrentSessionId => currentSessionId;
-        public bool IsCurrentlyLoggingIn => isCurrentlyLoggingIn;
+        public bool   IsLoggedIn        => isLoggedIn;
+        public string UserId            => userId;
+        public string CurrentSessionId  => currentSessionId;
+        public bool   IsCurrentlyLoggingIn => isCurrentlyLoggingIn;
 
-        
-        
-        // ✅ THÊM METHOD MỚI CHO RETRY LOGIC
-        private int sessionRetryCount = 0;
-        private const int MAX_SESSION_RETRY = 2;
-
-        
         protected override void Awake()
         {
             base.Awake();
@@ -68,14 +79,16 @@ namespace _GAME.Scripts.Authenticator
 
         private void Start()
         {
-            // Bắt đầu heartbeat và security check nếu đã đăng nhập
             if (enableSessionProtection && isLoggedIn)
-            {
                 StartSessionMaintenance();
-            }
         }
 
-        #region Login Then Check Flow
+        private void OnDestroy()
+        {
+            StopSessionMaintenance();
+        }
+
+        #region Login Flow
 
         public async Task<(bool success, string message)> LoginAsync(string userOrEmail, string password)
         {
@@ -85,35 +98,37 @@ namespace _GAME.Scripts.Authenticator
                 return (false, validationError);
             }
 
-            if (isCurrentlyLoggingIn)
+            var now = DateTime.UtcNow;
+            var sinceLast = (now - lastLoginAttempt).TotalSeconds;
+
+            if (sinceLast < MIN_LOGIN_RETRY_INTERVAL)
             {
-                var message = "Đang trong quá trình đăng nhập, vui lòng chờ...";
-                OnLoginFailed?.Invoke(message);
-                return (false, message);
+                var wait = Mathf.CeilToInt(MIN_LOGIN_RETRY_INTERVAL - (float)sinceLast);
+                var msg = $"Vui lòng chờ {wait} giây trước khi thử lại.";
+                OnLoginFailed?.Invoke(msg);
+                return (false, msg);
             }
 
-            // ✅ RATE LIMITING CHECK
-            var timeSinceLastAttempt = (DateTime.UtcNow - lastLoginAttempt).TotalSeconds;
-            if (timeSinceLastAttempt < MIN_LOGIN_RETRY_INTERVAL)
-            {
-                var waitTime = Mathf.CeilToInt(MIN_LOGIN_RETRY_INTERVAL - (float)timeSinceLastAttempt);
-                var message = $"Vui lòng chờ {waitTime} giây trước khi thử lại.";
-                OnLoginFailed?.Invoke(message);
-                return (false, message);
-            }
-
-            // ✅ EXPONENTIAL BACKOFF for multiple failed attempts
             if (loginAttemptCount > 0)
             {
-                var backoffDelay = Math.Min(loginAttemptCount * 2, 10); // Max 10 seconds
-                if (timeSinceLastAttempt < backoffDelay)
+                var backoff = Math.Min(loginAttemptCount * 2, 10);
+                if (sinceLast < backoff)
                 {
-                    var waitTime = Mathf.CeilToInt(backoffDelay - (float)timeSinceLastAttempt);
-                    var message = $"Quá nhiều lần thử. Vui lòng chờ {waitTime} giây.";
-                    OnLoginFailed?.Invoke(message);
-                    return (false, message);
+                    var remain = Mathf.CeilToInt(backoff - (float)sinceLast);
+                    var msg = $"Quá nhiều lần thử. Vui lòng chờ {remain} giây.";
+                    OnLoginFailed?.Invoke(msg);
+                    return (false, msg);
                 }
             }
+
+            if (isCurrentlyLoggingIn)
+            {
+                const string msg = "Đang trong quá trình đăng nhập, vui lòng chờ...";
+                OnLoginFailed?.Invoke(msg);
+                return (false, msg);
+            }
+
+            var deadline = DateTime.UtcNow.AddSeconds(loginProcessTimeoutSeconds);
 
             try
             {
@@ -121,8 +136,7 @@ namespace _GAME.Scripts.Authenticator
                 loginStartTime = DateTime.UtcNow;
                 lastLoginAttempt = DateTime.UtcNow;
 
-                // ✅ BƯỚC 1: ĐĂNG NHẬP ĐỂ CÓ QUYỀN GỌI CLOUD SCRIPT
-                Debug.Log("[PlayFabAuth] Authenticating user...");
+                // 1) Auth
                 var loginResult = await AuthenticateUser(userOrEmail, password);
                 if (!loginResult.success)
                 {
@@ -131,84 +145,84 @@ namespace _GAME.Scripts.Authenticator
                     return (false, loginResult.message);
                 }
 
-                // ✅ BƯỚC 2: SAU KHI ĐĂNG NHẬP, KIỂM TRA XEM CÓ SESSION KHÁC ĐANG ONLINE KHÔNG
-                Debug.Log("[PlayFabAuth] Checking for existing online sessions...");
-
-                // Add small delay before CloudScript call to avoid rate limit
-                await Task.Delay(500);
                 userId = loginResult.playFabId;
-                var onlineCheckResult = await CheckExistingOnlineSession();
 
-                if (!onlineCheckResult.success)
+                if (DateTime.UtcNow > deadline)
                 {
-                    // Nếu có lỗi khi check, vẫn logout để đảm bảo an toàn
                     await ForceLogoutQuiet();
-                    loginAttemptCount++;
-                    OnLoginFailed?.Invoke("Lỗi kiểm tra phiên đăng nhập");
-                    return (false, "Lỗi kiểm tra phiên đăng nhập");
+                    const string msg = "Quy trình đăng nhập quá thời gian cho phép.";
+                    OnLoginFailed?.Invoke(msg);
+                    return (false, msg);
                 }
 
-                if (onlineCheckResult.hasOtherOnlineSession)
-                {
-                    Debug.LogWarning($"[PlayFabAuth] Found existing online session - blocking login");
+                await Task.Delay(UnityEngine.Random.Range(250, 600)); // tránh rate-limit
 
-                    // ✅ BƯỚC 3A: NẾU CÓ SESSION KHÁC, GỬI CẢNH BÁO VÀ LOGOUT
-                    await SendSecurityAlert(loginResult.playFabId, userOrEmail);
-                    await ForceLogoutQuiet();
-
-                    loginAttemptCount++;
-                    var errorMessage = "Tài khoản đang được sử dụng từ thiết bị khác. Không thể đăng nhập.";
-                    OnLoginFailed?.Invoke(errorMessage);
-                    return (false, errorMessage);
-                }
-
-                // ✅ BƯỚC 3B: NẾU KHÔNG CÓ SESSION KHÁC, SET UP PHIÊN LÀM VIỆC
-                Debug.Log("[PlayFabAuth] No conflicting sessions found - establishing new session...");
-
-                // Add small delay before CloudScript call
-                await Task.Delay(300);
-
-                var sessionResult = await EstablishNewSession(loginResult.playFabId);
-                if (!sessionResult.success)
+                // 2) Check session khác
+                var onlineCheck = await CheckExistingOnlineSession();
+                if (!onlineCheck.success)
                 {
                     await ForceLogoutQuiet();
                     loginAttemptCount++;
-                    OnLoginFailed?.Invoke("Không thể thiết lập phiên đăng nhập");
-                    return (false, "Không thể thiết lập phiên đăng nhập");
+                    const string msg = "Lỗi kiểm tra phiên đăng nhập";
+                    OnLoginFailed?.Invoke(msg);
+                    return (false, msg);
                 }
 
-                // ✅ BƯỚC 4: SET LOCAL STATE
+                if (onlineCheck.hasOtherOnlineSession)
+                {
+                    _ = SendSecurityAlert(userId, userOrEmail); // fire & forget
+                    await ForceLogoutQuiet();
+                    loginAttemptCount++;
+                    const string msg = "Tài khoản đang được sử dụng từ thiết bị khác. Không thể đăng nhập.";
+                    OnLoginFailed?.Invoke(msg);
+                    return (false, msg);
+                }
+
+                if (DateTime.UtcNow > deadline)
+                {
+                    await ForceLogoutQuiet();
+                    const string msg = "Quy trình đăng nhập quá thời gian cho phép.";
+                    OnLoginFailed?.Invoke(msg);
+                    return (false, msg);
+                }
+
+                await Task.Delay(UnityEngine.Random.Range(200, 450));
+
+                // 3) Thiết lập session mới
+                var sessionNew = await EstablishNewSession(userId);
+                if (!sessionNew.success)
+                {
+                    await ForceLogoutQuiet();
+                    loginAttemptCount++;
+                    const string msg = "Không thể thiết lập phiên đăng nhập";
+                    OnLoginFailed?.Invoke(msg);
+                    return (false, msg);
+                }
+
+                // 4) Local state
                 isLoggedIn = true;
-                userId = loginResult.playFabId;
-                currentSessionId = sessionResult.sessionId;
+                currentSessionId = sessionNew.sessionId;
                 lastHeartbeat = DateTime.UtcNow;
 
-                // Reset login attempt counter on success
                 loginAttemptCount = 0;
+                sessionRetryCount = 0;
 
-                // ✅ FIX 1: CHỜ MỘT CHÚT TRƯỚC KHI START HEARTBEAT
-                Debug.Log("[PlayFabAuth] Waiting before starting session maintenance...");
-                await Task.Delay(3000); // Chờ 3 giây để đảm bảo session đã được lưu trên server
+                await Task.Delay(UnityEngine.Random.Range(500, 900)); // cho server sync xong
 
-                // ✅ BƯỚC 5: START SESSION MAINTENANCE
-                if (enableSessionProtection && isLoggedIn) // Double check vẫn còn logged in
-                {
-                    Debug.Log("[PlayFabAuth] Starting session maintenance...");
+                if (enableSessionProtection && isLoggedIn)
                     StartSessionMaintenance();
-                }
 
-                Debug.Log($"[PlayFabAuth] Login successful for user: {userId}");
                 OnLoginSuccess?.Invoke("Đăng nhập thành công!");
                 return (true, "Đăng nhập thành công!");
             }
             catch (Exception ex)
             {
-                var errorMessage = "Đã xảy ra lỗi trong quá trình đăng nhập. Vui lòng thử lại.";
                 Debug.LogError($"[PlayFabAuth] Login exception: {ex.Message}");
                 await ForceLogoutQuiet();
                 loginAttemptCount++;
-                OnLoginFailed?.Invoke(errorMessage);
-                return (false, errorMessage);
+                const string msg = "Đã xảy ra lỗi trong quá trình đăng nhập. Vui lòng thử lại.";
+                OnLoginFailed?.Invoke(msg);
+                return (false, msg);
             }
             finally
             {
@@ -222,497 +236,242 @@ namespace _GAME.Scripts.Authenticator
 
             if (userOrEmail.Contains("@"))
             {
-                var request = new LoginWithEmailAddressRequest
-                {
-                    Email = userOrEmail,
-                    Password = password
-                };
-
-                PlayFabClientAPI.LoginWithEmailAddress(request,
-                    result =>
-                    {
-                        Debug.Log("[PlayFabAuth] Email authentication successful");
-                        tcs.TrySetResult(new BasicLoginResult
-                        {
-                            success = true,
-                            playFabId = result.PlayFabId,
-                            sessionToken = result.SessionTicket,
-                            message = "Authentication successful"
-                        });
-                    },
-                    error =>
-                    {
-                        var errorMessage = GetLoginErrorMessage(error);
-                        Debug.LogError($"[PlayFabAuth] Email authentication failed: {errorMessage}");
-                        tcs.TrySetResult(new BasicLoginResult
-                        {
-                            success = false,
-                            message = errorMessage
-                        });
-                    }
+                var req = new LoginWithEmailAddressRequest { Email = userOrEmail, Password = password };
+                PlayFabClientAPI.LoginWithEmailAddress(req,
+                    r => tcs.TrySetResult(new BasicLoginResult { success = true, playFabId = r.PlayFabId, sessionToken = r.SessionTicket, message = "ok" }),
+                    e => tcs.TrySetResult(new BasicLoginResult { success = false, message = GetLoginErrorMessage(e) })
                 );
             }
             else
             {
-                var request = new LoginWithPlayFabRequest
-                {
-                    Username = userOrEmail,
-                    Password = password
-                };
-
-                PlayFabClientAPI.LoginWithPlayFab(request,
-                    result =>
-                    {
-                        Debug.Log("[PlayFabAuth] Username authentication successful");
-                        tcs.TrySetResult(new BasicLoginResult
-                        {
-                            success = true,
-                            playFabId = result.PlayFabId,
-                            sessionToken = result.SessionTicket,
-                            message = "Authentication successful"
-                        });
-                    },
-                    error =>
-                    {
-                        var errorMessage = GetLoginErrorMessage(error);
-                        Debug.LogError($"[PlayFabAuth] Username authentication failed: {errorMessage}");
-                        tcs.TrySetResult(new BasicLoginResult
-                        {
-                            success = false,
-                            message = errorMessage
-                        });
-                    }
+                var req = new LoginWithPlayFabRequest { Username = userOrEmail, Password = password };
+                PlayFabClientAPI.LoginWithPlayFab(req,
+                    r => tcs.TrySetResult(new BasicLoginResult { success = true, playFabId = r.PlayFabId, sessionToken = r.SessionTicket, message = "ok" }),
+                    e => tcs.TrySetResult(new BasicLoginResult { success = false, message = GetLoginErrorMessage(e) })
                 );
             }
 
             return await tcs.Task;
         }
 
-        private async Task<OnlineCheckResult> CheckExistingOnlineSession()
-        {
-            var tcs = new TaskCompletionSource<OnlineCheckResult>();
+        #endregion
 
-            var request = new ExecuteCloudScriptRequest
+        #region CloudScript helpers
+
+        private async Task<(bool success, JObject payload, string error)> ExecuteCSAsync(string functionName, object param)
+        {
+            var tcs = new TaskCompletionSource<(bool, JObject, string)>();
+
+            var req = new ExecuteCloudScriptRequest
             {
-                FunctionName = "CheckExistingOnlineSessions",
-                FunctionParameter = new Dictionary<string, object>
-                {
-                    ["deviceId"] = SystemInfo.deviceUniqueIdentifier,
-                    ["deviceInfo"] = GetDeviceInfo(),
-                    ["playerId"] = userId // ✅ EXPLICITLY PASS PLAYER ID
-                },
+                FunctionName = functionName,
+                FunctionParameter = param,
                 GeneratePlayStreamEvent = false
             };
 
-            PlayFabClientAPI.ExecuteCloudScript(request,
+            PlayFabClientAPI.ExecuteCloudScript(req,
                 result =>
                 {
                     try
                     {
-                        Debug.Log($"[PlayFabAuth] FunctionResult Type: {result.FunctionResult?.GetType().Name}");
-                        Debug.Log($"[PlayFabAuth] FunctionResult: {result.FunctionResult}");
-
-                        if (result.FunctionResult != null)
+                        if (result.FunctionResult == null)
                         {
-                            Dictionary<string, object> resultDict = null;
-
-                            // Try direct cast first
-                            if (result.FunctionResult is Dictionary<string, object> directDict)
-                            {
-                                resultDict = directDict;
-                                Debug.Log("[PlayFabAuth] Using direct Dictionary cast");
-                            }
-                            // If that fails, try JSON parsing
-                            else if (result.FunctionResult is string jsonString)
-                            {
-                                resultDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonString);
-                                Debug.Log("[PlayFabAuth] Parsed from JSON string");
-                            }
-                            else
-                            {
-                                // Last resort: convert to string then parse
-                                var jsonStr = result.FunctionResult.ToString();
-                                resultDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonStr);
-                                Debug.Log("[PlayFabAuth] Converted to string then parsed");
-                            }
-
-                            if (resultDict != null)
-                            {
-                                // Log each key-value pair
-                                foreach (var kvp in resultDict)
-                                {
-                                    Debug.Log(
-                                        $"[PlayFabAuth] Result Key: {kvp.Key}, Value: {kvp.Value}, Type: {kvp.Value?.GetType().Name}");
-                                }
-
-                                var checkResult = new OnlineCheckResult
-                                {
-                                    success = (bool)resultDict["success"],
-                                    hasOtherOnlineSession = resultDict.ContainsKey("hasOtherOnlineSession")
-                                        ? (bool)resultDict["hasOtherOnlineSession"]
-                                        : false,
-                                    message = (string)resultDict["message"]
-                                };
-
-                                tcs.TrySetResult(checkResult);
-                            }
-                            else
-                            {
-                                Debug.LogError("[PlayFabAuth] Failed to parse result");
-                                tcs.TrySetResult(new OnlineCheckResult
-                                {
-                                    success = false,
-                                    message = "Failed to parse response"
-                                });
-                            }
+                            tcs.TrySetResult((false, null, "No response"));
+                            return;
                         }
-                        else
+
+                        JObject jo = result.FunctionResult as JObject;
+                        if (jo == null)
                         {
-                            Debug.LogError("[PlayFabAuth] FunctionResult is null");
-                            tcs.TrySetResult(new OnlineCheckResult
-                            {
-                                success = false,
-                                message = "No response from server"
-                            });
+                            if (result.FunctionResult is string s) jo = JObject.Parse(s);
+                            else jo = JObject.FromObject(result.FunctionResult);
                         }
+
+                        tcs.TrySetResult((true, jo, null));
                     }
-                    catch (Exception ex)
+                    catch (Exception e)
                     {
-                        Debug.LogError($"[PlayFabAuth] Parse error: {ex.Message}");
-                        tcs.TrySetResult(new OnlineCheckResult
-                        {
-                            success = false,
-                            message = "Parse error"
-                        });
+                        tcs.TrySetResult((false, null, $"Parse error: {e.Message}"));
                     }
                 },
-                error =>
-                {
-                    Debug.LogError($"[PlayFabAuth] Check online sessions error: {error.ErrorMessage}");
-                    tcs.TrySetResult(new OnlineCheckResult
-                    {
-                        success = false,
-                        message = error.ErrorMessage
-                    });
-                }
+                error => tcs.TrySetResult((false, null, error.ErrorMessage))
             );
 
             return await tcs.Task;
+        }
+
+        private static bool TryGet<T>(JObject obj, string key, out T value)
+        {
+            value = default;
+            if (obj == null) return false;
+            if (!obj.TryGetValue(key, StringComparison.OrdinalIgnoreCase, out var token)) return false;
+            try { value = token.ToObject<T>(); return true; } catch { return false; }
+        }
+
+        #endregion
+
+        #region Server Calls
+
+        private async Task<OnlineCheckResult> CheckExistingOnlineSession()
+        {
+            var (ok, payload, err) = await ExecuteCSAsync(CS.CheckExistingOnlineSessions, new Dictionary<string, object>
+            {
+                ["playerId"]  = userId,
+                ["deviceId"]  = SystemInfo.deviceUniqueIdentifier,
+                ["deviceInfo"]= GetDeviceInfo()
+            });
+
+            if (!ok || payload == null)
+                return new OnlineCheckResult { success = false, message = err ?? "No response" };
+
+            return new OnlineCheckResult
+            {
+                success = TryGet(payload, "success", out bool succ) && succ,
+                hasOtherOnlineSession = TryGet(payload, "hasOtherOnlineSession", out bool other) && other,
+                message = TryGet(payload, "message", out string msg) ? msg : ""
+            };
         }
 
         private async Task SendSecurityAlert(string targetPlayFabId, string attemptAccount)
         {
             try
             {
-                var request = new ExecuteCloudScriptRequest
+                _ = await ExecuteCSAsync(CS.NotifySecurityAlert, new Dictionary<string, object>
                 {
-                    FunctionName = "NotifySecurityAlert",
-                    FunctionParameter = new Dictionary<string, object>
+                    ["playerId"]     = targetPlayFabId,
+                    ["targetUserId"] = targetPlayFabId,
+                    ["attemptAccount"]= attemptAccount,
+                    ["alertInfo"]    = new Dictionary<string, object>
                     {
-                        ["playerId"] = targetPlayFabId, // ✅ EXPLICITLY PASS PLAYER ID
-                        ["targetUserId"] = targetPlayFabId,
-                        ["alertInfo"] = new Dictionary<string, object>
-                        {
-                            ["AttemptDeviceInfo"] = GetDeviceInfo(),
-                            ["AttemptLocation"] = GetClientLocation(),
-                            ["AttemptTime"] = DateTime.UtcNow.ToString("O"),
-                            ["AttemptIP"] = GetClientIP()
-                        },
-                        ["attemptAccount"] = attemptAccount
-                    },
-                    GeneratePlayStreamEvent = false
-                };
-
-                PlayFabClientAPI.ExecuteCloudScript(request,
-                    result => Debug.Log("[PlayFabAuth] Security alert sent successfully"),
-                    error => Debug.LogWarning($"[PlayFabAuth] Security alert failed: {error.ErrorMessage}")
-                );
-
-                // Không await vì không muốn block login process
-                await Task.Delay(100);
+                        ["AttemptDeviceInfo"] = GetDeviceInfo(),
+                        ["AttemptLocation"]   = GetClientLocation(),
+                        ["AttemptTime"]       = DateTime.UtcNow.ToString("O"),
+                        ["AttemptIP"]         = GetClientIP()
+                    }
+                });
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Debug.LogError($"[PlayFabAuth] Send security alert error: {ex.Message}");
+                Debug.LogWarning($"[PlayFabAuth] SendSecurityAlert error: {e.Message}");
             }
         }
 
         private async Task<SessionResult> EstablishNewSession(string playFabId)
         {
-            var tcs = new TaskCompletionSource<SessionResult>();
             var newSessionId = GenerateSessionId();
 
-            var request = new ExecuteCloudScriptRequest
+            var (ok, payload, err) = await ExecuteCSAsync(CS.EstablishNewSession, new Dictionary<string, object>
             {
-                FunctionName = "EstablishNewSession",
-                FunctionParameter = new Dictionary<string, object>
-                {
-                    ["playerId"] = playFabId, // ✅ EXPLICITLY PASS PLAYER ID
-                    ["sessionId"] = newSessionId,
-                    ["deviceId"] = SystemInfo.deviceUniqueIdentifier,
-                    ["deviceInfo"] = GetDeviceInfo(),
-                    ["sessionTimeoutSeconds"] = sessionTimeoutSeconds
-                },
-                GeneratePlayStreamEvent = false
-            };
+                ["playerId"]              = playFabId,
+                ["sessionId"]             = newSessionId,
+                ["deviceId"]              = SystemInfo.deviceUniqueIdentifier,
+                ["deviceInfo"]            = GetDeviceInfo(),
+                ["sessionTimeoutSeconds"] = sessionTimeoutSeconds
+            });
 
-            PlayFabClientAPI.ExecuteCloudScript(request,
-                result =>
-                {
-                    try
-                    {
-                        // In log tổng quan
-                        Debug.Log(
-                            $"[PlayFabAuth] EstablishNewSession raw FunctionResult Type: {result.FunctionResult?.GetType().Name}");
-                        Debug.Log($"[PlayFabAuth] EstablishNewSession raw FunctionResult: {result.FunctionResult}");
+            if (!ok || payload == null)
+                return new SessionResult { success = false, message = err ?? "No response" };
 
-                        // In log từ server (CloudScript log)
-                        if (result.Logs != null)
-                        {
-                            foreach (var log in result.Logs)
-                                Debug.Log($"[PlayFabAuth][CS-Log] {log.Level}: {log.Message}");
-                        }
-
-                        if (result.FunctionResult != null)
-                        {
-                            Dictionary<string, object> resultDict = null;
-
-                            // Thử direct cast
-                            if (result.FunctionResult is Dictionary<string, object> directDict)
-                            {
-                                resultDict = directDict;
-                                Debug.Log("[PlayFabAuth] Parsed by direct Dictionary cast");
-                            }
-                            // Thử parse nếu là string
-                            else if (result.FunctionResult is string jsonString)
-                            {
-                                resultDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonString);
-                                Debug.Log("[PlayFabAuth] Parsed from JSON string");
-                            }
-                            else
-                            {
-                                // Parse fallback từ ToString()
-                                var jsonStr = result.FunctionResult.ToString();
-                                resultDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonStr);
-                                Debug.Log("[PlayFabAuth] Parsed from .ToString() then JSON");
-                            }
-
-                            if (resultDict != null)
-                            {
-                                // Log từng key-value
-                                foreach (var kvp in resultDict)
-                                {
-                                    Debug.Log(
-                                        $"[PlayFabAuth] Result Key: {kvp.Key}, Value: {kvp.Value}, Type: {kvp.Value?.GetType().Name}");
-                                }
-
-                                var sessionResult = new SessionResult
-                                {
-                                    success = resultDict.ContainsKey("success") && (bool)resultDict["success"],
-                                    sessionId = newSessionId,
-                                    message = resultDict.ContainsKey("message")
-                                        ? resultDict["message"].ToString()
-                                        : "No message"
-                                };
-
-                                tcs.TrySetResult(sessionResult);
-                            }
-                            else
-                            {
-                                Debug.LogError("[PlayFabAuth] Failed to parse FunctionResult into Dictionary");
-                                tcs.TrySetResult(new SessionResult
-                                    { success = false, message = "Failed to parse response" });
-                            }
-                        }
-                        else
-                        {
-                            Debug.LogError("[PlayFabAuth] FunctionResult is null");
-                            tcs.TrySetResult(new SessionResult { success = false, message = "No response" });
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"[PlayFabAuth] Establish session parse error: {ex.Message}");
-                        tcs.TrySetResult(new SessionResult { success = false, message = "Parse error" });
-                    }
-                },
-                error =>
-                {
-                    Debug.LogError($"[PlayFabAuth] Establish session error: {error.ErrorMessage}");
-                    tcs.TrySetResult(new SessionResult { success = false, message = error.ErrorMessage });
-                }
-            );
-
-            return await tcs.Task;
+            var success = TryGet(payload, "success", out bool s) && s;
+            var message = TryGet(payload, "message", out string m) ? m : "ok";
+            return new SessionResult { success = success, sessionId = newSessionId, message = message };
         }
 
-        private async Task ForceLogoutQuiet()
+        private async Task<bool> SecureLogoutViaCloudScript()
         {
-            try
-            {
-                PlayFabClientAPI.ForgetAllCredentials();
-                await Task.Delay(100); // Small delay to ensure cleanup
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[PlayFabAuth] Force logout quiet error: {ex.Message}");
-            }
+            var (ok, _, __) = await ExecuteCSAsync(CS.SecureLogout, new Dictionary<string, object> { ["playerId"] = userId });
+            return ok;
         }
 
         #endregion
 
-        #region Session Management
+        #region Maintenance
 
         private void StartSessionMaintenance()
         {
-            if (!enableSessionProtection) return;
+            if (!enableSessionProtection || !isLoggedIn) return;
+            if (maintenanceStarted) return;
 
-            // Start heartbeat
+            maintenanceStarted = true;
+
             CancelInvoke(nameof(SendHeartbeat));
             InvokeRepeating(nameof(SendHeartbeat), sessionHeartbeatIntervalSeconds, sessionHeartbeatIntervalSeconds);
 
-            // Start security alert checking
             CancelInvoke(nameof(CheckSecurityAlerts));
             InvokeRepeating(nameof(CheckSecurityAlerts), 10f, securityAlertCheckIntervalSeconds);
         }
 
         private void StopSessionMaintenance()
         {
+            if (!maintenanceStarted) return;
+            maintenanceStarted = false;
+
             CancelInvoke(nameof(SendHeartbeat));
             CancelInvoke(nameof(CheckSecurityAlerts));
         }
 
         private void SendHeartbeat()
         {
-            // ✅ FIX 2: ENHANCED VALIDATION
-            if (!isLoggedIn || !enableSessionProtection)
-            {
-                Debug.Log("[PlayFabAuth] Heartbeat skipped - not logged in or protection disabled");
-                return;
-            }
+            if (!isLoggedIn || !enableSessionProtection) return;
+            if (string.IsNullOrEmpty(currentSessionId) || string.IsNullOrEmpty(userId)) return;
 
-            if (string.IsNullOrEmpty(currentSessionId) || string.IsNullOrEmpty(userId))
-            {
-                Debug.LogWarning("[PlayFabAuth] Heartbeat skipped - invalid session state");
-                return;
-            }
+            var sinceLogin = (DateTime.UtcNow - loginStartTime).TotalSeconds;
+            if (sinceLogin < 10) return;
 
-            // ✅ THÊM COOLDOWN PERIOD - Chờ ít nhất 10 giây sau khi login
-            var timeSinceLogin = DateTime.UtcNow - loginStartTime;
-            if (timeSinceLogin.TotalSeconds < 10)
-            {
-                Debug.Log(
-                    $"[PlayFabAuth] Heartbeat skipped - too soon after login ({timeSinceLogin.TotalSeconds:F1}s)");
-                return;
-            }
+            var sinceBeat = (DateTime.UtcNow - lastHeartbeat).TotalSeconds;
+            if (sinceBeat < MIN_HEARTBEAT_GAP_SECONDS) return;
 
-            // ✅ RATE LIMITING - Không gửi heartbeat quá thường xuyên
-            var timeSinceLastHeartbeat = DateTime.UtcNow - lastHeartbeat;
-            if (timeSinceLastHeartbeat.TotalSeconds < 30) // Tối thiểu 30s giữa các heartbeat
-            {
-                Debug.Log(
-                    $"[PlayFabAuth] Heartbeat skipped - too frequent ({timeSinceLastHeartbeat.TotalSeconds:F1}s)");
-                return;
-            }
-
-            // ✅ DEBUG LOG
-            Debug.Log($"[PlayFabAuth] Sending heartbeat - SessionId: {currentSessionId}, UserId: {userId}, " +
-                      $"TimeSinceLogin: {timeSinceLogin.TotalSeconds:F1}s");
-
-            var request = new ExecuteCloudScriptRequest
-            {
-                FunctionName = "UpdateHeartbeat",
-                FunctionParameter = new Dictionary<string, object>
-                {
-                    ["playerId"] = userId, // ✅ EXPLICITLY PASS PLAYER ID
-                    ["sessionId"] = currentSessionId
-                },
-                GeneratePlayStreamEvent = false
-            };
-
-            PlayFabClientAPI.ExecuteCloudScript(request,
-                result =>
-                {
-                    try
-                    {
-                        if (result.FunctionResult != null)
-                        {
-                            var resultDict = result.FunctionResult as Dictionary<string, object>;
-                            if (resultDict != null && (bool)resultDict["success"])
-                            {
-                                lastHeartbeat = DateTime.UtcNow;
-                                Debug.Log("[PlayFabAuth] Heartbeat sent successfully");
-                            }
-                            else
-                            {
-                                // ✅ ENHANCED ERROR LOGGING
-                                var errorCode = resultDict?.ContainsKey("errorCode") == true
-                                    ? resultDict["errorCode"].ToString()
-                                    : "UNKNOWN";
-                                var expectedSessionId = resultDict?.ContainsKey("expectedSessionId") == true
-                                    ? resultDict["expectedSessionId"]?.ToString()
-                                    : "null";
-                                var receivedSessionId = resultDict?.ContainsKey("receivedSessionId") == true
-                                    ? resultDict["receivedSessionId"]?.ToString()
-                                    : "null";
-
-                                Debug.LogWarning($"[PlayFabAuth] Heartbeat failed - Error: {errorCode}, " +
-                                                 $"Expected: {expectedSessionId}, Received: {receivedSessionId}");
-
-                                // ✅ THÊM RETRY LOGIC CHO SESSION MISMATCH
-                                if (errorCode == "INVALID_SESSION")
-                                {
-                                    HandleInvalidSessionWithRetry();
-                                }
-                                else
-                                {
-                                    HandleInvalidSession();
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Debug.LogWarning("[PlayFabAuth] Heartbeat failed - no result returned");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[PlayFabAuth] Heartbeat parse error: {ex.Message}");
-                    }
-                },
-                error =>
-                {
-                    Debug.LogWarning($"[PlayFabAuth] Heartbeat request failed: {error.ErrorMessage}");
-                    CheckSessionExpiration();
-                }
-            );
+            _ = SendHeartbeatAsync();
         }
 
-      
-        private async void HandleInvalidSessionWithRetry()
+        private async Task SendHeartbeatAsync()
+        {
+            var (ok, payload, err) = await ExecuteCSAsync(CS.UpdateHeartbeat, new Dictionary<string, object>
+            {
+                ["playerId"] = userId,
+                ["sessionId"] = currentSessionId
+            });
+
+            if (!ok || payload == null)
+            {
+                Debug.LogWarning($"[PlayFabAuth] Heartbeat failed: {err ?? "no payload"}");
+                CheckSessionExpiration();
+                return;
+            }
+
+            if (TryGet(payload, "success", out bool succ) && succ)
+            {
+                lastHeartbeat = DateTime.UtcNow;
+                return;
+            }
+
+            var errorCode = TryGet(payload, "errorCode", out string ec) ? ec : "UNKNOWN";
+            if (errorCode == "INVALID_SESSION")
+            {
+                _ = HandleInvalidSessionWithRetryAsync();
+            }
+            else
+            {
+                HandleInvalidSession();
+            }
+        }
+
+        private async Task HandleInvalidSessionWithRetryAsync()
         {
             sessionRetryCount++;
-
             if (sessionRetryCount <= MAX_SESSION_RETRY)
             {
-                Debug.LogWarning(
-                    $"[PlayFabAuth] Session invalid - attempting recovery (attempt {sessionRetryCount}/{MAX_SESSION_RETRY})");
-
-                // Thử tạo lại session
-                var sessionResult = await EstablishNewSession(userId);
-                if (sessionResult.success)
+                var re = await EstablishNewSession(userId);
+                if (re.success)
                 {
-                    currentSessionId = sessionResult.sessionId;
+                    currentSessionId = re.sessionId;
                     lastHeartbeat = DateTime.UtcNow;
-                    sessionRetryCount = 0; // Reset counter
-                    Debug.Log("[PlayFabAuth] Session recovered successfully");
+                    sessionRetryCount = 0;
                     return;
                 }
             }
 
-            // Nếu retry thất bại hoặc quá số lần thử
-            Debug.LogError($"[PlayFabAuth] Session recovery failed after {sessionRetryCount} attempts");
-            sessionRetryCount = 0; // Reset counter
+            sessionRetryCount = 0;
             HandleInvalidSession();
         }
 
@@ -725,130 +484,65 @@ namespace _GAME.Scripts.Authenticator
         private void CheckSessionExpiration()
         {
             if (!isLoggedIn) return;
-
-            var timeSinceLastHeartbeat = DateTime.UtcNow - lastHeartbeat;
-            if (timeSinceLastHeartbeat.TotalSeconds > sessionTimeoutSeconds)
+            var gap = (DateTime.UtcNow - lastHeartbeat).TotalSeconds;
+            if (gap > sessionTimeoutSeconds)
             {
                 Debug.LogWarning("[PlayFabAuth] Session expired due to heartbeat timeout");
                 ForceLogout("Session đã hết hạn");
             }
         }
 
-        // Listener cho security alerts - sử dụng Cloud Script
         private void CheckSecurityAlerts()
         {
             if (!isLoggedIn) return;
-
-            var request = new ExecuteCloudScriptRequest
-            {
-                FunctionName = "GetPendingSecurityAlerts",
-                FunctionParameter = new Dictionary<string, object>
-                {
-                    ["playerId"] = userId // ✅ EXPLICITLY PASS PLAYER ID
-                },
-                GeneratePlayStreamEvent = false
-            };
-
-            PlayFabClientAPI.ExecuteCloudScript(request,
-                result =>
-                {
-                    try
-                    {
-                        if (result.FunctionResult != null)
-                        {
-                            var resultDict = result.FunctionResult as Dictionary<string, object>;
-                            if (resultDict != null && (bool)resultDict["success"])
-                            {
-                                var alertsList = resultDict["alerts"] as List<object>;
-                                if (alertsList != null && alertsList.Count > 0)
-                                {
-                                    foreach (var alertObj in alertsList)
-                                    {
-                                        var alertDict = alertObj as Dictionary<string, object>;
-                                        if (alertDict != null)
-                                        {
-                                            var alertInfo = CreateSecurityAlertFromDict(alertDict);
-                                            if (alertInfo != null)
-                                            {
-                                                // Trigger security alert event
-                                                OnSecurityAlert?.Invoke(alertInfo);
-
-                                                // Mark alert as read
-                                                MarkSecurityAlertAsRead();
-                                                break; // Chỉ process alert đầu tiên
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"[PlayFabAuth] Check security alerts error: {ex.Message}");
-                    }
-                },
-                error => Debug.LogWarning($"[PlayFabAuth] Check security alerts request failed: {error.ErrorMessage}")
-            );
+            _ = CheckSecurityAlertsAsync();
         }
 
-        private SecurityAlertInfo CreateSecurityAlertFromDict(Dictionary<string, object> alertDict)
+        private async Task CheckSecurityAlertsAsync()
         {
-            try
+            var (ok, payload, _) = await ExecuteCSAsync(CS.GetPendingSecurityAlerts, new Dictionary<string, object>
             {
-                var alertInfoDict = alertDict["alertInfo"] as Dictionary<string, object>;
-                if (alertInfoDict != null)
-                {
-                    return new SecurityAlertInfo
-                    {
-                        AttemptDeviceInfo = alertInfoDict["AttemptDeviceInfo"]?.ToString() ?? "Unknown",
-                        AttemptLocation = alertInfoDict["AttemptLocation"]?.ToString() ?? "Unknown",
-                        AttemptTime = DateTime.TryParse(alertInfoDict["AttemptTime"]?.ToString(), out var time)
-                            ? time
-                            : DateTime.Now,
-                        AttemptIP = alertInfoDict["AttemptIP"]?.ToString() ?? "Unknown"
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[PlayFabAuth] Create security alert error: {ex.Message}");
-            }
+                ["playerId"] = userId
+            });
 
-            return null;
+            if (!ok || payload == null) return;
+            if (!TryGet(payload, "success", out bool succ) || !succ) return;
+            if (!TryGet(payload, "alerts", out JArray alerts) || alerts == null || alerts.Count == 0) return;
+
+            var first = alerts.First as JObject;
+            if (first == null) return;
+
+            var alertInfoObj = first["alertInfo"] as JObject;
+            if (alertInfoObj == null) return;
+
+            var info = new SecurityAlertInfo
+            {
+                AttemptDeviceInfo = alertInfoObj.Value<string>("AttemptDeviceInfo") ?? "Unknown",
+                AttemptLocation   = alertInfoObj.Value<string>("AttemptLocation")   ?? "Unknown",
+                AttemptIP         = alertInfoObj.Value<string>("AttemptIP")         ?? "Unknown",
+                AttemptTime       = DateTime.TryParse(alertInfoObj.Value<string>("AttemptTime"), out var t) ? t : DateTime.UtcNow
+            };
+
+            OnSecurityAlert?.Invoke(info);
+            MarkSecurityAlertAsRead();
         }
 
         private void MarkSecurityAlertAsRead()
         {
-            var request = new ExecuteCloudScriptRequest
-            {
-                FunctionName = "MarkSecurityAlertRead",
-                FunctionParameter = new Dictionary<string, object>
-                {
-                    ["playerId"] = userId // ✅ EXPLICITLY PASS PLAYER ID
-                },
-                GeneratePlayStreamEvent = false
-            };
-
-            PlayFabClientAPI.ExecuteCloudScript(request,
-                result => Debug.Log("[PlayFabAuth] Security alert marked as read"),
-                error => Debug.LogWarning($"[PlayFabAuth] Mark alert read failed: {error.ErrorMessage}")
-            );
+            _ = ExecuteCSAsync(CS.MarkSecurityAlertRead, new Dictionary<string, object> { ["playerId"] = userId });
         }
 
         #endregion
 
-        #region Register
+        #region Register / Forgot / Logout
 
-        public async Task<(bool success, string message)> RegisterAsync(string username, string email, string password,
-            string confirmPassword)
+        public async Task<(bool success, string message)> RegisterAsync(string username, string email, string password, string confirmPassword)
         {
-            if (!ValidateRegisterInput(username, email, password, confirmPassword, out var validationError))
-                return (false, validationError);
+            if (!ValidateRegisterInput(username, email, password, confirmPassword, out var error))
+                return (false, error);
 
             var tcs = new TaskCompletionSource<(bool, string)>();
-
-            var request = new RegisterPlayFabUserRequest
+            var req = new RegisterPlayFabUserRequest
             {
                 Email = email,
                 Password = password,
@@ -856,26 +550,13 @@ namespace _GAME.Scripts.Authenticator
                 RequireBothUsernameAndEmail = true
             };
 
-            PlayFabClientAPI.RegisterPlayFabUser(request,
-                result =>
-                {
-                    Debug.Log($"[PlayFabAuth] Registration successful for user: {username}");
-                    tcs.TrySetResult((true, "Đăng ký thành công!"));
-                },
-                error =>
-                {
-                    var errorMessage = GetRegisterErrorMessage(error);
-                    Debug.LogWarning($"[PlayFabAuth] Registration failed: {errorMessage}");
-                    tcs.TrySetResult((false, errorMessage));
-                }
+            PlayFabClientAPI.RegisterPlayFabUser(req,
+                _ => tcs.TrySetResult((true, "Đăng ký thành công!")),
+                e => tcs.TrySetResult((false, GetRegisterErrorMessage(e)))
             );
 
             return await tcs.Task;
         }
-
-        #endregion
-
-        #region Forgot Password
 
         public async Task<(bool success, string message)> ForgotPasswordAsync(string email)
         {
@@ -883,352 +564,162 @@ namespace _GAME.Scripts.Authenticator
                 return (false, "Email không hợp lệ.");
 
             var tcs = new TaskCompletionSource<(bool, string)>();
+            var req = new SendAccountRecoveryEmailRequest { Email = email, TitleId = PlayFabSettings.TitleId };
 
-            var request = new SendAccountRecoveryEmailRequest
-            {
-                Email = email,
-                TitleId = PlayFabSettings.TitleId
-            };
-
-            PlayFabClientAPI.SendAccountRecoveryEmail(request,
-                result =>
-                {
-                    Debug.Log($"[PlayFabAuth] Password recovery email sent to: {email}");
-                    tcs.TrySetResult((true, "Vui lòng kiểm tra email để khôi phục tài khoản."));
-                },
-                error =>
-                {
-                    Debug.LogWarning($"[PlayFabAuth] Password recovery failed: {error.ErrorMessage}");
-                    tcs.TrySetResult((false, error.ErrorMessage));
-                }
+            PlayFabClientAPI.SendAccountRecoveryEmail(req,
+                _ => tcs.TrySetResult((true, "Vui lòng kiểm tra email để khôi phục tài khoản.")),
+                e => tcs.TrySetResult((false, e.ErrorMessage))
             );
 
             return await tcs.Task;
         }
 
-        #endregion
-
-        #region Logout
-
-        public void Logout(Action onSuccess = null)
-        {
-            _ = LogoutAsync(onSuccess);
-        }
+        public void Logout(Action onSuccess = null) => _ = LogoutAsync(onSuccess);
 
         public async Task LogoutAsync(Action onSuccess = null)
         {
             try
             {
                 if (enableSessionProtection && isLoggedIn)
-                {
                     await SecureLogoutViaCloudScript();
-                }
 
-                // Clear local state
                 PlayFabClientAPI.ForgetAllCredentials();
                 isLoggedIn = false;
                 userId = string.Empty;
                 currentSessionId = string.Empty;
 
                 StopSessionMaintenance();
-
-                Debug.Log("[PlayFabAuth] Logout successful");
                 onSuccess?.Invoke();
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[PlayFabAuth] Logout error: {ex.Message}");
-                onSuccess?.Invoke(); // Vẫn callback để UI biết
+                onSuccess?.Invoke();
+            }
+        }
+
+        private async Task ForceLogoutQuiet()
+        {
+            try
+            {
+                StopSessionMaintenance();
+                PlayFabClientAPI.ForgetAllCredentials();
+                await Task.Delay(80);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PlayFabAuth] Force logout quiet error: {ex.Message}");
+            }
+            finally
+            {
+                isLoggedIn = false;
+                userId = string.Empty;
+                currentSessionId = string.Empty;
             }
         }
 
         private void ForceLogout(string reason)
         {
             Debug.LogWarning($"[PlayFabAuth] Force logout: {reason}");
-
+            StopSessionMaintenance();
             PlayFabClientAPI.ForgetAllCredentials();
             isLoggedIn = false;
             userId = string.Empty;
             currentSessionId = string.Empty;
-
-            StopSessionMaintenance();
             OnSessionExpired?.Invoke();
         }
 
-        private async Task SecureLogoutViaCloudScript()
-        {
-            var tcs = new TaskCompletionSource<bool>();
-
-            var request = new ExecuteCloudScriptRequest
-            {
-                FunctionName = "SecureLogout",
-                FunctionParameter = new Dictionary<string, object>
-                {
-                    ["playerId"] = userId // ✅ EXPLICITLY PASS PLAYER ID
-                },
-                GeneratePlayStreamEvent = false
-            };
-
-            PlayFabClientAPI.ExecuteCloudScript(request,
-                result => tcs.TrySetResult(true),
-                error =>
-                {
-                    Debug.LogWarning($"[PlayFabAuth] Cloud logout error: {error.ErrorMessage}");
-                    tcs.TrySetResult(false);
-                }
-            );
-
-            await tcs.Task;
-        }
-
         #endregion
 
-        #region Helpers
+        #region Helpers / Validation / Errors
 
-        private string GenerateSessionId()
-        {
-            return
-                $"{SystemInfo.deviceUniqueIdentifier}_{DateTime.UtcNow.Ticks}_{UnityEngine.Random.Range(1000, 9999)}";
-        }
+        private string GenerateSessionId() =>
+            $"{SystemInfo.deviceUniqueIdentifier}_{DateTime.UtcNow.Ticks}_{UnityEngine.Random.Range(1000, 9999)}";
 
-        private string GetDeviceInfo()
-        {
-            return $"{SystemInfo.deviceModel} ({SystemInfo.operatingSystem})";
-        }
+        private string GetDeviceInfo() => $"{SystemInfo.deviceModel} ({SystemInfo.operatingSystem})";
+        private string GetClientIP() => "Unknown IP";           // nếu cần, bạn có thể tích hợp service IP
+        private string GetClientLocation() => "Unknown Location";
 
-        private string GetClientIP()
-        {
-            // Implement IP detection logic or return placeholder
-            return "Unknown IP";
-        }
-
-        private string GetClientLocation()
-        {
-            // Implement location detection logic or return placeholder
-            return "Unknown Location";
-        }
-
-        // Phương thức public để check user online status
-        public async Task<bool> IsAccountOnlineElsewhereAsync(string userId)
+        public async Task<bool> IsAccountOnlineElsewhereAsync(string playerId)
         {
             if (!enableSessionProtection) return false;
-
-            var tcs = new TaskCompletionSource<bool>();
-
-            var request = new ExecuteCloudScriptRequest
+            var (ok, payload, _) = await ExecuteCSAsync(CS.CheckUserOnlineStatus, new Dictionary<string, object>
             {
-                FunctionName = "CheckUserOnlineStatus",
-                FunctionParameter = new Dictionary<string, object>
-                {
-                    ["playerId"] = userId, // ✅ EXPLICITLY PASS PLAYER ID
-                    ["userId"] = userId
-                },
-                GeneratePlayStreamEvent = false
-            };
+                ["playerId"] = playerId,
+                ["userId"]   = playerId
+            });
 
-            PlayFabClientAPI.ExecuteCloudScript(request,
-                result =>
-                {
-                    try
-                    {
-                        if (result.FunctionResult != null)
-                        {
-                            var resultDict = result.FunctionResult as Dictionary<string, object>;
-                            if (resultDict != null && (bool)resultDict["success"])
-                            {
-                                var isOnline = (bool)resultDict["isOnline"];
-                                tcs.TrySetResult(isOnline);
-                            }
-                            else
-                            {
-                                tcs.TrySetResult(false);
-                            }
-                        }
-                        else
-                        {
-                            tcs.TrySetResult(false);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"[PlayFabAuth] Check online status parse error: {ex.Message}");
-                        tcs.TrySetResult(false);
-                    }
-                },
-                error =>
-                {
-                    Debug.LogWarning($"[PlayFabAuth] Check online status error: {error.ErrorMessage}");
-                    tcs.TrySetResult(false);
-                }
-            );
-
-            return await tcs.Task;
+            if (!ok || payload == null) return false;
+            return TryGet(payload, "success", out bool succ) && succ &&
+                   TryGet(payload, "isOnline", out bool online) && online;
         }
 
-        #endregion
-
-        #region Validation
-
-        private bool ValidateLoginInput(string userOrEmail, string password, out string errorMessage)
+        private bool ValidateLoginInput(string userOrEmail, string password, out string error)
         {
             if (string.IsNullOrWhiteSpace(userOrEmail) || string.IsNullOrWhiteSpace(password))
             {
-                errorMessage = "Vui lòng nhập đầy đủ thông tin đăng nhập.";
+                error = "Vui lòng nhập đầy đủ thông tin đăng nhập.";
                 return false;
             }
-
-            errorMessage = null;
+            error = null;
             return true;
         }
 
-        private bool ValidateRegisterInput(string username, string email, string password, string confirmPassword,
-            out string errorMessage)
+        private bool ValidateRegisterInput(string username, string email, string password, string confirm, out string error)
         {
-            if (string.IsNullOrWhiteSpace(username) ||
-                string.IsNullOrWhiteSpace(email) ||
-                string.IsNullOrWhiteSpace(password) ||
-                string.IsNullOrWhiteSpace(confirmPassword))
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email) ||
+                string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(confirm))
             {
-                errorMessage = "Vui lòng nhập đầy đủ thông tin đăng ký.";
+                error = "Vui lòng nhập đầy đủ thông tin đăng ký.";
                 return false;
             }
-
             if (!EmailRegex.IsMatch(email))
             {
-                errorMessage = "Email không hợp lệ.";
+                error = "Email không hợp lệ.";
                 return false;
             }
-
-            if (password != confirmPassword)
+            if (password != confirm)
             {
-                errorMessage = "Mật khẩu và xác nhận mật khẩu không khớp.";
+                error = "Mật khẩu và xác nhận mật khẩu không khớp.";
                 return false;
             }
-
             if (password.Length < 6)
             {
-                errorMessage = "Mật khẩu phải có ít nhất 6 ký tự.";
+                error = "Mật khẩu phải có ít nhất 6 ký tự.";
                 return false;
             }
-
-            errorMessage = null;
+            error = null;
             return true;
         }
 
-        #endregion
-
-        #region Error Handling
-
-        private string GetLoginErrorMessage(PlayFabError error)
+        private string GetLoginErrorMessage(PlayFabError error) => error.Error switch
         {
-            return error.Error switch
-            {
-                PlayFabErrorCode.InvalidUsernameOrPassword => "Tên người dùng hoặc mật khẩu không đúng.",
-                PlayFabErrorCode.AccountNotFound => "Tài khoản không tồn tại.",
-                PlayFabErrorCode.AccountBanned => "Tài khoản đã bị khóa.",
-                PlayFabErrorCode.InvalidParams => "Thông tin đăng nhập không hợp lệ.",
-                PlayFabErrorCode.ServiceUnavailable => "Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.",
-                PlayFabErrorCode.ConnectionError => "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.",
-                _ => $"Lỗi đăng nhập: {error.ErrorMessage}"
-            };
-        }
+            PlayFabErrorCode.InvalidUsernameOrPassword => "Tên người dùng hoặc mật khẩu không đúng.",
+            PlayFabErrorCode.AccountNotFound           => "Tài khoản không tồn tại.",
+            PlayFabErrorCode.AccountBanned             => "Tài khoản đã bị khóa.",
+            PlayFabErrorCode.InvalidParams             => "Thông tin đăng nhập không hợp lệ.",
+            PlayFabErrorCode.ServiceUnavailable        => "Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.",
+            PlayFabErrorCode.ConnectionError           => "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.",
+            _                                          => $"Lỗi đăng nhập: {error.ErrorMessage}"
+        };
 
-        private string GetRegisterErrorMessage(PlayFabError error)
+        private string GetRegisterErrorMessage(PlayFabError error) => error.Error switch
         {
-            return error.Error switch
-            {
-                PlayFabErrorCode.UsernameNotAvailable => "Tên người dùng đã được sử dụng.",
-                PlayFabErrorCode.EmailAddressNotAvailable => "Email đã được sử dụng.",
-                PlayFabErrorCode.InvalidParams => "Thông tin đăng ký không hợp lệ.",
-                PlayFabErrorCode.ProfaneDisplayName => "Tên người dùng chứa từ ngữ không phù hợp.",
-                PlayFabErrorCode.ServiceUnavailable => "Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.",
-                PlayFabErrorCode.ConnectionError => "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.",
-                _ => $"Lỗi đăng ký: {error.ErrorMessage}"
-            };
-        }
+            PlayFabErrorCode.UsernameNotAvailable      => "Tên người dùng đã được sử dụng.",
+            PlayFabErrorCode.EmailAddressNotAvailable  => "Email đã được sử dụng.",
+            PlayFabErrorCode.InvalidParams             => "Thông tin đăng ký không hợp lệ.",
+            PlayFabErrorCode.ProfaneDisplayName        => "Tên người dùng chứa từ ngữ không phù hợp.",
+            PlayFabErrorCode.ServiceUnavailable        => "Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.",
+            PlayFabErrorCode.ConnectionError           => "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.",
+            _                                          => $"Lỗi đăng ký: {error.ErrorMessage}"
+        };
 
         #endregion
 
-        #region Helper Classes
-
-        [System.Serializable]
-        public class BasicLoginResult
-        {
-            public bool success;
-            public string message;
-            public string playFabId;
-            public string sessionToken;
-        }
-
-        [System.Serializable]
-        public class OnlineCheckResult
-        {
-            public bool success;
-            public bool hasOtherOnlineSession;
-            public string message;
-        }
-
-        [System.Serializable]
-        public class SessionResult
-        {
-            public bool success;
-            public string sessionId;
-            public string message;
-        }
-
-        #endregion
-
-        #region Debug & Testing
-
-        [ContextMenu("Test Session Check")]
-        private async void TestSessionCheck()
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(userId))
-                {
-                    Debug.Log("[PlayFabAuth] Not logged in - cannot test session check");
-                    return;
-                }
-
-                var result = await IsAccountOnlineElsewhereAsync(userId);
-                Debug.Log($"[PlayFabAuth] Account online elsewhere: {result}");
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[PlayFabAuth] Test session check error: {e.Message}");
-            }
-        }
-
-        [ContextMenu("Simulate Security Alert")]
-        private void SimulateSecurityAlert()
-        {
-            var alertInfo = new SecurityAlertInfo
-            {
-                AttemptDeviceInfo = "iPhone 12 (iOS 15.0)",
-                AttemptTime = DateTime.UtcNow,
-                AttemptLocation = "Vietnam",
-                AttemptIP = "192.168.1.1"
-            };
-            OnSecurityAlert?.Invoke(alertInfo);
-        }
-
-        [ContextMenu("Force Session Cleanup")]
-        private async void ForceSessionCleanup()
-        {
-            if (isLoggedIn)
-            {
-                await SecureLogoutViaCloudScript();
-                Debug.Log("[PlayFabAuth] Session cleanup completed");
-            }
-        }
-
-        [ContextMenu("Check Pending Alerts")]
-        private void TestCheckPendingAlerts()
-        {
-            CheckSecurityAlerts();
-        }
-
+        #region DTOs
+        [Serializable] public class BasicLoginResult { public bool success; public string message; public string playFabId; public string sessionToken; }
+        [Serializable] public class OnlineCheckResult { public bool success; public bool hasOtherOnlineSession; public string message; }
+        [Serializable] public class SessionResult     { public bool success; public string sessionId; public string message; }
         #endregion
     }
 }

@@ -1,26 +1,32 @@
 ﻿using System;
 using System.Linq;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace _GAME.Scripts.DesignPattern.Interaction
 {
-    #region Core Base Class
-
+    // =========================
+    // Core Base Class
+    // =========================
     public abstract class InteractableBase : NetworkBehaviour, IInteractable
     {
-        [Header("Base Interactable Settings")] [SerializeField]
-        protected string entityId;
-
+        [Header("Base Interactable Settings")]
+        [SerializeField] protected string entityId;
         [SerializeField] protected bool isActive = true;
         [SerializeField] private Collider interactionCollider;
-        // Chỉ server được ghi
+
+        // NetVars: Server write only
         private NetworkVariable<InteractionState> networkState =
-            new NetworkVariable<InteractionState>(InteractionState.Enable, NetworkVariableReadPermission.Everyone,
+            new NetworkVariable<InteractionState>(
+                InteractionState.Enable,
+                NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Server);
 
         private NetworkVariable<bool> networkIsActive =
-            new NetworkVariable<bool>(true, NetworkVariableReadPermission.Everyone,
+            new NetworkVariable<bool>(
+                true,
+                NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Server);
 
         public string EntityId => string.IsNullOrEmpty(entityId) ? $"{gameObject.name}_{NetworkObjectId}" : entityId;
@@ -34,25 +40,16 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             {
                 if (interactionCollider != null) return interactionCollider;
                 interactionCollider = GetComponent<Collider>();
-                if(interactionCollider == null)
+                if (interactionCollider == null)
                     Debug.LogWarning($"[InteractableBase] InteractionCollider not set and not found on {gameObject.name}");
                 return interactionCollider;
             }
         }
+
         public InteractionState CurrentState => networkState.Value;
 
-        #region Unity Lifecycle
-
-        protected virtual void Awake()
-        {
-        }
-
-        protected virtual void Start()
-        {
-        }
-
-        #endregion
-
+        protected virtual void Awake() { }
+        protected virtual void Start() { }
 
         public bool IsActive
         {
@@ -79,9 +76,9 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         public override void OnNetworkDespawn()
         {
-            base.OnNetworkDespawn();
             if (networkState != null) networkState.OnValueChanged -= OnStateNetworkChanged;
             if (networkIsActive != null) networkIsActive.OnValueChanged -= OnActiveNetworkChanged;
+            base.OnNetworkDespawn();
         }
 
         protected virtual void SetState(InteractionState newState)
@@ -91,17 +88,22 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         }
 
         [ServerRpc(RequireOwnership = false)]
-        private void SetStateServerRpc(InteractionState newState)
+        private void SetStateServerRpc(InteractionState newState, ServerRpcParams rpc = default)
         {
-            // TODO: kiểm tra quyền nếu cần
+            if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
             networkState.Value = newState;
         }
 
         [ServerRpc(RequireOwnership = false)]
-        private void SetActiveServerRpc(bool active)
+        private void SetActiveServerRpc(bool active, ServerRpcParams rpc = default)
         {
-            // TODO: kiểm tra quyền nếu cần
+            if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
             networkIsActive.Value = active;
+        }
+
+        protected virtual bool ValidateRpcSender(ulong senderId)
+        {
+            return senderId == OwnerClientId;
         }
 
         private void OnStateNetworkChanged(InteractionState prev, InteractionState next) => OnStateChanged(prev, next);
@@ -111,34 +113,33 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         public abstract bool Interact(IInteractable target);
         public abstract void OnInteracted(IInteractable initiator);
 
-        protected virtual void OnStateChanged(InteractionState previousState, InteractionState newState)
-        {
-        }
-
-        protected virtual void OnActiveChanged(bool previousValue, bool newValue)
-        {
-        }
+        protected virtual void OnStateChanged(InteractionState previousState, InteractionState newState) { }
+        protected virtual void OnActiveChanged(bool previousValue, bool newValue) { }
     }
 
-    /// <summary>
-    /// Base class for objects that CAN BE interacted with (Tables, Doors, Chests, NPCs)
-    /// These objects are PASSIVE - they only react when interacted with
-    /// </summary>
+    // =========================
+    // Passive Interactable (trigger-based)
+    // =========================
     public abstract class APassiveInteractable : InteractableBase
     {
-        [Header("Trigger Settings")] [SerializeField]
-        protected LayerMask interactionLayer = -1;
-
+        [Header("Trigger Settings")]
+        [SerializeField] protected LayerMask interactionLayer = ~0;
         [SerializeField] protected string[] interactionTags = { "Player" };
         [SerializeField] protected float interactionCooldown = 0.5f;
         [SerializeField] protected GameObject uiIndicator;
 
+        [Tooltip("Nếu bật, server sẽ gửi RPC bật/tắt prompt. Nếu tắt, prompt hiển thị local-only ở client owner.")]
+        [SerializeField] private bool useServerDrivenPrompt = false;
+
         // Cooldown theo server-time
         private NetworkVariable<double> networkLastInteractionServerTime =
-            new NetworkVariable<double>(0d, NetworkVariableReadPermission.Everyone,
+            new NetworkVariable<double>(
+                0d,
+                NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Server);
 
-        private readonly NetworkList<ulong> nearbyInteractors = new NetworkList<ulong>();
+        // HashSet với proper cleanup
+        private readonly HashSet<ulong> nearbyInteractors = new HashSet<ulong>();
 
         protected override void Start()
         {
@@ -146,30 +147,40 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             if (uiIndicator != null) uiIndicator.SetActive(false);
         }
 
-        // ======= Detection (server-authority) =======
+        public override void OnNetworkDespawn()
+        {
+            // Proper cleanup
+            nearbyInteractors.Clear();
+            base.OnNetworkDespawn();
+        }
+
+        /// <summary>
+        /// Hiển thị prompt LOCAL-ONLY (không network). Gọi ở client owner.
+        /// </summary>
+        public void ShowPromptLocal(bool visible)
+        {
+            if (uiIndicator != null)
+            {
+                uiIndicator.SetActive(visible);
+                if (visible) OnInteractionUIShown();
+                else OnInteractionUIHidden();
+            }
+        }
+
         protected virtual void OnTriggerEnter(Collider other)
         {
             if (!IsServer) return;
             if (!CanInteract || !IsValidInteractor(other.gameObject)) return;
-            var nob = other.gameObject.GetComponent<NetworkObject>();
-            if (nob == null)
+
+            if (!TryGetValidNetworkObject(other, out var nob))
             {
-                // Try get from parent if is child collider
-                nob = other.GetComponentInParent<NetworkObject>();
-                if (nob == null)
-                {
-                    Debug.LogWarning(
-                        $"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or its parents");
-                    return;
-                }
+                Debug.LogWarning($"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or parents.");
+                return;
             }
 
-            var clientId = nob.OwnerClientId; // chỉ player-controlled mới có ý nghĩa
-            if (!nearbyInteractors.Contains(clientId))
+            var clientId = nob.OwnerClientId;
+            if (nearbyInteractors.Add(clientId) && useServerDrivenPrompt)
             {
-                Debug.Log($"[PassiveInteractable] Client {clientId} entered trigger of {EntityId}");
-                nearbyInteractors.Add(clientId);
-                // chỉ gửi cho chính client đó 
                 var p = new ClientRpcParams
                 {
                     Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } }
@@ -182,23 +193,11 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (!IsServer) return;
 
-            var nob = other.gameObject.GetComponent<NetworkObject>();
-            if (nob == null)
-            {
-                // Try get from parent if is child collider
-                nob = other.GetComponentInParent<NetworkObject>();
-                if (nob == null)
-                {
-                    Debug.LogWarning(
-                        $"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or its parents");
-                    return;
-                }
-            }
+            if (!TryGetValidNetworkObject(other, out var nob)) return;
 
             var clientId = nob.OwnerClientId;
-            if (nearbyInteractors.Contains(clientId))
+            if (nearbyInteractors.Remove(clientId) && useServerDrivenPrompt)
             {
-                nearbyInteractors.Remove(clientId);
                 var p = new ClientRpcParams
                 {
                     Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } }
@@ -207,28 +206,40 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             }
         }
 
-        // Nếu bạn buộc phải phát hiện trên client (host migration / special case),
-        // thay vì truyền clientId từ client, dùng ServerRpcParams lấy SenderClientId:
-        [ServerRpc(RequireOwnership = false)]
-        private void ClientReportEnterServerRpc(ServerRpcParams rpcParams = default)
+        /// <summary>
+        /// Improved NetworkObject detection with comprehensive fallback
+        /// </summary>
+        protected virtual bool TryGetValidNetworkObject(Collider collider, out NetworkObject networkObject)
         {
-            var clientId = rpcParams.Receive.SenderClientId;
-            if (!nearbyInteractors.Contains(clientId))
+            networkObject = null;
+
+            // Priority 1: Rigidbody root (correct physics root)
+            if (collider.attachedRigidbody != null)
             {
-                nearbyInteractors.Add(clientId);
-                var p = new ClientRpcParams { Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } } };
-                OnInteractorEnteredClientRpc(p);
+                networkObject = collider.attachedRigidbody.GetComponent<NetworkObject>();
+                if (networkObject != null) return true;
             }
+
+            // Priority 2: Direct component
+            networkObject = collider.GetComponent<NetworkObject>();
+            if (networkObject != null) return true;
+
+            // Priority 3: Parent hierarchy
+            networkObject = collider.GetComponentInParent<NetworkObject>();
+            if (networkObject != null) return true;
+
+            // Priority 4: Child hierarchy (less common but possible)
+            networkObject = collider.GetComponentInChildren<NetworkObject>();
+            
+            return networkObject != null;
         }
 
         [ClientRpc]
         private void OnInteractorEnteredClientRpc(ClientRpcParams p = default)
         {
-            Debug.Log($"[PassiveInteractable] Client entered trigger of {EntityId}");
             OnInteractorEntered();
-            
         }
-        
+
         protected virtual void OnInteractorEntered()
         {
             if (uiIndicator != null)
@@ -241,10 +252,9 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         [ClientRpc]
         private void OnInteractorExitedClientRpc(ClientRpcParams p = default)
         {
-            Debug.Log($"[PassiveInteractable] Client Exit trigger of {EntityId}");
             OnInteractorExited();
         }
-        
+
         protected virtual void OnInteractorExited()
         {
             if (uiIndicator != null)
@@ -254,20 +264,31 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             }
         }
 
-        // ======= Interaction Logic =======
-        public override bool Interact(IInteractable target) => false; // passive không chủ động
+        public override bool Interact(IInteractable target) => false; // Passive không chủ động
 
         public override void OnInteracted(IInteractable initiator)
         {
             if (!IsServer) return;
             if (!CanInteract || !CanPerformInteraction()) return;
 
+            // Thread-safe state management
+            if (CurrentState == InteractionState.Disabled) return;
+
             networkLastInteractionServerTime.Value = NetworkManager.Singleton.ServerTime.Time;
             SetState(InteractionState.Disabled);
 
-            PerformInteractionLogic(initiator); // override ở lớp con
-
-            SetState(InteractionState.Enable);
+            try
+            {
+                PerformInteractionLogic(initiator);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[PassiveInteractable] Error in PerformInteractionLogic: {ex.Message}");
+            }
+            finally
+            {
+                SetState(InteractionState.Enable);
+            }
         }
 
         private bool CanPerformInteraction()
@@ -278,6 +299,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         protected virtual bool IsValidInteractor(GameObject obj)
         {
+            if (obj == null) return false;
             if (((1 << obj.layer) & interactionLayer) == 0) return false;
             if (interactionTags != null && interactionTags.Length > 0)
                 return interactionTags.Any(obj.CompareTag);
@@ -286,39 +308,32 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         // Abstracts
         protected abstract void PerformInteractionLogic(IInteractable initiator);
-
-        protected virtual void OnInteractionUIShown()
-        {
-        }
-
-        protected virtual void OnInteractionUIHidden()
-        {
-        }
+        protected virtual void OnInteractionUIShown() { }
+        protected virtual void OnInteractionUIHidden() { }
 
         // Props
         public bool HasNearbyInteractors => nearbyInteractors.Count > 0;
         public int NearbyInteractorCount => nearbyInteractors.Count;
     }
 
-
-    /// <summary>
-    /// Base class for objects that CAN ACTIVELY interact (Player, AI, Robots)
-    /// These objects detect and interact with passive objects when input is received
-    /// </summary>
+    // =========================
+    // Active Interactable (actor/player)
+    // =========================
     public abstract class AActiveInteractable : InteractableBase
     {
-        [Header("Active Interaction Settings")] [SerializeField]
-        protected LayerMask detectLayerMask = -1;
-
+        [Header("Active Interaction Settings")]
+        [SerializeField] protected LayerMask detectLayerMask = ~0;
         [SerializeField] protected string[] detectTags = { "Interactable" };
         [SerializeField] protected float interactionRange = 3f;
+        [SerializeField] protected float interactionValidationRange = 5f; // Server validation range (slightly larger)
 
         private APassiveInteractable currentPassiveInteractable;
 
-        // ======= Input =======
+        // INPUT - Should be called from input system
         protected virtual void OnInteractInput()
         {
             if (!IsOwner) return;
+
             if (currentPassiveInteractable == null || !CanInteract)
             {
                 OnInteractionFailed("No valid interactable found");
@@ -332,67 +347,80 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 return;
             }
 
-            PerformInteractionServerRpc(targetNob); // gửi NetworkObjectReference
+            PerformInteractionServerRpc(targetNob);
         }
 
-        [ServerRpc]
+        [ServerRpc(RequireOwnership = false)]
         private void PerformInteractionServerRpc(NetworkObjectReference targetRef, ServerRpcParams rpcParams = default)
         {
-            if (!targetRef.TryGet(out var targetNob))
+            if (!ValidateRpcSender(rpcParams.Receive.SenderClientId)) return;
+
+            if (!targetRef.TryGet(out var targetNob)) 
             {
+                SendInteractionFailedClientRpc("Target not found", rpcParams.Receive.SenderClientId);
                 return;
             }
 
             if (!targetNob.TryGetComponent<IInteractable>(out var target))
             {
+                SendInteractionFailedClientRpc("Target not interactable", rpcParams.Receive.SenderClientId);
                 return;
             }
 
-            // Server-side re-validate
-            var senderId = rpcParams.Receive.SenderClientId;
-            // Optional: kiểm tra actor gửi RPC có thật sự là owner của "this" (nếu cần)
-            // if (OwnerClientId != senderId) return;
-
-            // Kiểm tra tầm
-            if (this is { } actor && target is InteractableBase tBase)
+            // Server-side range validation (with tolerance)
+            if (target is InteractableBase tBase)
             {
-                if (Vector3.Distance(actor.Position, tBase.Position) > interactionRange)
+                float distance = Vector3.Distance(this.Position, tBase.Position);
+                if (distance > interactionValidationRange)
                 {
+                    SendInteractionFailedClientRpc("Out of range", rpcParams.Receive.SenderClientId);
                     return;
                 }
             }
 
-            if (!Interact(target)) return;
-            // chỉ gửi feedback cho client owner
+            if (!Interact(target))
+            {
+                SendInteractionFailedClientRpc("Interaction failed", rpcParams.Receive.SenderClientId);
+                return;
+            }
+
             var p = new ClientRpcParams
             {
-                Send = new ClientRpcSendParams { TargetClientIds = new[] { senderId } }
+                Send = new ClientRpcSendParams { TargetClientIds = new[] { rpcParams.Receive.SenderClientId } }
             };
             OnInteractionSuccessClientRpc(targetRef, p);
         }
 
         [ClientRpc]
-        private void OnInteractionSuccessClientRpc(NetworkObjectReference targetRef, ClientRpcParams p = default)
+        private void SendInteractionFailedClientRpc(string reason, ulong targetClientId)
         {
-            if (!IsOwner) return; // đã target đúng, nhưng giữ guard
-            if (!targetRef.TryGet(out var targNob))
-            {
-                OnInteractionPerformed(null);
-                return;
-            }
-
-            var passive = targNob.GetComponent<APassiveInteractable>();
-            OnInteractionPerformed(passive);
+            if (NetworkManager.Singleton.LocalClientId == targetClientId)
+                OnInteractionFailed(reason);
         }
 
-        // ======= Detection =======
+        [ClientRpc]
+        private void OnInteractionSuccessClientRpc(NetworkObjectReference targetRef, ClientRpcParams p = default)
+        {
+            APassiveInteractable passive = null;
+            if (targetRef.TryGet(out var nob))
+                passive = nob.GetComponent<APassiveInteractable>();
+            OnInteractionPerformed(passive);
+
+            // Ẩn prompt local sau khi tương tác thành công
+            passive?.ShowPromptLocal(false);
+        }
+
+        // Detection (LOCAL-ONLY prompt ở owner)
         protected virtual void OnTriggerEnter(Collider other)
         {
             if (!IsOwner || !CanInteract) return;
 
-            if (other.TryGetComponent<APassiveInteractable>(out var passive) && IsValidInteractable(other.gameObject))
+            if (other.TryGetComponent<APassiveInteractable>(out var passive) && 
+                IsValidInteractable(other.gameObject) &&
+                passive.CanInteract)
             {
                 SetCurrentInteractable(passive);
+                passive.ShowPromptLocal(true);
             }
         }
 
@@ -403,21 +431,28 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             if (currentPassiveInteractable != null &&
                 other.GetComponent<APassiveInteractable>() == currentPassiveInteractable)
             {
+                currentPassiveInteractable.ShowPromptLocal(false);
                 ClearCurrentInteractable();
             }
         }
 
         protected virtual bool IsValidInteractable(GameObject obj)
         {
+            if (obj == null) return false;
             if (((1 << obj.layer) & detectLayerMask) == 0) return false;
-            if (detectTags != null && detectTags.Length > 0) return detectTags.Any(obj.CompareTag);
+            if (detectTags != null && detectTags.Length > 0) 
+                return detectTags.Any(obj.CompareTag);
             return true;
         }
 
         protected virtual void SetCurrentInteractable(APassiveInteractable passive)
         {
             if (currentPassiveInteractable == passive) return;
-            ClearCurrentInteractable();
+
+            // Đảm bảo prompt cũ tắt nếu bị sót
+            if (currentPassiveInteractable != null)
+                currentPassiveInteractable.ShowPromptLocal(false);
+
             currentPassiveInteractable = passive;
             OnNearInteractable(passive);
         }
@@ -430,79 +465,86 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             OnLeftInteractable(prev);
         }
 
-        // ======= Interaction impl =======
+        // Interaction implementation
         public override bool Interact(IInteractable target)
         {
-            Debug.Log($"[ActiveInteractable] Interact called on {EntityId} targeting {target?.EntityId}");
             if (!CanInteract || target == null) return false;
 
+            // Thread-safe state check
+            if (CurrentState == InteractionState.Disabled) return false;
+
             SetState(InteractionState.Disabled);
-            target.OnInteracted(this); // chạy trên server (Passive sẽ validate cooldown server-time)
-            SetState(InteractionState.Enable);
-            Debug.Log($"[ActiveInteractable] Interact called on {EntityId} targeting {target?.EntityId} succeeded");
-            return true;
+            
+            try
+            {
+                target.OnInteracted(this);
+                return true;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[ActiveInteractable] Interaction error: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                SetState(InteractionState.Enable);
+            }
         }
 
-        public override void OnInteracted(IInteractable initiator)
-        {
-            /* Active có thể bị người khác tương tác nếu muốn */
-        }
+        public override void OnInteracted(IInteractable initiator) { /* optional */ }
 
         // Abstracts
         protected abstract void OnNearInteractable(APassiveInteractable interactable);
         protected abstract void OnLeftInteractable(APassiveInteractable interactable);
 
-        protected virtual void OnInteractionPerformed(APassiveInteractable interactable)
-        {
-            interactable.OnInteracted(this);
-        }
-
-        protected virtual void OnInteractionFailed(string reason)
-        {
-            Debug.LogWarning($"[ActiveInteractable] Interaction failed: {reason}");
-        }
+        protected virtual void OnInteractionPerformed(APassiveInteractable interactable) { }
+        protected virtual void OnInteractionFailed(string reason) { }
 
         // Props
         public bool HasInteractable => currentPassiveInteractable != null;
         public APassiveInteractable CurrentInteractable => currentPassiveInteractable;
     }
 
-    #endregion
-
-    #region Combat System Base Classes
-
-    /// <summary>
-    /// Base class for attackable entities with proper network synchronization
-    /// </summary>
+    // =========================
+    // Combat System: Attackable
+    // =========================
     public abstract class AAttackable : InteractableBase, IAttackable
     {
-        [Header("Attack Settings")] [SerializeField]
-        private float baseDamage = 10f;
-
+        [Header("Attack Settings")]
+        [SerializeField] private float baseDamage = 10f;
         [SerializeField] protected float attackRange = 2f;
         [SerializeField] protected float attackCooldown = 1f;
         [SerializeField] protected DamageType primaryDamageType = DamageType.Physical;
 
-        [Header("Collision Attack Settings")] [SerializeField]
-        protected bool enableCollisionAttack = false;
-
-        [SerializeField] protected LayerMask attackableLayers = -1;
+        [Header("Collision Attack Settings")]
+        [SerializeField] protected bool enableCollisionAttack = false;
+        [SerializeField] protected LayerMask attackableLayers = ~0;
         [SerializeField] protected string[] attackableTags = { "Enemy", "Destructible" };
         [SerializeField] public bool destroyAfterCollisionAttack = true;
 
         protected bool hasCollisionAttacked;
 
-        // Network synchronized damage
-        protected NetworkVariable<float> networkBaseDamage;
+        // NetVars: server-only write
+        protected NetworkVariable<float> networkBaseDamage =
+            new NetworkVariable<float>(
+                0f,
+                NetworkVariableReadPermission.Everyone,
+                NetworkVariableWritePermission.Server);
 
-        // Cache damage before NetworkVariable is ready
+        protected NetworkVariable<double> networkNextAttackServerTime =
+            new NetworkVariable<double>(
+                0d,
+                NetworkVariableReadPermission.Everyone,
+                NetworkVariableWritePermission.Server);
+
+        // Cache trước spawn
         private float? pendingDamage = null;
         private bool damageInitialized = false;
 
-        // Dùng server-time để tránh lệch giờ client
-        protected NetworkVariable<double> networkNextAttackServerTime = new NetworkVariable<double>(0d);
+        // Thread-safe attack lock
+        private bool isAttacking = false;
 
-        public float BaseDamage => networkBaseDamage?.Value ?? baseDamage;
+        public float BaseDamage => networkBaseDamage.Value;
         public float AttackRange => attackRange;
         public float AttackCooldown => attackCooldown;
         public float NextAttackTime => (float)networkNextAttackServerTime.Value;
@@ -511,86 +553,66 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         public virtual bool CanAttack =>
             CanInteract &&
             CurrentState != InteractionState.Disabled &&
+            !isAttacking &&
             NetworkManager != null &&
             NetworkManager.Singleton != null &&
             NetworkManager.Singleton.ServerTime.Time >= networkNextAttackServerTime.Value;
 
         public event Action<IAttackable, IDefendable, float> OnAttackPerformed;
 
-        #region Unity Lifecycle
-
         protected override void Awake()
         {
             base.Awake();
-            networkBaseDamage = new NetworkVariable<float>(baseDamage);
         }
 
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-            // Apply pending damage if any (only on server)
             if (IsServer && !damageInitialized)
             {
-                float finalDamage = pendingDamage ?? baseDamage;
-                networkBaseDamage.Value = finalDamage;
+                networkBaseDamage.Value = pendingDamage ?? baseDamage;
                 damageInitialized = true;
             }
         }
 
-        #endregion
-
-        // ========================= Damage Management =========================
-        /// <summary>
-        /// Set base damage before NetworkObject spawns. Safe to call anytime before spawn.
-        /// </summary>
+        // Damage management
         public virtual void SetBaseDamage(float damage)
         {
             if (IsSpawned)
             {
-                Debug.LogWarning(
-                    $"[{name}] Cannot set base damage after spawn. Use UpdateBaseDamageServerRpc instead.");
+                Debug.LogWarning($"[{name}] Cannot set base damage after spawn. Use UpdateBaseDamageServerRpc instead.");
                 return;
             }
-
-            // Always cache the damage - will be applied in OnNetworkSpawn
             pendingDamage = damage;
         }
 
-        /// <summary>
-        /// Server-only method to update damage during runtime
-        /// </summary>
         [ServerRpc(RequireOwnership = false)]
-        public virtual void UpdateBaseDamageServerRpc(float newDamage)
+        public virtual void UpdateBaseDamageServerRpc(float newDamage, ServerRpcParams rpc = default)
         {
-            if (!IsServer) return;
-
-            networkBaseDamage.Value = newDamage;
+            if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
+            networkBaseDamage.Value = Mathf.Max(0f, newDamage);
         }
 
-        // ========================= Active Attack =========================
+        // Active Attack
         public virtual bool Attack(IDefendable target)
         {
             if (target == null) return false;
 
-            if (IsServer)
-            {
-                return Server_AttemptAttack(target);
-            }
-            else if (IsOwner)
-            {
-                var nob = ((MonoBehaviour)target).GetComponent<NetworkObject>();
-                if (nob != null)
-                {
-                    AttackServerRpc(nob);
-                }
-            }
+            if (IsServer) return Server_AttemptAttack(target);
 
+            if (IsOwner)
+            {
+                var nob = (target as MonoBehaviour)?.GetComponent<NetworkObject>();
+                if (nob != null) AttackServerRpc(nob);
+            }
             return false;
         }
 
         [ServerRpc(RequireOwnership = false)]
-        protected virtual void AttackServerRpc(NetworkObjectReference targetRef)
+        protected virtual void AttackServerRpc(NetworkObjectReference targetRef, ServerRpcParams rpc = default)
         {
+            if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
+
             if (!targetRef.TryGet(out var targetNob)) return;
             if (!targetNob.TryGetComponent<IDefendable>(out var target)) return;
 
@@ -599,46 +621,53 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         private bool Server_AttemptAttack(IDefendable target)
         {
-            // VALIDATION server-side
-            if (!CanAttack) return false;
+            if (!IsServer) return false;
+
+            // Thread-safe attack validation
+            if (!CanAttack || isAttacking) return false;
             if (target == null || !target.IsAlive) return false;
             if (!IsInAttackRange(target)) return false;
 
+            var targetMb = target as MonoBehaviour;
+            if (!IsValidTargetGO(targetMb ? targetMb.gameObject : null)) return false;
+
+            // Lock attack state
+            isAttacking = true;
             SetState(InteractionState.Disabled);
 
-            float damage = CalculateDamage(target);
-            float actualDamage = target.TakeDamage(this, damage, primaryDamageType);
-
-            networkNextAttackServerTime.Value = NetworkManager.Singleton.ServerTime.Time + attackCooldown;
-
-            OnAttackPerformed?.Invoke(this, target, actualDamage);
-
-            var targetNob = ((MonoBehaviour)target).GetComponent<NetworkObject>();
-            if (targetNob != null)
+            try
             {
-                OnAttackPerformedClientRpc(targetNob, actualDamage);
-            }
+                float damage = CalculateDamage(target);
+                float appliedDamage = target.TakeDamage(this, damage, primaryDamageType);
 
-            SetState(InteractionState.Enable);
-            return actualDamage > 0f;
+                networkNextAttackServerTime.Value = NetworkManager.Singleton.ServerTime.Time + attackCooldown;
+
+                OnAttackPerformed?.Invoke(this, target, appliedDamage);
+
+                var p = new ClientRpcParams
+                {
+                    Send = new ClientRpcSendParams { TargetClientIds = new[] { OwnerClientId } }
+                };
+                OnAttackFeedbackClientRpc(appliedDamage, p);
+
+                return appliedDamage > 0f;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[Attackable] Attack error: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                isAttacking = false;
+                SetState(InteractionState.Enable);
+            }
         }
 
         [ClientRpc]
-        protected virtual void OnAttackPerformedClientRpc(NetworkObjectReference targetRef, float actualDamage)
+        protected virtual void OnAttackFeedbackClientRpc(float actualDamage, ClientRpcParams p = default)
         {
-            if (!targetRef.TryGet(out var targetNob))
-            {
-                OnSuccessfulAttack(null, actualDamage);
-                return;
-            }
-
-            if (!targetNob.TryGetComponent<IDefendable>(out var target))
-            {
-                OnSuccessfulAttack(null, actualDamage);
-                return;
-            }
-
-            OnSuccessfulAttack(target, actualDamage); // FX/UI local
+            OnAttackFeedbackLocal(actualDamage);
         }
 
         public virtual bool IsInAttackRange(IDefendable target) =>
@@ -646,12 +675,11 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         public virtual float CalculateDamage(IDefendable target) => BaseDamage;
 
-        // ========================= Collision Attack =========================
+        // Collision Attack (server-authority)
         protected virtual void OnTriggerEnter(Collider other)
         {
             if (!enableCollisionAttack || hasCollisionAttacked || !CanAttack) return;
-            if (!IsServer) return; // server-authority
-
+            if (!IsServer) return;
             Server_ProcessCollision(other);
         }
 
@@ -659,22 +687,23 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (!enableCollisionAttack || hasCollisionAttacked || !CanAttack) return;
             if (!IsServer) return;
-
             Server_ProcessCollision(collision.collider);
         }
 
-        private void Server_ProcessCollision(Collider other)
+        protected virtual void Server_ProcessCollision(Collider other)
         {
-            if (other == null || other.gameObject == null) return;
-            if (other.gameObject == this.gameObject) return; // ignore self
-            if (IsOwnerAttackable(other.gameObject)) return; // ignore owner
-            if (!IsValidTarget(other.gameObject))
+            if (other == null || isAttacking) return;
+            
+            var go = other.attachedRigidbody ? other.attachedRigidbody.gameObject : other.gameObject;
+            if (go == null || go == this.gameObject) return;
+            
+            if (!IsValidTargetGO(go))
             {
                 OnHitInvalidTarget(other);
                 return;
             }
 
-            if (!other.TryGetComponent<IDefendable>(out var target))
+            if (!go.TryGetComponent<IDefendable>(out var target))
             {
                 OnHitNonDefendableTarget(other);
                 return;
@@ -683,101 +712,117 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             if (!target.IsAlive || !IsInAttackRange(target)) return;
 
             hasCollisionAttacked = true;
-
+            isAttacking = true;
             SetState(InteractionState.Disabled);
 
-            float damage = CalculateDamage(target);
-            float actualDamage = target.TakeDamage(this, damage, primaryDamageType);
-
-            networkNextAttackServerTime.Value = NetworkManager.Singleton.ServerTime.Time + attackCooldown;
-
-            OnAttackPerformed?.Invoke(this, target, actualDamage);
-
-            var targetNob = ((MonoBehaviour)target).GetComponent<NetworkObject>();
-            if (targetNob != null)
+            try
             {
-                OnAttackPerformedClientRpc(targetNob, actualDamage);
+                float damage = CalculateDamage(target);
+                float actualDamage = target.TakeDamage(this, damage, primaryDamageType);
+
+                networkNextAttackServerTime.Value = NetworkManager.Singleton.ServerTime.Time + attackCooldown;
+
+                OnAttackPerformed?.Invoke(this, target, actualDamage);
+                OnAttackFeedbackClientRpc(actualDamage);
+
+                if (destroyAfterCollisionAttack) 
+                    HandleDestruction();
+                else 
+                    SetState(InteractionState.Enable);
             }
-
-            if (destroyAfterCollisionAttack)
+            catch (System.Exception ex)
             {
-                HandleDestruction();
-            }
-            else
-            {
+                Debug.LogError($"[Attackable] Collision attack error: {ex.Message}");
                 SetState(InteractionState.Enable);
+            }
+            finally
+            {
+                isAttacking = false;
             }
         }
 
-        protected virtual bool IsValidTarget(GameObject target)
+        protected virtual bool IsValidTargetGO(GameObject target)
         {
-            // Layer
+            if (target == null) return false;
+
+            // Layer check
             if (((1 << target.layer) & attackableLayers) == 0) return false;
 
-            // Tag
+            // Tag check
             if (attackableTags != null && attackableTags.Length > 0)
             {
+                bool tagOk = false;
                 for (int i = 0; i < attackableTags.Length; i++)
-                    if (target.CompareTag(attackableTags[i]))
-                        return true;
-                return false;
+                {
+                    if (target.CompareTag(attackableTags[i])) 
+                    { 
+                        tagOk = true; 
+                        break; 
+                    }
+                }
+                if (!tagOk) return false;
+            }
+
+            // Self-attack prevention
+            if (target.TryGetComponent<NetworkObject>(out var nob))
+            {
+                if (nob.OwnerClientId == OwnerClientId) return false;
             }
 
             return true;
         }
-        
-        protected virtual bool IsOwnerAttackable(GameObject target)
-        {
-            if (target.TryGetComponent<NetworkObject>(out var nob))
-            {
-                return nob.OwnerClientId == OwnerClientId;
-            }
-            return false;
-        }
 
-        // ========================= Abstract hooks =========================
-        protected abstract void OnSuccessfulAttack(IDefendable target, float actualDamage);
+        // Hooks để override
+        protected virtual void OnAttackFeedbackLocal(float actualDamage) { }
         protected abstract void OnHitInvalidTarget(Collider other);
         protected abstract void OnHitNonDefendableTarget(Collider other);
         protected abstract void HandleDestruction();
     }
-    
 
-    /// <summary>
-    /// Base class for defendable entities with proper network health synchronization
-    /// </summary>
+    // =========================
+    // Combat System: Defendable (Health sync)
+    // =========================
     public abstract class ADefendable : InteractableBase, IDefendable
     {
-        [Header("Defense Settings")] [SerializeField]
-        protected float maxHealth = 100f;
-
+        [Header("Defense Settings")]
+        [SerializeField] protected float maxHealth = 100f;
         [SerializeField] protected float defenseValue = 0f;
         [SerializeField] protected bool isInvulnerable = false;
 
         // NetVars: server-only write
         protected NetworkVariable<float> networkCurrentHealth =
-            new NetworkVariable<float>(writePerm: NetworkVariableWritePermission.Server);
+            new NetworkVariable<float>(
+                0f,
+                NetworkVariableReadPermission.Everyone,
+                NetworkVariableWritePermission.Server);
 
         protected NetworkVariable<bool> networkIsInvulnerable =
-            new NetworkVariable<bool>(writePerm: NetworkVariableWritePermission.Server);
+            new NetworkVariable<bool>(
+                false,
+                NetworkVariableReadPermission.Everyone,
+                NetworkVariableWritePermission.Server);
 
-        // Optional: dùng nếu bạn muốn UI ước lượng i-frames / last hit
         protected NetworkVariable<double> networkLastHitServerTime =
-            new NetworkVariable<double>(0d, writePerm: NetworkVariableWritePermission.Server);
+            new NetworkVariable<double>(
+                0d,
+                NetworkVariableReadPermission.Everyone,
+                NetworkVariableWritePermission.Server);
 
-        // Server-only guard
-        protected bool isDead;
+        // Sync death state properly
+        protected NetworkVariable<bool> networkIsDead =
+            new NetworkVariable<bool>(
+                false,
+                NetworkVariableReadPermission.Everyone,
+                NetworkVariableWritePermission.Server);
 
         public virtual float CurrentHealth => networkCurrentHealth.Value;
         public float MaxHealth => maxHealth;
         public float DefenseValue => defenseValue;
-        public virtual bool IsAlive => networkCurrentHealth.Value > 0f && !isDead;
+        public virtual bool IsAlive => networkCurrentHealth.Value > 0f && !networkIsDead.Value;
         public bool IsInvulnerable => networkIsInvulnerable.Value;
 
         public event Action<float, float> OnHealthChanged; // (current, max)
         public event Action<IDefendable, IAttackable> OnDied; // (self, killer)
-
-        #region Network Lifecycle
 
         public override void OnNetworkSpawn()
         {
@@ -785,35 +830,33 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
             networkCurrentHealth.OnValueChanged += OnHealthNetworkChanged;
             networkIsInvulnerable.OnValueChanged += OnInvulnerabilityNetworkChanged;
+            networkIsDead.OnValueChanged += OnDeathStateNetworkChanged;
 
             if (IsServer)
             {
-                // Reset every spawn (hữu ích khi pooled)
-                isDead = false;
-                networkCurrentHealth.Value =
-                    Mathf.Clamp(networkCurrentHealth.Value <= 0 ? maxHealth : networkCurrentHealth.Value, 0, maxHealth);
+                // Initialize health properly
+                var initHealth = networkCurrentHealth.Value <= 0 ? maxHealth : networkCurrentHealth.Value;
+                networkCurrentHealth.Value = Mathf.Clamp(initHealth, 0f, maxHealth);
                 networkIsInvulnerable.Value = isInvulnerable;
+                networkIsDead.Value = false;
             }
         }
 
         public override void OnNetworkDespawn()
         {
-            base.OnNetworkDespawn();
-
             if (networkCurrentHealth != null)
                 networkCurrentHealth.OnValueChanged -= OnHealthNetworkChanged;
             if (networkIsInvulnerable != null)
                 networkIsInvulnerable.OnValueChanged -= OnInvulnerabilityNetworkChanged;
+            if (networkIsDead != null)
+                networkIsDead.OnValueChanged -= OnDeathStateNetworkChanged;
+            base.OnNetworkDespawn();
         }
 
-        #endregion
-
-        #region Health & Damage System
-
-        // GỌI TRÊN SERVER (được Attackable gọi sau khi validate)
+        // Server-only damage intake
         public virtual float TakeDamage(IAttackable attacker, float damage, DamageType damageType = DamageType.Physical)
         {
-            if (!IsServer) return 0f; // server-authority
+            if (!IsServer) return 0f;
             if (!IsAlive) return 0f;
             if (IsInvulnerable) return 0f;
 
@@ -823,68 +866,61 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
             networkLastHitServerTime.Value = NetworkManager.Singleton.ServerTime.Time;
 
-            if (newHealth <= 0f && !isDead)
+            if (newHealth > 0f)
             {
-                isDead = true;
+                OnHitClientRpc(finalDamage);
+            }
+            else if (!networkIsDead.Value)
+            {
+                networkIsDead.Value = true;
                 SetState(InteractionState.Disabled);
-                // Notify server-side listeners
+
                 OnDied?.Invoke(this, attacker);
 
-                // Broadcast cho client làm FX/âm thanh/HUD
-                var attackerRef = attacker is MonoBehaviour mb && mb.TryGetComponent(out NetworkObject aNob)
-                    ? new NetworkObjectReference(aNob)
-                    : default;
+                NetworkObject attackerNob = null;
+                if (attacker is MonoBehaviour mb && mb.TryGetComponent(out NetworkObject aNob))
+                    attackerNob = aNob;
 
-                OnDeathClientRpc(attackerRef);
-                OnDeath(attacker); // hook ảo cho lớp con (server-side)
+                OnDeathClientRpc(new NetworkObjectReference(attackerNob));
+                OnDeath(attacker); // server-side hook
             }
-
-            // Có thể bắn hit clientrpc riêng nếu muốn hiệu ứng trúng đòn
-            OnHitClientRpc(finalDamage);
 
             return finalDamage;
         }
 
-        // GỌI TRÊN SERVER (ví dụ từ item hồi máu)
+        // Server-only heal
         public virtual float Heal(float amount)
         {
             if (!IsServer) return 0f;
-            if (isDead) return 0f;
+            if (networkIsDead.Value) return 0f;
 
             float prev = networkCurrentHealth.Value;
             float next = Mathf.Clamp(prev + Mathf.Abs(amount), 0f, maxHealth);
             networkCurrentHealth.Value = next;
-
             return next - prev;
         }
 
-        // Owner có thể yêu cầu invuln, server quyết định
         public virtual void SetInvulnerable(bool invulnerable)
         {
-            if (IsServer)
-            {
-                networkIsInvulnerable.Value = invulnerable;
-            }
-            else if (IsOwner)
-            {
-                SetInvulnerableServerRpc(invulnerable);
-            }
+            if (IsServer) networkIsInvulnerable.Value = invulnerable;
+            else if (IsOwner) SetInvulnerableServerRpc(invulnerable);
         }
 
         [ServerRpc(RequireOwnership = false)]
-        private void SetInvulnerableServerRpc(bool invulnerable)
+        private void SetInvulnerableServerRpc(bool invulnerable, ServerRpcParams rpc = default)
         {
-            // TODO: kiểm tra quyền nếu cần (GM, skill hợp lệ, v.v.)
+            if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
             networkIsInvulnerable.Value = invulnerable;
         }
 
-        // (Optional) API revive
         [ServerRpc(RequireOwnership = false)]
-        public void ReviveServerRpc(float reviveHealth = -1f)
+        public void ReviveServerRpc(float reviveHealth = -1f, ServerRpcParams rpc = default)
         {
+            if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
             if (!IsServer) return;
+
             float hp = reviveHealth > 0 ? reviveHealth : maxHealth;
-            isDead = false;
+            networkIsDead.Value = false;
             networkCurrentHealth.Value = Mathf.Clamp(hp, 1f, maxHealth);
             SetState(InteractionState.Enable);
             OnRevivedClientRpc(networkCurrentHealth.Value);
@@ -896,37 +932,28 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             return Mathf.Max(1f, baseDamage - defenseValue);
         }
 
-        #endregion
-
-        #region Client Feedback
-
+        // Client feedback RPCs
         [ClientRpc]
         protected virtual void OnHitClientRpc(float appliedDamage)
         {
-            // FX nhẹ: flash, số damage bay… (client-side)
             OnHitLocal(appliedDamage);
         }
 
         [ClientRpc]
         protected virtual void OnDeathClientRpc(NetworkObjectReference attackerRef)
         {
-            // Tải tham chiếu attacker nếu cần cho FX/killfeed
             NetworkObject attackerNob = null;
             attackerRef.TryGet(out attackerNob);
-
-            OnDeathLocal(attackerNob); // FX death, ragdoll, disable UI…
+            OnDeathLocal(attackerNob);
         }
 
         [ClientRpc]
         protected virtual void OnRevivedClientRpc(float newHealth)
         {
-            OnRevivedLocal(newHealth); // FX hồi sinh, bật UI…
+            OnRevivedLocal(newHealth);
         }
 
-        #endregion
-
-        #region Event Handlers
-
+        // NetVar change handlers
         private void OnHealthNetworkChanged(float previousHealth, float newHealth)
         {
             OnHealthChanged?.Invoke(newHealth, maxHealth);
@@ -938,38 +965,118 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             OnInvulnerabilityChangedLocal(previousValue, newValue);
         }
 
-        #endregion
-
-        #region Hooks (override tùy lớp con)
-
-        // Server-side hook sau khi chết (ngoài ClientRpc)
-        public virtual void OnDeath(IAttackable killer)
+        private void OnDeathStateNetworkChanged(bool previousValue, bool newValue)
         {
+            OnDeathStateChangedLocal(previousValue, newValue);
         }
+
+        // Server-side hook sau khi chết
+        public virtual void OnDeath(IAttackable killer) { }
 
         // Local-only hooks cho FX/UI
-        protected virtual void OnHealthChangedLocal(float previousHealth, float newHealth)
-        {
-        }
-
-        protected virtual void OnInvulnerabilityChangedLocal(bool previousValue, bool newValue)
-        {
-        }
-
-        protected virtual void OnHitLocal(float appliedDamage)
-        {
-        }
-
-        protected virtual void OnDeathLocal(NetworkObject attackerNob)
-        {
-        }
-
-        protected virtual void OnRevivedLocal(float newHealth)
-        {
-        }
-
-        #endregion
+        protected virtual void OnHealthChangedLocal(float previousHealth, float newHealth) { }
+        protected virtual void OnInvulnerabilityChangedLocal(bool previousValue, bool newValue) { }
+        protected virtual void OnDeathStateChangedLocal(bool previousValue, bool newValue) { }
+        protected virtual void OnHitLocal(float appliedDamage) { }
+        protected virtual void OnDeathLocal(NetworkObject attackerNob) { }
+        protected virtual void OnRevivedLocal(float newHealth) { }
     }
 
-    #endregion
+    // =========================
+    // Event System for Better Error Handling
+    // =========================
+    public class InteractionEventArgs : EventArgs
+    {
+        public IInteractable Initiator { get; set; }
+        public IInteractable Target { get; set; }
+        public Vector3 InteractionPoint { get; set; }
+        public float Distance { get; set; }
+        public bool Success { get; set; }
+        public string ErrorReason { get; set; }
+        public double Timestamp { get; set; }
+    }
+
+    public class AttackEventArgs : EventArgs
+    {
+        public IAttackable Attacker { get; set; }
+        public IDefendable Target { get; set; }
+        public float BaseDamage { get; set; }
+        public float AppliedDamage { get; set; }
+        public DamageType DamageType { get; set; }
+        public Vector3 AttackPoint { get; set; }
+        public bool WasKilled { get; set; }
+        public double Timestamp { get; set; }
+    }
+
+    // =========================
+    // Utility Extensions
+    // =========================
+    public static class InteractionExtensions
+    {
+        /// <summary>
+        /// Safe distance check with null validation
+        /// </summary>
+        public static float SafeDistanceTo(this IInteractable from, IInteractable to)
+        {
+            if (from == null || to == null) return float.MaxValue;
+            return Vector3.Distance(from.Position, to.Position);
+        }
+
+        /// <summary>
+        /// Check if interaction is within range with tolerance
+        /// </summary>
+        public static bool IsInRange(this IInteractable from, IInteractable to, float range, float tolerance = 0.5f)
+        {
+            return from.SafeDistanceTo(to) <= range + tolerance;
+        }
+
+        /// <summary>
+        /// Safe cast to MonoBehaviour with NetworkObject check
+        /// </summary>
+        public static bool TryGetNetworkObject(this IInteractable interactable, out NetworkObject networkObject)
+        {
+            networkObject = null;
+            if (interactable is MonoBehaviour mb)
+            {
+                networkObject = mb.GetComponent<NetworkObject>();
+            }
+            return networkObject != null;
+        }
+    }
+
+    // =========================
+    // Performance Monitoring (Optional)
+    // =========================
+    public static class InteractionMetrics
+    {
+        private static readonly Dictionary<string, int> interactionCounts = new Dictionary<string, int>();
+        private static readonly Dictionary<string, float> averageDistances = new Dictionary<string, float>();
+
+        public static void RecordInteraction(string interactionType, float distance)
+        {
+            if (!interactionCounts.ContainsKey(interactionType))
+            {
+                interactionCounts[interactionType] = 0;
+                averageDistances[interactionType] = 0f;
+            }
+
+            var count = ++interactionCounts[interactionType];
+            var avgDist = averageDistances[interactionType];
+            averageDistances[interactionType] = (avgDist * (count - 1) + distance) / count;
+        }
+
+        public static void LogMetrics()
+        {
+            foreach (var kvp in interactionCounts)
+            {
+                Debug.Log($"[InteractionMetrics] {kvp.Key}: {kvp.Value} interactions, avg distance: {averageDistances[kvp.Key]:F2}");
+            }
+        }
+
+        public static void ClearMetrics()
+        {
+            interactionCounts.Clear();
+            averageDistances.Clear();
+        }
+    }
 }

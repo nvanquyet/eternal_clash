@@ -185,7 +185,7 @@ namespace _GAME.Scripts.UI.Home
                             LoadingUI.Instance.Complete();
                             return;
                         }
-
+                        
                     }
                     PopupNotification.Instance.ShowPopup(false, "Join lobby failed, please try again.", "Error");
                 }

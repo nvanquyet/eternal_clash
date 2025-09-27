@@ -1,4 +1,6 @@
-﻿using System;
+﻿// LobbyManager.cs — yêu cầu/khởi tạo LobbyRuntime, bỏ 2 script cũ
+
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using _GAME.Scripts.Lobbies;
@@ -15,19 +17,21 @@ namespace _GAME.Scripts.Networking
 {
     /// <summary>
     /// Improved LobbyManager với thread-safe state management và resource cleanup
+    /// (đã chuyển sang dùng LobbyRuntime thay cho LobbyHeartbeat + LobbyUpdater)
     /// </summary>
-    [RequireComponent(typeof(LobbyHeartbeat), typeof(LobbyUpdater))]
+    [RequireComponent(typeof(LobbyRuntime))]
     public class LobbyManager : SingletonDontDestroy<LobbyManager>
     {
         #region Fields & Components
 
         private readonly LobbyHandler _lobbyHandler = new();
-        [SerializeField] private LobbyHeartbeat _lobbyHeartbeat;
-        [SerializeField] private LobbyUpdater _lobbyUpdater;
+
+        [SerializeField] private LobbyRuntime _lobbyRuntime;
         [SerializeField] private LobbyStateManager stateManager;
-        
-        [Header("Configuration")]
-        [SerializeField] private float heartbeatInterval = 15f;
+
+        [Header("Configuration")] [SerializeField]
+        private float heartbeatInterval = 15f;
+
         [SerializeField] private float updateInterval = 4f;
         [SerializeField] private bool enableHealthChecks = false;
 
@@ -42,19 +46,17 @@ namespace _GAME.Scripts.Networking
         private bool _dependenciesHealthy = false;
         private DateTime _lastHealthCheck = DateTime.MinValue;
         private readonly TimeSpan _healthCheckInterval = TimeSpan.FromSeconds(30);
-       
 
         #endregion
 
         #region Properties
 
         public LobbyHandler LobbyHandler => _lobbyHandler;
-        public LobbyHeartbeat Heartbeat => _lobbyHeartbeat;
-        public LobbyUpdater Updater => _lobbyUpdater;
+        public LobbyRuntime Runtime => _lobbyRuntime;
 
-        private LobbyStateManager StateManager => stateManager; 
-        
-        // Lobby Properties với null checks
+        private LobbyStateManager StateManager => stateManager;
+
+        // Lobby Properties
         public Lobby CurrentLobby => _lobbyHandler?.CachedLobby;
         public string LobbyId => CurrentLobby?.Id;
         public string LobbyCode => CurrentLobby?.LobbyCode;
@@ -63,7 +65,7 @@ namespace _GAME.Scripts.Networking
 
         public bool IsInLobby => CurrentLobby != null && !_isDisposed;
         public bool IsHost => IsInLobby && CurrentLobby.HostId == PlayerIdManager.PlayerId;
-        
+
         // Operation status
         public bool IsOperationInProgress => _isOperationInProgress;
         public bool IsSystemHealthy => _dependenciesHealthy && _isInitialized && !_isDisposed;
@@ -81,15 +83,13 @@ namespace _GAME.Scripts.Networking
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            _lobbyHeartbeat ??= GetComponent<LobbyHeartbeat>();
-            _lobbyUpdater ??= GetComponent<LobbyUpdater>();
+            _lobbyRuntime ??= GetComponent<LobbyRuntime>();
             stateManager ??= GetComponent<LobbyStateManager>();
         }
 #endif
 
         private void Update()
         {
-            // Periodic health check
             if (enableHealthChecks && DateTime.UtcNow - _lastHealthCheck > _healthCheckInterval)
             {
                 CheckDependenciesHealth();
@@ -101,23 +101,20 @@ namespace _GAME.Scripts.Networking
             if (_isInitialized || _isDisposed) return;
             try
             {
-                // Initialize components với null checks
-                _lobbyHeartbeat ??= GetComponent<LobbyHeartbeat>();
-                _lobbyUpdater ??= GetComponent<LobbyUpdater>();
+                _lobbyRuntime ??= GetComponent<LobbyRuntime>();
 
-                if (_lobbyHeartbeat == null || _lobbyUpdater == null)
+                if (_lobbyRuntime == null)
                 {
-                    Debug.LogError("[LobbyManager] Required components missing");
+                    Debug.LogError("[LobbyManager] LobbyRuntime component missing");
                     return;
                 }
 
-                _lobbyHandler.InitializeComponents(_lobbyHeartbeat, _lobbyUpdater);
-                _lobbyHeartbeat.Initialize(heartbeatInterval);
-                _lobbyUpdater.Initialize(this, updateInterval);
+                _lobbyHandler.InitializeComponents(_lobbyRuntime);
+                _lobbyRuntime.Initialize(heartbeatInterval, updateInterval);
 
                 CheckDependenciesHealth();
                 _isInitialized = true;
-                
+
                 Debug.Log("[LobbyManager] Initialized successfully");
             }
             catch (Exception ex)
@@ -130,10 +127,9 @@ namespace _GAME.Scripts.Networking
         protected override void OnDestroy()
         {
             if (_isDisposed) return;
-            
+
             _isDisposed = true;
-            
-            // Thread-safe cleanup
+
             lock (_operationLock)
             {
                 _operationCancellation?.Cancel();
@@ -141,12 +137,9 @@ namespace _GAME.Scripts.Networking
                 _operationCancellation = null;
             }
 
-            // Cleanup components
             try
             {
-                _lobbyHandler?.OnDestroy();
-                _lobbyHeartbeat?.StopHeartbeat();
-                _lobbyUpdater?.StopUpdating();
+                _lobbyRuntime?.StopRuntime();
             }
             catch (Exception ex)
             {
@@ -164,11 +157,10 @@ namespace _GAME.Scripts.Networking
         {
             try
             {
-                _dependenciesHealthy = 
-                    StateManager != null && 
+                _dependenciesHealthy =
+                    StateManager != null &&
                     _lobbyHandler != null &&
-                    _lobbyHeartbeat != null &&
-                    _lobbyUpdater != null &&
+                    _lobbyRuntime != null &&
                     PlayerIdManager.PlayerId != null;
 
                 _lastHealthCheck = DateTime.UtcNow;
@@ -189,7 +181,8 @@ namespace _GAME.Scripts.Networking
 
         #region Thread-Safe Operation Management
 
-        private async Task<OperationResult<T>> ExecuteOperationAsync<T>(Func<CancellationToken, Task<OperationResult<T>>> operation)
+        private async Task<OperationResult<T>> ExecuteOperationAsync<T>(
+            Func<CancellationToken, Task<OperationResult<T>>> operation)
         {
             if (_isDisposed)
                 return OperationResult<T>.Failure("System is disposed");
@@ -197,7 +190,6 @@ namespace _GAME.Scripts.Networking
             if (!ValidateSystemState())
                 return OperationResult<T>.Failure("System not ready");
 
-            // Thread-safe operation start
             lock (_operationLock)
             {
                 if (_isOperationInProgress)
@@ -225,7 +217,6 @@ namespace _GAME.Scripts.Networking
             }
             finally
             {
-                // Thread-safe operation end
                 lock (_operationLock)
                 {
                     _isOperationInProgress = false;
@@ -235,41 +226,38 @@ namespace _GAME.Scripts.Networking
             }
         }
 
-        private async Task<OperationResult> ExecuteOperationAsync(Func<CancellationToken, Task<OperationResult>> operation)
+        private async Task<OperationResult> ExecuteOperationAsync(
+            Func<CancellationToken, Task<OperationResult>> operation)
         {
             var result = await ExecuteOperationAsync<object>(async token =>
             {
                 var opResult = await operation(token);
-                return opResult.IsSuccess ? 
-                    OperationResult<object>.Success(null, opResult.Message) : 
-                    OperationResult<object>.Failure(opResult.ErrorMessage);
+                return opResult.IsSuccess
+                    ? OperationResult<object>.Success(null, opResult.Message)
+                    : OperationResult<object>.Failure(opResult.ErrorMessage);
             });
 
-            return result.IsSuccess ? 
-                OperationResult.Success(result.Message) : 
-                OperationResult.Failure(result.ErrorMessage);
+            return result.IsSuccess
+                ? OperationResult.Success(result.Message)
+                : OperationResult.Failure(result.ErrorMessage);
         }
 
         #endregion
 
         #region Public API - Host Operations
 
-        /// <summary>
-        /// Tạo lobby với improved error handling và state consistency
-        /// </summary>
-        public async Task<OperationResult> CreateLobbyAsync(string lobbyName, int maxPlayers, CreateLobbyOptions options = null)
+        public async Task<OperationResult> CreateLobbyAsync(string lobbyName, int maxPlayers,
+            CreateLobbyOptions options = null)
         {
             return await ExecuteOperationAsync(async cancellationToken =>
             {
-                // Step 1: Transition to Creating state
-                if (!await StateManager.TryTransitionAsync(LobbyState.CreatingLobby))
+                if (!await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.CreatingLobby))
                 {
                     return OperationResult.Failure("Cannot start lobby creation");
                 }
 
                 try
                 {
-                    // Step 2: Create lobby
                     var lobby = await _lobbyHandler.CreateLobbyAsync(lobbyName, maxPlayers, options);
                     if (lobby == null)
                     {
@@ -277,7 +265,6 @@ namespace _GAME.Scripts.Networking
                         return OperationResult.Failure("Failed to create lobby");
                     }
 
-                    // Step 3: Setup host
                     var result = await NetworkController.Instance.StartHostAsync(maxPlayers, cancellationToken);
                     if (!result.IsSuccess)
                     {
@@ -285,16 +272,14 @@ namespace _GAME.Scripts.Networking
                         return OperationResult.Failure($"Failed to start host: {result.ErrorMessage}");
                     }
 
-                    // Step 4: Update lobby with relay code
                     var joinCode = result.JoinCode;
                     var updateSuccess = await LobbyDataExtensions.SetRelayJoinCodeAsync(lobby.Id, joinCode);
                     if (!updateSuccess)
                     {
                         Debug.LogWarning("[LobbyManager] Failed to update lobby with relay code");
                     }
-                    
-                    // Step 5: Final transition to Active
-                    if (!await StateManager.TryTransitionAsync(LobbyState.LobbyActive))
+
+                    if (!await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.LobbyActive))
                     {
                         await SafeTransitionToFailedAsync("Failed to activate lobby");
                         return OperationResult.Failure("Failed to activate lobby");
@@ -317,22 +302,17 @@ namespace _GAME.Scripts.Networking
 
         #region Public API - Client Operations
 
-        /// <summary>
-        /// Join lobby với improved validation và error recovery
-        /// </summary>
         public async Task<OperationResult> JoinLobbyAsync(string code, string password = null)
         {
             return await ExecuteOperationAsync(async cancellationToken =>
             {
-                // Step 1: Transition to Joining
-                if (!await StateManager.TryTransitionAsync(LobbyState.JoiningLobby))
+                if (!await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.JoiningLobby))
                 {
                     return OperationResult.Failure("Cannot start lobby join");
                 }
 
                 try
                 {
-                    // Step 2: Join lobby với precheck
                     var joinSuccess = await _lobbyHandler.PrecheckPhaseThenJoin(code, password);
                     if (!joinSuccess)
                     {
@@ -341,17 +321,15 @@ namespace _GAME.Scripts.Networking
                     }
 
                     Debug.Log($"[LobbyManager] Joined lobby with code: {GetRelayCode()}");
-                    
-                    // Step 3: Start Client with relay Code
-                    var result = await NetworkController.Instance.StartClientAsync(GetRelayCode(), cancellationToken);
 
+                    var result = await NetworkController.Instance.StartClientAsync(GetRelayCode(), cancellationToken);
                     if (!result.IsSuccess)
                     {
                         await SafeTransitionToFailedAsync($"Failed to start client: {result.ErrorMessage}");
                         return OperationResult.Failure(result.ErrorMessage);
                     }
 
-                    if (!await StateManager.TryTransitionAsync(LobbyState.LobbyActive))
+                    if (!await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.LobbyActive))
                     {
                         await SafeTransitionToFailedAsync("Failed to transition lobby active");
                         return OperationResult.Failure("Failed to transition lobby active");
@@ -368,22 +346,17 @@ namespace _GAME.Scripts.Networking
                 }
             });
         }
-        
+
         #endregion
 
         #region Public API - Lobby Management
 
         public void StopCheckingLobby()
         {
-            _lobbyUpdater?.StopUpdating();
-            _lobbyHeartbeat?.StopHeartbeat();
-            Debug.Log("[LobbyManager] Stopped lobby heartbeat and updater");
+            _lobbyRuntime?.StopRuntime();
+            Debug.Log("[LobbyManager] Stopped lobby runtime");
         }
-        
-        
-        /// <summary>
-        /// Leave lobby với proper cleanup
-        /// </summary>
+
         public async Task<OperationResult> LeaveLobbyAsync()
         {
             if (!IsInLobby)
@@ -391,7 +364,7 @@ namespace _GAME.Scripts.Networking
 
             return await ExecuteOperationAsync(async cancellationToken =>
             {
-                if (!await StateManager.TryTransitionAsync(LobbyState.LeavingLobby))
+                if (!await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.LeavingLobby))
                 {
                     return OperationResult.Failure("Cannot start leaving");
                 }
@@ -406,8 +379,8 @@ namespace _GAME.Scripts.Networking
                     }
 
                     await CleanupAllResourcesAsync();
-                    
-                    if (!await StateManager.TryTransitionAsync(LobbyState.Default))
+
+                    if (!await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.Default))
                     {
                         Debug.LogWarning("[LobbyManager] Failed to transition to None after leaving");
                     }
@@ -423,9 +396,6 @@ namespace _GAME.Scripts.Networking
             });
         }
 
-        /// <summary>
-        /// Remove lobby (Host only) với proper validation
-        /// </summary>
         public async Task<OperationResult> RemoveLobbyAsync()
         {
             if (!IsHost)
@@ -433,7 +403,7 @@ namespace _GAME.Scripts.Networking
 
             return await ExecuteOperationAsync(async cancellationToken =>
             {
-                if (!await StateManager.TryTransitionAsync(LobbyState.RemovingLobby))
+                if (!await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.RemovingLobby))
                 {
                     return OperationResult.Failure("Cannot start removing");
                 }
@@ -448,8 +418,8 @@ namespace _GAME.Scripts.Networking
                     }
 
                     await CleanupAllResourcesAsync();
-                    
-                    if (!await StateManager.TryTransitionAsync(LobbyState.Default))
+
+                    if (!await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.Default))
                     {
                         Debug.LogWarning("[LobbyManager] Failed to transition to None after removing");
                     }
@@ -469,16 +439,13 @@ namespace _GAME.Scripts.Networking
 
         #region Recovery & Cleanup
 
-        /// <summary>
-        /// Safe transition to failed state với proper error handling
-        /// </summary>
         private async Task<bool> SafeTransitionToFailedAsync(string reason)
         {
             try
             {
                 Debug.LogWarning($"[LobbyManager] Transitioning to failed: {reason}");
                 LobbyEvents.TriggerRelayError(reason);
-                return await StateManager.TryTransitionAsync(LobbyState.Failed);
+                return await StateManager.TryTransitionAsync(Networking.StateMachine.LobbyState.Failed);
             }
             catch (Exception ex)
             {
@@ -487,9 +454,6 @@ namespace _GAME.Scripts.Networking
             }
         }
 
-        /// <summary>
-        /// Comprehensive resource cleanup
-        /// </summary>
         private async Task CleanupAllResourcesAsync()
         {
             var cleanupTasks = new[]
@@ -524,9 +488,8 @@ namespace _GAME.Scripts.Networking
         {
             try
             {
-                _lobbyHeartbeat?.StopHeartbeat();
-                _lobbyUpdater?.StopUpdating();
-                await Task.Delay(100); // Brief delay for cleanup
+                _lobbyRuntime?.StopRuntime();
+                await Task.Delay(100);
             }
             catch (Exception ex)
             {
@@ -534,16 +497,12 @@ namespace _GAME.Scripts.Networking
             }
         }
 
-        /// <summary>
-        /// Emergency reset với improved safety
-        /// </summary>
         public async Task<bool> EmergencyResetAsync(string reason = null)
         {
             try
             {
                 Debug.LogWarning($"[LobbyManager] Emergency reset: {reason ?? "Manual reset"}");
-                
-                // Cancel current operations
+
                 lock (_operationLock)
                 {
                     _operationCancellation?.Cancel();
@@ -551,17 +510,16 @@ namespace _GAME.Scripts.Networking
                 }
 
                 await CleanupAllResourcesAsync();
-                
+
                 return await StateManager.SafeReturnToDefaultAsync(reason);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[LobbyManager] Emergency reset failed: {ex.Message}");
-                
-                // Last resort: force state
+
                 try
                 {
-                    StateManager?.ForceTransition(LobbyState.Default);
+                    StateManager?.ForceTransition(Networking.StateMachine.LobbyState.Default);
                     return true;
                 }
                 catch
@@ -592,7 +550,7 @@ namespace _GAME.Scripts.Networking
             if (!_dependenciesHealthy)
             {
                 Debug.LogError("[LobbyManager] Dependencies not healthy");
-                CheckDependenciesHealth(); // Try to refresh
+                CheckDependenciesHealth();
                 return _dependenciesHealthy;
             }
 
@@ -603,13 +561,13 @@ namespace _GAME.Scripts.Networking
 
         public void OnLobbyUpdated(Lobby updated) => _lobbyHandler?.OnLobbyUpdated(updated);
 
-        public Task<bool> SetPlayerReadyAsync(bool isReady) => 
+        public Task<bool> SetPlayerReadyAsync(bool isReady) =>
             LobbyDataExtensions.SetPlayerReadyAsync(CurrentLobby?.Id, isReady);
 
-        public Task<bool> SetPhaseAsync(string phase) => 
+        public Task<bool> SetPhaseAsync(string phase) =>
             LobbyDataExtensions.SetLobbyPhaseAsync(CurrentLobby?.Id, phase);
 
-        public Task<bool> KickPlayerAsync(string playerId) => 
+        public Task<bool> KickPlayerAsync(string playerId) =>
             _lobbyHandler?.KickPlayerAsync(playerId) ?? Task.FromResult(false);
 
         #endregion
@@ -620,41 +578,33 @@ namespace _GAME.Scripts.Networking
         private void DebugSystemState()
         {
             Debug.Log($"[LobbyManager] System State:" +
-                     $"\n  Initialized: {_isInitialized}" +
-                     $"\n  Dependencies Healthy: {_dependenciesHealthy}" +
-                     $"\n  Operation In Progress: {_isOperationInProgress}" +
-                     $"\n  Current State: {StateManager?.CurrentState}" +
-                     $"\n  In Lobby: {IsInLobby}" +
-                     $"\n  Is Host: {IsHost}" +
-                     $"\n  Lobby Code: {LobbyCode}" +
-                     $"\n  Relay Code: {RelayJoinCode}");
-        }
-
-        [ContextMenu("Emergency Reset")]
-        private void DebugEmergencyReset()
-        {
-            _ = EmergencyResetAsync("Debug emergency reset");
+                      $"\n  Initialized: {_isInitialized}" +
+                      $"\n  Dependencies Healthy: {_dependenciesHealthy}" +
+                      $"\n  Operation In Progress: {_isOperationInProgress}" +
+                      $"\n  Current State: {StateManager?.CurrentState}" +
+                      $"\n  In Lobby: {IsInLobby}" +
+                      $"\n  Is Host: {IsHost}" +
+                      $"\n  Lobby Code: {LobbyCode}" +
+                      $"\n  Relay Code: {RelayJoinCode}" +
+                      $"\n  Runtime Running: {(_lobbyRuntime?.IsRunning ?? false)}");
         }
 
         #endregion
 
         public async Task<bool> UpdateLobbyPasswordAsync(string arg0)
         {
-            //Todo: Update lobby password
             await LobbyHandler.UpdateLobbyAsync(CurrentLobby.Id, new UpdateLobbyOptions());
             return true;
         }
 
         public async Task<bool> UpdateLobbyNameAsync(string arg0)
         {
-            //Todo: Update lobby name
             await LobbyHandler.UpdateLobbyAsync(CurrentLobby.Id, new UpdateLobbyOptions());
             return true;
         }
 
         public async Task<bool> UpdateMaxPlayersAsync(int i)
         {
-            //Todo: Update max players
             await LobbyHandler.UpdateLobbyAsync(CurrentLobby.Id, new UpdateLobbyOptions());
             return true;
         }
@@ -665,9 +615,9 @@ namespace _GAME.Scripts.Networking
     public class OperationResult<T> : OperationResult
     {
         public T Data { get; private set; }
-        
-        
-        private OperationResult(bool isSuccess, T data, string message, string joinCode = null, Exception exception = null) 
+
+        private OperationResult(bool isSuccess, T data, string message, string joinCode = null,
+            Exception exception = null)
             : base(isSuccess, message, joinCode, exception)
         {
             Data = data;

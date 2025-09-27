@@ -1,4 +1,5 @@
 ﻿using System;
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Utils;
 using Unity.Netcode;
 using UnityEngine;
@@ -21,22 +22,10 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         {
             Initialize();
         }
-
-        public override void OnNetworkSpawn()
-        {
-            base.OnNetworkSpawn();
-            if (IsOwner)
-            {
-                RegisterInput();
-            }
-        }
         public override void OnNetworkDespawn()
         {
             base.OnNetworkDespawn();
-            if (IsOwner)
-            {
-                UnregisterInput();
-            }
+            UnregisterInput();
             Cleanup();
         }
 
@@ -45,17 +34,8 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         public override void OnLostOwnership()
         {
             base.OnLostOwnership();
-            DisableInput();
+            DisableInput(); 
         }
-        
-        public override void OnGainedOwnership()
-        {
-            base.OnGainedOwnership();
-            var weapon = GetComponentInParent<WeaponInteraction>();
-            if (weapon != null && weapon.IsEquipped)
-                EnableInput();
-        }
-
         #region  Implementation 
 
         private bool _isInitialized = false;
@@ -72,7 +52,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
 
         public virtual void RegisterInput()
         {
-            if (attackActionRef != null)
+            if (attackActionRef != null && _attackAction == null)
             {
                 _attackAction = InputActionFactory.CreateUniqueAction(attackActionRef, GetInstanceID());
                 _attackAction.performed += OnAttackPress;
@@ -92,17 +72,19 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
 
         public virtual void EnableInput()
         {
+            Debug.Log($"[Weapon] Enable Input");
+            RegisterInput();
             //Enable input actions => disable interaction when attacking
             if (_attackAction is { enabled: false })
             {
                 _attackAction.Enable();
             }
-            
         }
         
         public virtual void DisableInput()
         {
             //Disable all input actions
+            UnregisterInput();
             if (_attackAction is { enabled: true })
             {
                 _attackAction.Disable();

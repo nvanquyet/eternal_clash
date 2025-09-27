@@ -1,264 +1,481 @@
-﻿using System;
+﻿// RelayHandler.cs — merged (RelayConnector.cs → RelayHandler.cs)
+// Drop-in replacement that removes the extra indirection layer.
+// Public API preserved:
+//
+// - Task<RelayResult<string>>  SetupHostRelayAsync(int maxPlayers, CancellationToken = default)
+// - NetworkResult              StartNetworkHost()
+// - Task<RelayResult<JoinAllocation>> ConnectClientToRelayAsync(string joinCode, CancellationToken = default)
+// - NetworkResult              StartNetworkClient()
+// - Task<bool>                 SafeShutdownAsync()
+// - void                       ResetAllState()
+// - void                       CancelCurrentOperation()
+//
+// Notes:
+// - Uses internal connection state & cancellation (migrated from RelayConnector)
+// - Selects DTLS endpoint when available, falls back to UDP
+// - Configures UnityTransport with RelayServerData for host/client
+// - Exposes RelayResult<T>, NetworkResult, NetworkStatus (unchanged)
+
+using System;
+using System.Linq;
 using System.Threading;
-using System.Threading.Tasks; 
+using System.Threading.Tasks;
 using Unity.Netcode;
+using Unity.Netcode.Transports.UTP;
+using Unity.Networking.Transport.Relay;
+using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
 using UnityEngine;
 
 namespace _GAME.Scripts.Networking.Relay
 {
-    /// <summary>
-    /// Core Relay operations - chỉ xử lý logic, không quản lý state
-    /// </summary>
     public static class RelayHandler
     {
-        #region Host Operations
+        // ===== Internal state (migrated from RelayConnector) =====
+        private static readonly object _lock = new object();
+        private static CancellationTokenSource _currentOperationCts;
+        private static RelayConnectionState _state = RelayConnectionState.Idle;
+
+        private enum RelayConnectionState
+        {
+            Idle,
+            Allocating,
+            Joining,
+            Connected,
+            Failed
+        }
+
+        // ====== Public API (unchanged) =======================================
 
         /// <summary>
-        /// Tạo relay allocation và trả về join code
+        /// Allocate a host Relay allocation and return the Join Code (does not start Netcode host).
         /// </summary>
-        public static async Task<RelayResult<string>> SetupHostRelayAsync(int maxPlayers, CancellationToken cancellationToken = default)
+        public static async Task<RelayResult<string>> SetupHostRelayAsync(
+            int maxPlayers,
+            CancellationToken cancellationToken = default)
         {
             try
             {
                 var maxClients = Math.Max(0, maxPlayers - 1);
-                Debug.Log($"[RelayCore] Setting up host relay for {maxClients} clients");
+                var allocResult = await AllocateHostAsync(maxClients, cancellationToken);
 
-                var result = await RelayConnector.AllocateHostAsync(maxClients, cancellationToken);
-                if (!result.IsSuccess)
-                {
-                    return RelayResult<string>.Failure($"Host allocation failed: {result.ErrorMessage}");
-                }
+                if (!allocResult.IsSuccess)
+                    return RelayResult<string>.Failure($"Host allocation failed: {allocResult.ErrorMessage}");
 
-                var (allocation, joinCode) = result.Data;
-                Debug.Log($"[RelayCore] Host relay setup complete - Join Code: {joinCode}");
-                
+                var (_, joinCode) = allocResult.Data;
                 return RelayResult<string>.Success(joinCode);
             }
             catch (OperationCanceledException)
             {
-                Debug.Log("[RelayCore] Host relay setup cancelled");
                 return RelayResult<string>.Failure("Operation cancelled");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[RelayCore] Host relay setup failed: {ex.Message}");
-                return RelayResult<string>.Failure($"Host setup failed: {ex.Message}");
+                Debug.LogError($"[RelayHandler] SetupHostRelayAsync failed: {ex}");
+                return RelayResult<string>.Failure(ex.Message);
             }
         }
 
         /// <summary>
-        /// Khởi động NetworkManager host
+        /// Starts the Netcode host (NetworkManager.StartHost()) after transport is configured.
         /// </summary>
         public static NetworkResult StartNetworkHost()
         {
             try
             {
-                var networkManager = NetworkManager.Singleton;
-                if (networkManager == null)
-                {
+                var nm = NetworkManager.Singleton;
+                if (nm == null)
                     return NetworkResult.Failure("NetworkManager not found");
-                }
 
-                if (!networkManager.StartHost())
-                {
+                if (!nm.StartHost())
                     return NetworkResult.Failure("Failed to start NetworkManager host");
-                }
 
-                Debug.Log("[RelayCore] Network host started successfully");
+                Debug.Log("[RelayHandler] Network host started");
                 return NetworkResult.Success();
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[RelayCore] Network host start failed: {ex.Message}");
-                return NetworkResult.Failure($"Network host start failed: {ex.Message}");
+                Debug.LogError($"[RelayHandler] StartNetworkHost failed: {ex}");
+                return NetworkResult.Failure(ex.Message);
             }
         }
 
-        #endregion
-
-        #region Client Operations
-
         /// <summary>
-        /// Kết nối client tới relay
+        /// Join a Relay allocation by join code and configure transport (does not start Netcode client).
         /// </summary>
-        public static async Task<RelayResult<JoinAllocation>> ConnectClientToRelayAsync(string joinCode, CancellationToken cancellationToken = default)
+        public static async Task<RelayResult<JoinAllocation>> ConnectClientToRelayAsync(
+            string joinCode,
+            CancellationToken cancellationToken = default)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(joinCode))
-                {
-                    return RelayResult<JoinAllocation>.Failure("Invalid join code");
-                }
-
-                Debug.Log($"[RelayCore] Connecting client to relay: {joinCode}");
-
-                var result = await RelayConnector.JoinAsClientAsync(joinCode, cancellationToken);
+                var result = await JoinAsClientAsync(joinCode, cancellationToken);
                 if (!result.IsSuccess)
-                {
-                    return RelayResult<JoinAllocation>.Failure($"Client relay connection failed: {result.ErrorMessage}");
-                }
+                    return RelayResult<JoinAllocation>.Failure(result.ErrorMessage);
 
-                Debug.Log("[RelayCore] Client connected to relay successfully");
                 return result;
             }
             catch (OperationCanceledException)
             {
-                Debug.Log("[RelayCore] Client relay connection cancelled");
                 return RelayResult<JoinAllocation>.Failure("Operation cancelled");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[RelayCore] Client relay connection failed: {ex.Message}");
-                return RelayResult<JoinAllocation>.Failure($"Client connection failed: {ex.Message}");
+                Debug.LogError($"[RelayHandler] ConnectClientToRelayAsync failed: {ex}");
+                return RelayResult<JoinAllocation>.Failure(ex.Message);
             }
         }
 
         /// <summary>
-        /// Khởi động NetworkManager client
+        /// Starts the Netcode client (NetworkManager.StartClient()) after transport is configured.
         /// </summary>
         public static NetworkResult StartNetworkClient()
         {
             try
             {
-                var networkManager = NetworkManager.Singleton;
-                if (networkManager == null)
-                {
+                var nm = NetworkManager.Singleton;
+                if (nm == null)
                     return NetworkResult.Failure("NetworkManager not found");
-                }
 
-                if (!networkManager.StartClient())
-                {
+                if (!nm.StartClient())
                     return NetworkResult.Failure("Failed to start NetworkManager client");
-                }
 
-                Debug.Log("[RelayCore] Network client started successfully");
+                Debug.Log("[RelayHandler] Network client started");
                 return NetworkResult.Success();
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[RelayCore] Network client start failed: {ex.Message}");
-                return NetworkResult.Failure($"Network client start failed: {ex.Message}");
+                Debug.LogError($"[RelayHandler] StartNetworkClient failed: {ex}");
+                return NetworkResult.Failure(ex.Message);
             }
         }
 
-        #endregion
-
-        #region Utility Operations
-
         /// <summary>
-        /// Shutdown network connection
-        /// </summary>
-        public static async Task<bool> ShutdownNetworkAsync()
-        {
-            try
-            {
-                Debug.Log("[RelayCore] Shutting down network...");
-                
-                // Cancel any ongoing relay operations
-                RelayConnector.CancelCurrentOperation();
-                
-                var networkManager = NetworkManager.Singleton;
-                if (networkManager != null && (networkManager.IsHost || networkManager.IsClient))
-                {
-                    networkManager.Shutdown();
-                    await Task.Delay(500); // Wait for cleanup
-                }
-
-                // Reset relay state
-                RelayConnector.ResetState();
-                
-                Debug.Log("[RelayCore] Network shutdown complete");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[RelayCore] Network shutdown failed: {ex.Message}");
-                return false;
-            }
-        }
-        
-        /// <summary>
-        /// Shutdown network một cách an toàn
+        /// Gracefully shut down Netcode & reset Relay state.
         /// </summary>
         public static async Task<bool> SafeShutdownAsync()
         {
             try
             {
-                // Cancel any ongoing operations
-                RelayConnector.CancelCurrentOperation();
-                
-                var networkManager = NetworkManager.Singleton;
-                if (networkManager != null && (networkManager.IsHost || networkManager.IsClient))
+                CancelCurrentOperation();
+
+                var nm = NetworkManager.Singleton;
+                if (nm != null && (nm.IsHost || nm.IsClient))
                 {
-                    Debug.Log("[NetworkStarter] Đang shutdown network...");
-                    networkManager.Shutdown();
-                    
-                    // Đợi một chút để network cleanup
+                    Debug.Log("[RelayHandler] Shutting down NetworkManager...");
+                    nm.Shutdown();
                     await Task.Delay(500);
                 }
 
-                // Reset relay state
-                RelayConnector.ResetState();
-
-                Debug.Log("[NetworkStarter] Network shutdown hoàn tất");
+                ResetAllState();
+                Debug.Log("[RelayHandler] Safe shutdown complete");
                 return true;
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetworkStarter] Shutdown thất bại: {ex}");
+                Debug.LogError($"[RelayHandler] SafeShutdownAsync failed: {ex}");
                 return false;
             }
         }
 
         /// <summary>
-        /// Check network status
+        /// Cancel current allocation/join operation (if any).
         /// </summary>
-        public static NetworkStatus GetNetworkStatus()
+        public static void CancelCurrentOperation()
         {
-            var networkManager = NetworkManager.Singleton;
-            if (networkManager == null)
-                return NetworkStatus.NotInitialized;
-
-            if (networkManager.IsHost)
-                return NetworkStatus.Host;
-            
-            if (networkManager.IsClient && networkManager.IsConnectedClient)
-                return NetworkStatus.ClientConnected;
-            
-            if (networkManager.IsClient)
-                return NetworkStatus.ClientConnecting;
-
-            return NetworkStatus.Idle;
+            lock (_lock)
+            {
+                _currentOperationCts?.Cancel();
+            }
+            Debug.Log("[RelayHandler] Current operation cancelled");
         }
 
         /// <summary>
-        /// Reset all relay and network state
+        /// Reset internal Relay state & cancellation.
         /// </summary>
         public static void ResetAllState()
         {
-            RelayConnector.ResetState();
-            Debug.Log("[RelayCore] All state reset");
+            lock (_lock)
+            {
+                _currentOperationCts?.Cancel();
+                _currentOperationCts?.Dispose();
+                _currentOperationCts = null;
+                _state = RelayConnectionState.Idle;
+            }
+            Debug.Log("[RelayHandler] Internal state reset");
         }
 
-        #endregion
+        // ====== Internal logic (from RelayConnector) =========================
+
+        private static UnityTransport GetTransport()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm == null)
+                throw new RelayException("NetworkManager not found");
+
+            if (nm.NetworkConfig?.NetworkTransport is not UnityTransport transport)
+                throw new RelayException("UnityTransport is not configured on NetworkManager");
+
+            return transport;
+        }
+
+        private static RelayServerEndpoint SelectOptimalEndpoint(System.Collections.Generic.IList<RelayServerEndpoint> endpoints)
+        {
+            if (endpoints == null || endpoints.Count == 0)
+                throw new RelayException("No Relay endpoints available");
+
+            // Prefer DTLS
+            var dtls = endpoints.FirstOrDefault(e =>
+                string.Equals(e.ConnectionType, "dtls", StringComparison.OrdinalIgnoreCase));
+
+            if (dtls != null)
+            {
+                Debug.Log("[RelayHandler] Using DTLS endpoint");
+                return dtls;
+            }
+
+            // Fallback UDP
+            var udp = endpoints.FirstOrDefault(e =>
+                string.Equals(e.ConnectionType, "udp", StringComparison.OrdinalIgnoreCase));
+
+            if (udp != null)
+            {
+                Debug.Log("[RelayHandler] Using UDP endpoint");
+                return udp;
+            }
+
+            Debug.LogWarning("[RelayHandler] Using first available endpoint");
+            return endpoints[0];
+        }
+
+        private static async Task<RelayResult<(Allocation allocation, string joinCode)>> AllocateHostAsync(
+            int maxClientConnections,
+            CancellationToken cancellationToken,
+            int maxRetries = 3)
+        {
+            lock (_lock)
+            {
+                if (_state != RelayConnectionState.Idle)
+                    return RelayResult<(Allocation, string)>.Failure($"Invalid state: {_state}");
+
+                _state = RelayConnectionState.Allocating;
+                _currentOperationCts?.Cancel();
+                _currentOperationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            }
+
+            try
+            {
+                Allocation allocation = null;
+                string joinCode = null;
+                Exception last = null;
+
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                {
+                    try
+                    {
+                        _currentOperationCts.Token.ThrowIfCancellationRequested();
+
+                        allocation = await RelayService.Instance.CreateAllocationAsync(maxClientConnections);
+                        joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
+
+                        Debug.Log($"[RelayHandler] Host allocation OK (attempt {attempt})");
+                        break;
+                    }
+                    catch (Exception ex) when (attempt < maxRetries)
+                    {
+                        last = ex;
+                        var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
+                        Debug.LogWarning($"[RelayHandler] Host allocation attempt {attempt} failed: {ex.Message}. Retrying in {delay.TotalSeconds:0}s");
+                        await Task.Delay(delay, _currentOperationCts.Token);
+                    }
+                }
+
+                if (allocation == null || string.IsNullOrEmpty(joinCode))
+                    throw last ?? new RelayException("Failed to allocate Relay host");
+
+                await ConfigureTransportForHost(allocation);
+
+                _state = RelayConnectionState.Connected;
+                return RelayResult<(Allocation, string)>.Success((allocation, joinCode));
+            }
+            catch (OperationCanceledException)
+            {
+                return RelayResult<(Allocation, string)>.Failure("Operation cancelled");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[RelayHandler] AllocateHostAsync failed: {ex}");
+                return RelayResult<(Allocation, string)>.Failure(ex.Message);
+            }
+            finally
+            {
+                if (_state == RelayConnectionState.Allocating)
+                    _state = RelayConnectionState.Failed;
+
+                lock (_lock)
+                {
+                    _currentOperationCts?.Dispose();
+                    _currentOperationCts = null;
+                }
+            }
+        }
+
+        private static async Task ConfigureTransportForHost(Allocation allocation)
+        {
+            await Task.Yield();
+
+            var endpoint = SelectOptimalEndpoint(allocation.ServerEndpoints);
+            var serverData = new RelayServerData(
+                endpoint.Host,
+                (ushort)endpoint.Port,
+                allocation.AllocationIdBytes,
+                allocation.ConnectionData,
+                allocation.ConnectionData, // Host uses its own connection data for both
+                allocation.Key,
+                endpoint.Secure
+            );
+
+            var transport = GetTransport();
+            transport.SetRelayServerData(serverData);
+
+            Debug.Log($"[RelayHandler] Host transport configured: {endpoint.Host}:{endpoint.Port} (secure={endpoint.Secure})");
+        }
+
+        private static async Task<RelayResult<JoinAllocation>> JoinAsClientAsync(
+            string joinCode,
+            CancellationToken cancellationToken,
+            int maxRetries = 3)
+        {
+            if (string.IsNullOrWhiteSpace(joinCode))
+                return RelayResult<JoinAllocation>.Failure("Invalid join code");
+
+            lock (_lock)
+            {
+                if (_state != RelayConnectionState.Idle)
+                    return RelayResult<JoinAllocation>.Failure($"Invalid state: {_state}");
+
+                _state = RelayConnectionState.Joining;
+                _currentOperationCts?.Cancel();
+                _currentOperationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            }
+
+            try
+            {
+                var normalized = joinCode.Trim().ToUpperInvariant();
+                JoinAllocation joinAlloc = null;
+                Exception last = null;
+
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                {
+                    try
+                    {
+                        _currentOperationCts.Token.ThrowIfCancellationRequested();
+
+                        joinAlloc = await RelayService.Instance.JoinAllocationAsync(normalized);
+                        Debug.Log($"[RelayHandler] Client join OK (attempt {attempt})");
+                        break;
+                    }
+                    catch (Exception ex) when (attempt < maxRetries)
+                    {
+                        last = ex;
+                        var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
+                        Debug.LogWarning($"[RelayHandler] Client join attempt {attempt} failed: {ex.Message}. Retrying in {delay.TotalSeconds:0}s");
+                        await Task.Delay(delay, _currentOperationCts.Token);
+                    }
+                }
+
+                if (joinAlloc == null)
+                    throw last ?? new RelayException("Failed to join Relay");
+
+                await ConfigureTransportForClient(joinAlloc);
+
+                _state = RelayConnectionState.Connected;
+                return RelayResult<JoinAllocation>.Success(joinAlloc);
+            }
+            catch (OperationCanceledException)
+            {
+                return RelayResult<JoinAllocation>.Failure("Operation cancelled");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[RelayHandler] JoinAsClientAsync failed: {ex}");
+                return RelayResult<JoinAllocation>.Failure(ex.Message);
+            }
+            finally
+            {
+                if (_state == RelayConnectionState.Joining)
+                    _state = RelayConnectionState.Failed;
+
+                lock (_lock)
+                {
+                    _currentOperationCts?.Dispose();
+                    _currentOperationCts = null;
+                }
+            }
+        }
+
+        private static async Task ConfigureTransportForClient(JoinAllocation joinAllocation)
+        {
+            await Task.Yield();
+
+            var endpoint = SelectOptimalEndpoint(joinAllocation.ServerEndpoints);
+            var serverData = new RelayServerData(
+                endpoint.Host,
+                (ushort)endpoint.Port,
+                joinAllocation.AllocationIdBytes,
+                joinAllocation.ConnectionData,
+                joinAllocation.HostConnectionData,
+                joinAllocation.Key,
+                endpoint.Secure
+            );
+
+            var transport = GetTransport();
+            transport.SetRelayServerData(serverData);
+
+            Debug.Log($"[RelayHandler] Client transport configured: {endpoint.Host}:{endpoint.Port} (secure={endpoint.Secure})");
+        }
+
+        // ===== Helper types (were in RelayConnector / RelayHandler) ==========
+
+        private class RelayException : Exception
+        {
+            public RelayException(string message) : base(message) { }
+            public RelayException(string message, Exception inner) : base(message, inner) { }
+        }
     }
 
-    #region Result Types
+    // ===== Result Types (unchanged public shapes) ============================
+
+    public class RelayResult<T>
+    {
+        public bool IsSuccess { get; private set; }
+        public T Data { get; private set; }
+        public string ErrorMessage { get; private set; }
+
+        private RelayResult(bool ok, T data, string error)
+        {
+            IsSuccess = ok;
+            Data = data;
+            ErrorMessage = error;
+        }
+
+        public static RelayResult<T> Success(T data) => new(true, data, null);
+        public static RelayResult<T> Failure(string error) => new(false, default, error);
+    }
 
     public class NetworkResult
     {
         public bool IsSuccess { get; private set; }
         public string ErrorMessage { get; private set; }
 
-        private NetworkResult(bool isSuccess, string errorMessage)
+        private NetworkResult(bool ok, string err)
         {
-            IsSuccess = isSuccess;
-            ErrorMessage = errorMessage;
+            IsSuccess = ok;
+            ErrorMessage = err;
         }
 
         public static NetworkResult Success() => new(true, null);
-        public static NetworkResult Failure(string errorMessage) => new(false, errorMessage);
+        public static NetworkResult Failure(string error) => new(false, error);
     }
 
     public enum NetworkStatus
@@ -270,5 +487,4 @@ namespace _GAME.Scripts.Networking.Relay
         ClientConnected,
         Failed
     }
-    #endregion
 }

@@ -2,11 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using _GAME.Scripts.Controller;
 using _GAME.Scripts.Core;
-using _GAME.Scripts.DesignPattern.Interaction;
 using _GAME.Scripts.HideAndSeek.Config;
-using _GAME.Scripts.HideAndSeek.Player;
 using _GAME.Scripts.HideAndSeek.Util;
+using _GAME.Scripts.Networking;
 using _GAME.Scripts.Player;
 using GAME.Scripts.DesignPattern;
 using UnityEngine;
@@ -16,957 +16,725 @@ namespace _GAME.Scripts.HideAndSeek
 {
     public class GameManager : NetworkSingleton<GameManager>
     {
-        [Header("Game Settings")] [SerializeField]
-        private GameSettingsConfig gameSettings;
-
+        [Header("Game Settings")] 
+        [SerializeField] private GameSettingsConfig gameSettings;
+        [SerializeField] private GameMode gameMode;
         [SerializeField] private SkillDataConfig skillDatabase;
-        [SerializeField] private ObjectDataConfig objectDatabase;
-        [SerializeField] private TaskDataConfig taskDatabase;
-
-        [Header("Spawn Points")] 
-        [SerializeField] private Transform[] hiderSpawnPoints;
-        [SerializeField] private Transform[] seekerSpawnPoints;
-        [SerializeField] private Transform[] taskSpawnPoints;
-        [SerializeField] private Transform[] objectSpawnPoints;
 
         [Header("References")] 
         [SerializeField] private TimeCountDown timeCountDown;
         [SerializeField] private SpawnerController spawnerController;
 
         // Network Variables
-        private readonly NetworkVariable<NetworkGameState> _networkGameState = new NetworkVariable<NetworkGameState>(NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
-        private NetworkList<NetworkPlayerData> _networkAllPlayers = new NetworkList<NetworkPlayerData>(NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private NetworkVariable<GameState> _gameState = new(GameState.PreparingGame);
 
-        // Game State
-        private Dictionary<ulong, IGamePlayer> Players
-        {
-            get
-            {
-                var players = new Dictionary<ulong, IGamePlayer>();
-                foreach (var playerData in _networkAllPlayers)
-                {
-                    if (players.TryGetValue(playerData.clientId, out var player))
-                    {
-                        players[playerData.clientId] = player;
-                    }
-                }
-                return players;
-            }
-        }
-        
-        public List<IGamePlayer> HidersList
-        {
-            get
-            {
-                return Players.Values.Where(playerData => playerData.Role == Role.Hider).ToList();
-            }
-        }
-        
-        public List<IGamePlayer> SeekersList
-        {
-            get
-            {
-                return Players.Values.Where(playerData => playerData.Role == Role.Seeker).ToList();
-            }
-        }
-        
+        // SERVER SOURCE OF TRUTH - Only server modifies this
+        private readonly Dictionary<ulong, NetworkPlayerData> _serverPlayers = new();
 
-        // Properties
-        public GameState CurrentState => _networkGameState.Value.state;
-        public GameMode CurrentMode => _networkGameState.Value.mode;
+        // CLIENT CACHES - Read-only, synced from server
+        private readonly List<NetworkPlayerData> _localAllPlayers = new();
+        private readonly List<NetworkPlayerData> _localHiderPlayers = new();
+        private readonly List<NetworkPlayerData> _localSeekerPlayers = new();
+        private readonly Dictionary<ulong, IGamePlayer> _allPlayersBehaviour = new();
+        private readonly Dictionary<ulong, int> _indexById = new();
+
+        // Public Properties
+        public List<NetworkPlayerData> Seekers => _localSeekerPlayers;
+        public List<NetworkPlayerData> Hiders => _localHiderPlayers;
+        public List<NetworkPlayerData> AllPlayers => _localAllPlayers;
+        public GameMode CurrentMode => gameMode;
         public GameSettingsConfig Settings => gameSettings;
+        public GameState CurrentGameState => _gameState.Value;
 
-        private void Awake()
+        // Events
+        public static event Action<List<NetworkPlayerData>> OnPlayersListUpdated;
+
+        private Coroutine returnToLobbyCoroutine;
+        private Coroutine spawnObjectRoutine;
+
+        #region Unity Lifecycle
+
+        protected override void OnNetworkAwake()
         {
-            _networkAllPlayers = new NetworkList<NetworkPlayerData>();
+            base.OnNetworkAwake();
+            ValidateConfiguration();
+
+            // SERVER ONLY SUBSCRIPTIONS
+            if (IsServer)
+            {
+                TimeCountDown.OnCountdownFinished += OnServerTimeCountdownFinished;
+                SpawnerController.OnFinishSpawning += OnServerPlayersSpawned;
+            }
+        }
+
+        public override void OnDestroy()
+        {
+            if (IsServer)
+            {
+                TimeCountDown.OnCountdownFinished -= OnServerTimeCountdownFinished;
+                SpawnerController.OnFinishSpawning -= OnServerPlayersSpawned;
+            }
+            base.OnDestroy();
         }
 
         public override void OnNetworkSpawn()
         {
-            if (IsServer)
+            base.OnNetworkSpawn();
+            try
             {
-                _networkGameState.Value = new NetworkGameState
+                _gameState.OnValueChanged += OnGameStateChanged;
+
+                if (IsServer)
                 {
-                    state = GameState.Preparation,
-                    mode = gameSettings.gameMode,
-                    completedTasks = 0,
-                    totalTasks = gameSettings.tasksToComplete,
-                    alivePlayers = 0
-                };
-                _networkGameState.OnValueChanged += OnGameStateNetworkChanged;
-                _networkAllPlayers.OnListChanged += AllPlayersListChanged;
-                if (timeCountDown) timeCountDown.OnCountdownFinished += TimeDurationEnded;
-                if (spawnerController) spawnerController.OnFinishSpawning += StartGameServerRpc;
+                    NetworkManager.Singleton.OnClientDisconnectCallback += OnServerClientDisconnected;
+                    NetworkManager.Singleton.OnClientConnectedCallback += OnServerClientConnected;
+                    Debug.Log("[GameManager] Server initialized successfully.");
+                }
 
-                Debug.Log("GameManager: Initialized on Server.");
+                GameEvent.OnPlayerKilled += OnPlayerDeathRequested;
+                Debug.Log($"[GameManager] Client {NetworkManager.Singleton.LocalClientId} initialized.");
             }
-
-            HiderPlayer.OnTaskProgressChanged += HandleHiderTaskProgressChanged; // optional
-            SeekerPlayer.OnHidersCaughtChanged += HandleSeekerCaughtChanged; // optional
+            catch (Exception e)
+            {
+                Debug.LogError($"[GameManager] Error during network spawn: {e.Message}");
+            }
         }
 
         public override void OnNetworkDespawn()
         {
-            _networkGameState.OnValueChanged -= OnGameStateNetworkChanged;
-            if (_networkAllPlayers != null)
+            try
             {
-                _networkAllPlayers.OnListChanged -= AllPlayersListChanged;
-            }
+                StopAllCoroutines();
+                _gameState.OnValueChanged -= OnGameStateChanged;
 
-            if (spawnerController) spawnerController.OnFinishSpawning -= StartGameServerRpc;
-            if (timeCountDown) timeCountDown.OnCountdownFinished -= TimeDurationEnded;
-
-            HiderPlayer.OnTaskProgressChanged -= HandleHiderTaskProgressChanged;
-            SeekerPlayer.OnHidersCaughtChanged -= HandleSeekerCaughtChanged;
-        }
-
-        #region Player State Synchronization
-
-        [ServerRpc(RequireOwnership = false)]
-        public void SyncPlayerPositionServerRpc(ulong clientId, Vector3 position)
-        {
-            if (!IsServer) return;
-
-            for (int i = 0; i < _networkAllPlayers.Count; i++)
-            {
-                var playerData = _networkAllPlayers[i];
-                if (playerData.clientId == clientId)
+                if (IsServer && NetworkManager.Singleton != null)
                 {
-                    playerData.position = position;
-                    _networkAllPlayers[i] = playerData;
-                    break;
-                }
-            }
-        }
-
-        [ServerRpc(RequireOwnership = false)]
-        public void SyncPlayerHealthServerRpc(ulong clientId, float health)
-        {
-            if (!IsServer) return;
-
-            for (int i = 0; i < _networkAllPlayers.Count; i++)
-            {
-                var playerData = _networkAllPlayers[i];
-                if (playerData.clientId == clientId)
-                {
-                    playerData.health = Mathf.Clamp(health, 0f,
-                        playerData.role == Role.Seeker ? gameSettings.seekerHealth : 100f);
-
-                    if (playerData.health <= 0f)
-                    {
-                        playerData.isAlive = false;
-                    }
-
-                    _networkAllPlayers[i] = playerData;
-                    break;
-                }
-            }
-        }
-
-        [ClientRpc]
-        public void SyncSkillEffectClientRpc(ulong playerId, SkillType skillType, Vector3 position,
-            Vector3 direction, float duration = 0f)
-        {
-            // Đồng bộ skill effects cho all clients
-            var player = GetPlayerByClientId(playerId);
-            if (player != null)
-            {
-                // Play visual/audio effects for all clients
-                PlaySkillEffectForAllClients(skillType, position, direction, duration);
-            }
-        }
-
-        private void PlaySkillEffectForAllClients(SkillType skillType, Vector3 position,
-            Vector3 direction, float duration)
-        {
-            // Implement visual/audio effects based on skill type
-            switch (skillType)
-            {
-                case SkillType.Detect:
-                    // Show detection radius effect
-                    Debug.Log($"[GameManager] Playing detection effect at {position}");
-                    break;
-
-                case SkillType.Teleport:
-                    // Show teleport effect
-                    Debug.Log($"[GameManager] Playing teleport effect at {position}");
-                    break;
-
-                case SkillType.FreezeHider:
-                case SkillType.FreezeSeeker:
-                    // Show freeze effect
-                    Debug.Log($"[GameManager] Playing freeze effect at {position}");
-                    break;
-
-                case SkillType.Rush:
-                    // Show rush effect
-                    Debug.Log($"[GameManager] Playing rush effect from {position} to {direction}");
-                    break;
-            }
-        }
-
-        #endregion
-
-        #region Server Methods
-
-        [ServerRpc(RequireOwnership = false)]
-        private void StartGameServerRpc()
-        {
-            Debug.Log("[GameManager] Starting Game...");
-            AssignRoles();
-            SpawnGameElements();
-
-            var newState = _networkGameState.Value;
-            newState.state = GameState.Preparation;
-            _networkGameState.Value = newState;
-
-            // Start game after preparation time
-            StartCoroutine(StartPlayingPhaseCoroutine());
-        }
-
-        private IEnumerator StartPlayingPhaseCoroutine()
-        {
-            yield return new WaitForSeconds(5f);
-            StartPlayingPhase();
-        }
-
-        private void StartPlayingPhase()
-        {
-            var newState = _networkGameState.Value;
-            newState.state = GameState.Playing;
-            _networkGameState.Value = newState;
-
-            // Notify all players
-            foreach (var player in players.Values)
-            {
-                player.OnGameStart();
-            }
-
-            if (gameSettings && timeCountDown)
-            {
-                timeCountDown.StartCountdownServerRpc(gameSettings.gameDuration);
-            }
-        }
-
-        private void AssignRoles()
-        {
-            if (NetworkManager.Singleton == null) return;
-
-            var clientsList = NetworkManager.Singleton.ConnectedClients;
-            var allPlayers = spawnerController.GetSpawnedPlayersDictionary<PlayerController>();
-
-            var seekerCount = Mathf.Max(1, allPlayers.Count / 4); // 1/4 players are seekers
-
-            var seekerPlayers = new List<IGamePlayer>();
-            var hiderPlayers = new List<IGamePlayer>();
-
-            // Create list of client IDs
-            List<ulong> clientIds = new List<ulong>();
-            foreach (var client in clientsList)
-            {
-                clientIds.Add(client.Value.ClientId);
-            }
-
-            // Randomly assign seekers
-            List<ulong> seekers = new List<ulong>();
-            for (int i = 0; i < seekerCount; i++)
-            {
-                if (clientIds.Count > 0)
-                {
-                    int randomIndex = UnityEngine.Random.Range(0, clientIds.Count);
-                    seekers.Add(clientIds[randomIndex]);
-                    clientIds.RemoveAt(randomIndex);
-                }
-            }
-
-            // Assign roles
-            foreach (var client in clientsList.Values)
-            {
-                var role = seekers.Contains(client.ClientId) ? Role.Seeker : Role.Hider;
-                if (allPlayers.ContainsKey(client.ClientId))
-                {
-                    allPlayers[client.ClientId].SetRole(role);
-                    AssignPlayerRole(client.ClientId, role);
-                }
-            }
-            
-            //Trigger event 
-            GameEvent.OnRoleAssignedSuccess?.Invoke();
-        }
-
-        private void AssignPlayerRole(ulong clientId, Role role)
-        {
-            var playerData = new NetworkPlayerData
-            {
-                clientId = clientId,
-                role = role,
-                position = Vector3.zero,
-                isAlive = true,
-                health = role == Role.Seeker ? gameSettings.seekerHealth : 100f
-            };
-
-            _networkAllPlayers.Add(playerData);
-        }
-
-        private void SpawnGameElements()
-        {
-            if (CurrentMode == GameMode.PersonVsPerson)
-            {
-                SpawnTasks();
-            }
-            else if (CurrentMode == GameMode.PersonVsObject)
-            {
-                SpawnDisguiseObjects();
-            }
-        }
-
-        private void SpawnTasks()
-        {
-            for (int i = 0; i < gameSettings.tasksToComplete && i < taskSpawnPoints.Length; i++)
-            {
-                var spawnPoint = taskSpawnPoints[i];
-                var taskType = (TaskType)(i % System.Enum.GetValues(typeof(TaskType)).Length);
-                var taskData = GetTaskData(taskType);
-
-                if (taskData.prefab != null)
-                {
-                    var taskObj = Instantiate(taskData.prefab, spawnPoint.position, spawnPoint.rotation);
-                    var networkObj = taskObj.GetComponent<NetworkObject>();
-                    if (networkObj != null)
-                    {
-                        networkObj.Spawn();
-                    }
-
-                    var gameTask = taskObj.GetComponent<IGameTask>();
-                    if (gameTask != null)
-                    {
-                        gameTasks.Add(gameTask);
-                        taskIdMapping[i] = gameTask; // Map task ID to task object
-                    }
-                }
-            }
-        }
-
-        private void SpawnDisguiseObjects()
-        {
-            foreach (var spawnPoint in objectSpawnPoints)
-            {
-                var randomObjectType =
-                    (ObjectType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(ObjectType)).Length);
-                var objectData = GetObjectData(randomObjectType);
-
-                if (objectData.prefab != null)
-                {
-                    var objInstance = Instantiate(objectData.prefab, spawnPoint.position, spawnPoint.rotation);
-                    var networkObj = objInstance.GetComponent<NetworkObject>();
-                    if (networkObj != null)
-                    {
-                        networkObj.Spawn();
-                    }
-                }
-            }
-        }
-
-        private void CheckWinConditions()
-        {
-            if (_networkAllPlayers == null || _networkAllPlayers.Count == 0) return;
-
-            if (CurrentMode == GameMode.PersonVsPerson)
-            {
-                // Check if all tasks completed
-                if (_networkGameState.Value.completedTasks >= _networkGameState.Value.totalTasks)
-                {
-                    EndGame(Role.Hider);
-                    return;
+                    NetworkManager.Singleton.OnClientDisconnectCallback -= OnServerClientDisconnected;
+                    NetworkManager.Singleton.OnClientConnectedCallback -= OnServerClientConnected;
                 }
 
-                // Check if all hiders are dead
-                int aliveHiders = 0;
-                int aliveSeekers = 0;
-
-                foreach (var player in _networkAllPlayers)
-                {
-                    if (player.isAlive)
-                    {
-                        if (player.role == Role.Hider)
-                            aliveHiders++;
-                        else if (player.role == Role.Seeker)
-                            aliveSeekers++;
-                    }
-                }
-
-                if (aliveHiders == 0)
-                {
-                    EndGame(Role.Seeker);
-                    return;
-                }
-
-                if (aliveSeekers == 0)
-                {
-                    EndGame(Role.Hider);
-                }
+                GameEvent.OnPlayerKilled -= OnPlayerDeathRequested;
+                ClearAllLocalCaches();
+                _serverPlayers.Clear();
             }
-            else if (CurrentMode == GameMode.PersonVsObject)
+            catch (Exception e)
             {
-                // Check if all hiders found or all seekers dead
-                int aliveHiders = 0;
-                int aliveSeekers = 0;
-
-                foreach (var player in _networkAllPlayers)
-                {
-                    if (player.isAlive)
-                    {
-                        if (player.role == Role.Hider)
-                            aliveHiders++;
-                        else if (player.role == Role.Seeker)
-                            aliveSeekers++;
-                    }
-                }
-
-                if (aliveHiders == 0)
-                {
-                    EndGame(Role.Seeker);
-                    return;
-                }
-
-                if (aliveSeekers == 0)
-                {
-                    EndGame(Role.Hider);
-                }
+                Debug.LogError($"[GameManager] Error during network despawn: {e.Message}");
             }
-        }
-
-        private void TimeDurationEnded()
-        {
-            Debug.Log($"[GameManager] Time's up! Ending game...");
-            EndGame(Role.Hider); // Time up, hiders win by default
-        }
-
-        private void EndGame(Role winnerRole)
-        {
-            var newState = _networkGameState.Value;
-            newState.state = GameState.GameOver;
-            _networkGameState.Value = newState;
-
-            OnGameEnded?.Invoke(winnerRole);
-
-            // Notify all players
-            foreach (var player in players.Values)
-            {
-                player.OnGameEnd(winnerRole);
-            }
-
-            if (timeCountDown)
-            {
-                timeCountDown.StopCountdownServerRpc();
-            }
-        }
-
-        [ServerRpc(RequireOwnership = false)]
-        public void PlayerTaskCompletedServerRpc(ulong playerId, int taskId)
-        {
-            var newState = _networkGameState.Value;
-            newState.completedTasks++;
-            _networkGameState.Value = newState;
-
-            OnTaskProgressUpdated?.Invoke(newState.completedTasks, newState.totalTasks);
-
-            Debug.Log(
-                $"[GameManager] Task {taskId} completed by player {playerId}. Progress: {newState.completedTasks}/{newState.totalTasks}");
-        }
-
-        [ServerRpc(RequireOwnership = false)]
-        public void PlayerKilledServerRpc(ulong killerId, ulong victimId)
-        {
-            // Update victim status
-            for (int i = 0; i < _networkAllPlayers.Count; i++)
-            {
-                var playerData = _networkAllPlayers[i];
-                if (playerData.clientId == victimId)
-                {
-                    playerData.isAlive = false;
-                    _networkAllPlayers[i] = playerData;
-                    break;
-                }
-            }
-
-            // Find killer and victim data
-            NetworkPlayerData killer = default;
-            NetworkPlayerData victim = default;
-            bool killerFound = false;
-            bool victimFound = false;
-
-            for (int i = 0; i < _networkAllPlayers.Count; i++)
-            {
-                if (_networkAllPlayers[i].clientId == killerId)
-                {
-                    killer = _networkAllPlayers[i];
-                    killerFound = true;
-                }
-
-                if (_networkAllPlayers[i].clientId == victimId)
-                {
-                    victim = _networkAllPlayers[i];
-                    victimFound = true;
-                }
-
-                if (killerFound && victimFound) break;
-            }
-
-            // If seeker killed hider, restore health
-            if (killerFound && victimFound && killer.role == Role.Seeker && victim.role == Role.Hider)
-            {
-                for (int i = 0; i < _networkAllPlayers.Count; i++)
-                {
-                    var playerData = _networkAllPlayers[i];
-                    if (playerData.clientId == killerId)
-                    {
-                        playerData.health = Mathf.Min(gameSettings.seekerHealth,
-                            playerData.health + gameSettings.hiderKillReward);
-                        _networkAllPlayers[i] = playerData;
-                        break;
-                    }
-                }
-            }
-
-            Debug.Log($"[GameManager] Player {victimId} killed by {killerId}");
-        }
-
-        [ServerRpc(RequireOwnership = false)]
-        public void PlayerTookDamageServerRpc(ulong playerId, float damage)
-        {
-            for (int i = 0; i < _networkAllPlayers.Count; i++)
-            {
-                var playerData = _networkAllPlayers[i];
-                if (playerData.clientId == playerId)
-                {
-                    playerData.health = Mathf.Max(0, playerData.health - damage);
-                    if (playerData.health <= 0)
-                    {
-                        playerData.isAlive = false;
-                    }
-
-                    _networkAllPlayers[i] = playerData;
-                    break;
-                }
-            }
-
-            Debug.Log($"[GameManager] Player {playerId} took {damage} damage");
-        }
-
-        #endregion
-
-        #region Client RPCs
-
-        [ClientRpc]
-        private void ForceObjectSwapClientRpc()
-        {
-            // Force all hiders to swap objects
-            foreach (var kvp in players)
-            {
-                if (kvp.Value.Role == Role.Hider)
-                {
-                    if (kvp.Value is IHider hider)
-                    {
-                        Debug.Log($"Forcing object swap for hider {hider.ClientId}");
-                    }
-                }
-            }
+            base.OnNetworkDespawn();
         }
 
         #endregion
 
         #region Event Handlers
 
-        private void OnGameStateNetworkChanged(NetworkGameState previousValue, NetworkGameState newValue)
+        /// <summary>
+        /// All clients receive game state changes
+        /// </summary>
+        private void OnGameStateChanged(GameState oldState, GameState newState)
         {
-            OnGameStateChanged?.Invoke(newValue.state);
-            OnTaskProgressUpdated?.Invoke(newValue.completedTasks, newValue.totalTasks);
+            Debug.Log($"[GameManager] Game state changed from {oldState} to {newState}");
+
+            switch (newState)
+            {
+                case GameState.PreparingGame:
+                    Debug.Log("[GameManager] Preparing game...");
+                    break;
+
+                case GameState.Playing:
+                    Debug.Log("[GameManager] Game started!");
+                    GameEvent.OnGameStarted?.Invoke();
+                    break;
+
+                case GameState.GameEnded:
+                    Debug.Log("[GameManager] Game ended.");
+                    break;
+            }
         }
 
-        private void AllPlayersListChanged(NetworkListEvent<NetworkPlayerData> changeEvent)
+        /// <summary>
+        /// Server: Send full snapshot to newly connected client
+        /// </summary>
+        private void OnServerClientConnected(ulong clientId)
         {
-            // Handle player list changes
-            var newState = _networkGameState.Value;
+            if (!IsServer) return;
 
-            // Count alive players manually
-            int aliveCount = 0;
-            foreach (var player in _networkAllPlayers)
+            Debug.Log($"[GameManager] Server: Client {clientId} connected, sending snapshot.");
+            var snapshot = _serverPlayers.Values.ToArray();
+            var rpcParams = new ClientRpcParams
             {
-                if (player.isAlive)
-                    aliveCount++;
-            }
+                Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } }
+            };
+            SyncFullSnapshotClientRpc(snapshot, rpcParams);
+        }
 
-            newState.alivePlayers = aliveCount;
-            _networkGameState.Value = newState;
+        /// <summary>
+        /// Server: Handle client disconnect - mark as dead, don't remove
+        /// </summary>
+        private void OnServerClientDisconnected(ulong clientId)
+        {
+            if (!IsServer) return;
+
+            Debug.Log($"[GameManager] Server: Client {clientId} disconnected.");
+
+            if (!_allPlayersBehaviour.ContainsKey(clientId)) return;
+
+            // Mark player as dead (disconnected), but keep in game
+            if (_serverPlayers.TryGetValue(clientId, out var playerData))
+            {
+                playerData.isAlive = false;
+                _serverPlayers[clientId] = playerData;
+                
+                // Sync updated player data to all clients
+                SyncPlayerUpdateClientRpc(playerData);
+
+                // Notify all clients about disconnection (killerId = 0 means disconnect)
+                NotifyPlayerKilledClientRpc(0, clientId);
+                CheckWinConditions();
+            }
+        }
+
+        /// <summary>
+        /// Server: Handle countdown finished
+        /// </summary>
+        private void OnServerTimeCountdownFinished()
+        {
+            if (!IsServer) return;
+
+            if (_gameState.Value == GameState.Playing)
+            {
+                Debug.Log("[GameManager] Server: Time's up! Hiders win!");
+                EndGame(Role.Hider);
+            }
+            else if (_gameState.Value == GameState.PreparingGame)
+            {
+                //Delay 3s to notice and spawn object
+                if(spawnObjectRoutine != null)
+                    StopCoroutine(spawnObjectRoutine);
+                spawnObjectRoutine = StartCoroutine(IESpawnObjectAndStartPlaying());
+                
+            } 
+        }
+
+        private IEnumerator IESpawnObjectAndStartPlaying()
+        {
+            //Spawn Item Object or Spawn Task...
+            yield return new WaitForSeconds(3f);
+            StartPlayingPhase();
+            spawnObjectRoutine = null;
+        }
+
+        /// <summary>
+        /// Server: All players spawned, start game preparation
+        /// </summary>
+        private void OnServerPlayersSpawned()
+        {
+            if (!IsServer) return;
+            Debug.Log("[GameManager] Server: All players spawned, starting game preparation.");
+            
+            _gameState.Value = GameState.PreparingGame;
+            StartPreparationCountdown();
+        }
+
+        /// <summary>
+        /// Both: Player death requested (client calls this, server processes)
+        /// </summary>
+        private void OnPlayerDeathRequested(ulong killerId, ulong victimId)
+        {
+            if (!IsServer) return;
+
+            if (_serverPlayers.TryGetValue(killerId, out var killer) && 
+                _serverPlayers.TryGetValue(victimId, out var victim))
+            {
+                ProcessPlayerDeath(killer, victim);
+            }
         }
 
         #endregion
 
-        #region Public Methods
+        #region Server Authority Methods
 
-        public void RegisterPlayer(IGamePlayer player)
+        public Role GetPlayerRoleWithId(ulong playerId)
         {
-            if (player == null) return;
-
-            players.TryAdd(player.ClientId, player);
-
-            // Nếu là server và chưa có trong network list thì thêm vào
+            // Server/Host: đọc từ nguồn sự thật
             if (IsServer)
             {
-                bool playerExists = false;
-                foreach (var networkPlayer in _networkAllPlayers)
+                if (_serverPlayers.TryGetValue(playerId, out var d))
+                    return d.role;
+                return Role.None;
+            }
+
+            // Client: đọc từ snapshot đã sync
+            if (_indexById.TryGetValue(playerId, out var idx) && idx >= 0 && idx < _localAllPlayers.Count)
+                return _localAllPlayers[idx].role;
+
+            // Fallback tìm tuyến tính (phòng khi index chưa có)
+            var found = _localAllPlayers.Find(p => p.clientId == playerId);
+            return found.clientId != 0 ? found.role : Role.None;
+        }
+        
+        /// <summary>
+        /// Server: Start preparation phase countdown
+        /// </summary>
+        private void StartPreparationCountdown()
+        {
+            if (!IsServer) return;
+            const float preparationTime = 5f;
+            timeCountDown?.StartCountdownServerRpc(preparationTime, "Game Starting In");
+            Invoke(nameof(AssignRoles), preparationTime);
+        }
+
+        /// <summary>
+        /// Server: Transition from preparation to playing
+        /// </summary>
+        private void StartPlayingPhase()
+        {
+            if (!IsServer || _gameState.Value != GameState.PreparingGame) return;
+
+            _gameState.Value = GameState.Playing;
+
+            if (gameSettings && timeCountDown)
+            {
+                timeCountDown.StartCountdownServerRpc(gameSettings.gameDuration);
+            }
+
+            Debug.Log("[GameManager] Server: Playing phase started.");
+        }
+
+        /// <summary>
+        /// Server: Assign roles to all players randomly
+        /// </summary>
+        private void AssignRoles()
+        {
+            if (!IsServer) return;
+
+            var allPlayerControllers = spawnerController?.GetSpawnedPlayersDictionary<PlayerController>();
+            if (allPlayerControllers == null || allPlayerControllers.Count == 0)
+            {
+                Debug.LogError("[GameManager] Server: No players found for role assignment.");
+                return;
+            }
+
+            // Calculate seeker count (1/4 of total, minimum 1, maximum total-1)
+            int totalPlayers = allPlayerControllers.Count;
+            int seekerCount = Mathf.Clamp(totalPlayers / 4, 1, Mathf.Max(1, totalPlayers - 1));
+
+            // Clear server data and notify clients
+            _serverPlayers.Clear();
+            ClearAllDataClientRpc();
+
+            // Randomize player order
+            List<ulong> clientIds = allPlayerControllers.Keys.ToList();
+            clientIds.ShuffleList();
+
+            Debug.Log($"[GameManager] Server: Assigning {seekerCount} seekers, {clientIds.Count - seekerCount} hiders");
+
+            // Assign roles
+            for (int i = 0; i < clientIds.Count; i++)
+            {
+                var clientId = clientIds[i];
+                var role = i < seekerCount ? Role.Seeker : Role.Hider;
+
+
+                // Create and store player data
+                var playerData = new NetworkPlayerData
                 {
-                    if (networkPlayer.clientId == player.ClientId)
+                    clientId = clientId,
+                    role = role,
+                    isAlive = true,
+                }; 
+
+                _serverPlayers[clientId] = playerData;
+                // Sync to all clients
+                SyncPlayerUpdateClientRpc(playerData);
+            }
+
+            NotifyRoleAssignmentCompleteClientRpc();
+            Debug.Log("[GameManager] Server: Role assignment completed.");
+        }
+
+        /// <summary>
+        /// Server: Process player death
+        /// </summary>
+        private void ProcessPlayerDeath(NetworkPlayerData killer, NetworkPlayerData victim)
+        {
+            if (!IsServer) return;
+
+            try
+            {
+                Debug.Log($"[GameManager] Server: Player {victim.clientId} killed by {killer.clientId}");
+
+                // Update victim status
+                if (_serverPlayers.TryGetValue(victim.clientId, out var victimData))
+                {
+                    victimData.isAlive = false;
+                    _serverPlayers[victim.clientId] = victimData;
+                    
+                    // Sync updated victim data
+                    SyncPlayerUpdateClientRpc(victimData);
+                }
+
+                // Notify all clients
+                NotifyPlayerKilledClientRpc(killer.clientId, victim.clientId);
+                CheckWinConditions();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[GameManager] Server: Error processing player death: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Server: Check if any team has won
+        /// </summary>
+        private void CheckWinConditions()
+        {
+            if (!IsServer || _gameState.Value != GameState.Playing) return;
+
+            try
+            {
+                var allPlayers = _serverPlayers.Values;
+                
+                // Count hiders
+                int totalHiders = allPlayers.Count(p => p.role == Role.Hider);
+                int aliveHiders = allPlayers.Count(p => p.role == Role.Hider && p.isAlive);
+
+                // Seekers win if all hiders are eliminated
+                if (totalHiders > 0 && aliveHiders == 0)
+                {
+                    Debug.Log("[GameManager] Server: All hiders eliminated. Seekers win!");
+                    EndGame(Role.Seeker);
+                    return;
+                }
+
+                // Count seekers
+                int totalSeekers = allPlayers.Count(p => p.role == Role.Seeker);
+                int aliveSeekers = allPlayers.Count(p => p.role == Role.Seeker && p.isAlive);
+
+                // Hiders win if all seekers are eliminated
+                if (totalSeekers > 0 && aliveSeekers == 0)
+                {
+                    Debug.Log("[GameManager] Server: All seekers eliminated. Hiders win!");
+                    EndGame(Role.Hider);
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[GameManager] Server: Error checking win conditions: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Server: End the game
+        /// </summary>
+        private void EndGame(Role winnerRole)
+        {
+            if (!IsServer || _gameState.Value == GameState.GameEnded) return;
+
+            try
+            {
+                Debug.Log($"[GameManager] Server: Game ended. Winner: {winnerRole}");
+
+                _gameState.Value = GameState.GameEnded;
+                timeCountDown?.StopCountdownServerRpc();
+                
+                NotifyGameEndedClientRpc(winnerRole);
+
+                // Stop previous coroutine if running
+                if(spawnObjectRoutine != null)
+                {
+                    StopCoroutine(spawnObjectRoutine);
+                }
+                
+                if (returnToLobbyCoroutine != null)
+                {
+                    StopCoroutine(returnToLobbyCoroutine);
+                }
+                
+
+                returnToLobbyCoroutine = StartCoroutine(ReturnToLobbyRoutine());
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[GameManager] Server: Error ending game: {e.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Client RPCs
+
+        /// <summary>
+        /// Send full player data snapshot to specific client(s)
+        /// </summary>
+        [ClientRpc]
+        private void SyncFullSnapshotClientRpc(NetworkPlayerData[] snapshot, ClientRpcParams rpcParams = default)
+        {
+            ClearAllLocalCaches();
+
+            if (snapshot != null && snapshot.Length > 0)
+            {
+                for (int i = 0; i < snapshot.Length; i++)
+                {
+                    var player = snapshot[i];
+                    _localAllPlayers.Add(player);
+                    _indexById[player.clientId] = i;
+                    
+                    // Add to role-specific lists
+                    if (player.role == Role.Hider)
+                        _localHiderPlayers.Add(player);
+                    else if (player.role == Role.Seeker)
+                        _localSeekerPlayers.Add(player);
+                }
+            }
+
+            OnPlayersListUpdated?.Invoke(_localAllPlayers);
+            Debug.Log($"[GameManager] Client: Received full snapshot with {snapshot?.Length ?? 0} players.");
+        }
+
+        /// <summary>
+        /// Update single player data across all clients
+        /// </summary>
+        [ClientRpc]
+        private void SyncPlayerUpdateClientRpc(NetworkPlayerData playerData)
+        {
+            // Update or add player in main list
+            if (_indexById.TryGetValue(playerData.clientId, out int index))
+            {
+                // Update existing player
+                var oldPlayer = _localAllPlayers[index];
+                _localAllPlayers[index] = playerData;
+                
+                // Update role-specific lists if role changed
+                if (oldPlayer.role != playerData.role)
+                {
+                    // Remove from old role list
+                    if (oldPlayer.role == Role.Hider)
+                        _localHiderPlayers.RemoveAll(p => p.clientId == playerData.clientId);
+                    else if (oldPlayer.role == Role.Seeker)
+                        _localSeekerPlayers.RemoveAll(p => p.clientId == playerData.clientId);
+                    
+                    // Add to new role list
+                    if (playerData.role == Role.Hider)
+                        _localHiderPlayers.Add(playerData);
+                    else if (playerData.role == Role.Seeker)
+                        _localSeekerPlayers.Add(playerData);
+                }
+                else
+                {
+                    // Same role, just update in role-specific lists
+                    if (playerData.role == Role.Hider)
                     {
-                        playerExists = true;
-                        break;
+                        for (int i = 0; i < _localHiderPlayers.Count; i++)
+                        {
+                            if (_localHiderPlayers[i].clientId == playerData.clientId)
+                            {
+                                _localHiderPlayers[i] = playerData;
+                                break;
+                            }
+                        }
+                    }
+                    else if (playerData.role == Role.Seeker)
+                    {
+                        for (int i = 0; i < _localSeekerPlayers.Count; i++)
+                        {
+                            if (_localSeekerPlayers[i].clientId == playerData.clientId)
+                            {
+                                _localSeekerPlayers[i] = playerData;
+                                break;
+                            }
+                        }
                     }
                 }
-
-                if (!playerExists)
-                {
-                    var playerData = new NetworkPlayerData
-                    {
-                        clientId = player.ClientId,
-                        role = player.Role,
-                        position = player.Position,
-                        isAlive = player.IsAlive,
-                        health = 1,
-                    };
-                    _networkAllPlayers.Add(playerData);
-                }
             }
-
-            if (player is RolePlayer rp)
+            else
             {
-                // Role changed
-                Action<Role> onRoleChanged = (newRole) => OnPlayerRoleChanged(rp, newRole);
-                rp.OnRoleChanged += onRoleChanged;
-                _roleChangedSubs[rp.ClientId] = onRoleChanged;
+                // Add new player
+                _indexById[playerData.clientId] = _localAllPlayers.Count;
+                _localAllPlayers.Add(playerData);
+                
+                if (playerData.role == Role.Hider)
+                    _localHiderPlayers.Add(playerData);
+                else if (playerData.role == Role.Seeker)
+                    _localSeekerPlayers.Add(playerData);
             }
 
-            if (player is ADefendable def)
-            {
-                // Health changed
-                Action<float, float> onHp = (cur, max) => OnPlayerHealthChanged(player, cur, max);
-                def.OnHealthChanged += onHp;
-                _hpChangedSubs[player.ClientId] = onHp;
-
-                // Death
-                Action<IDefendable, IAttackable> onDied = (self, killer) =>
-                {
-                    if (!IsServer) return; // server-authority
-                    var victim = player as RolePlayer;
-                    NotifyPlayerDiedServer(victim, killer);
-                };
-                def.OnDied += onDied;
-                _diedSubs[player.ClientId] = onDied;
-            }
-
-            Debug.Log($"[GameManager] Subscribed callbacks for player {player.ClientId}");
-
-
-            Debug.Log($"[GameManager] Player {player.ClientId} registered. Total: {players.Count}");
+            OnPlayersListUpdated?.Invoke(_localAllPlayers);
         }
 
-        public void RemovePlayer(IGamePlayer player)
+        /// <summary>
+        /// Clear all player data on all clients
+        /// </summary>
+        [ClientRpc]
+        private void ClearAllDataClientRpc()
         {
-            if (player == null) return;
-
-            var clientId = player.ClientId;
-            if (players.ContainsKey(clientId))
-            {
-                players.Remove(clientId);
-            }
-
-            for (int i = _networkAllPlayers.Count - 1; i >= 0; i--)
-            {
-                if (_networkAllPlayers[i].clientId == clientId)
-                {
-                    _networkAllPlayers.RemoveAt(i);
-                    break;
-                }
-            }
-
-            if (player is RolePlayer rp && _roleChangedSubs.TryGetValue(rp.ClientId, out var roleDel))
-            {
-                rp.OnRoleChanged -= roleDel;
-                _roleChangedSubs.Remove(rp.ClientId);
-            }
-
-            if (_hpChangedSubs.TryGetValue(player.ClientId, out var hpDel))
-            {
-                if (player is ADefendable def) def.OnHealthChanged -= hpDel;
-                _hpChangedSubs.Remove(player.ClientId);
-            }
-
-            if (_diedSubs.TryGetValue(player.ClientId, out var diedDel))
-            {
-                if (player is ADefendable def) def.OnDied -= diedDel;
-                _diedSubs.Remove(player.ClientId);
-            }
-
-            Debug.Log($"[GameManager] Player {clientId} removed");
+            ClearAllLocalCaches();
+            OnPlayersListUpdated?.Invoke(_localAllPlayers);
         }
 
-        public SkillData GetSkillData(SkillType skillType)
+        /// <summary>
+        /// Notify all clients that role assignment is complete
+        /// </summary>
+        [ClientRpc]
+        private void NotifyRoleAssignmentCompleteClientRpc()
         {
-            return skillDatabase.GetData(skillType);
+            GameEvent.OnRoleAssigned?.Invoke();
+            Debug.Log("[GameManager] Role assignment completed.");
         }
 
-        private ObjectData GetObjectData(ObjectType objectType)
+        /// <summary>
+        /// Notify all clients that the game has ended
+        /// </summary>
+        [ClientRpc]
+        private void NotifyGameEndedClientRpc(Role winnerRole)
         {
-            return objectDatabase.GetData(objectType);
+            GameEvent.OnGameEnded?.Invoke(winnerRole);
+            Debug.Log($"[GameManager] Game ended. Winner: {winnerRole}");
         }
 
-        private TaskData GetTaskData(TaskType taskType)
+        /// <summary>
+        /// Notify all clients about player elimination
+        /// </summary>
+        [ClientRpc]
+        private void NotifyPlayerKilledClientRpc(ulong killerId, ulong victimId)
         {
-            return taskDatabase.GetData(taskType);
+            GameEvent.OnPlayerKilled?.Invoke(killerId, victimId);
+            
+            string killerText = killerId == 0 ? "disconnection" : $"player {killerId}";
+            Debug.Log($"[GameManager] Player {victimId} eliminated by {killerText}");
         }
 
+        #endregion
+
+        #region Public API
+
+        /// <summary>
+        /// Server: Register player behavior component
+        /// </summary>
+        public bool RegisterPlayer(IGamePlayer player)
+        {
+            if (!IsServer)
+            {
+                Debug.LogWarning("[GameManager] RegisterPlayer can only be called on server.");
+                return false;
+            }
+
+            if (player == null || _allPlayersBehaviour.ContainsKey(player.ClientId))
+            {
+                return false;
+            }
+
+            try
+            {
+                _allPlayersBehaviour[player.ClientId] = player;
+                Debug.Log($"[GameManager] Server: Player {player.ClientId} registered.");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[GameManager] Server: Error registering player {player.ClientId}: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Check if role can be assigned (based on local cache)
+        /// </summary>
         public bool CanAssignRole(ulong clientId, Role newRole)
         {
-            // Validate role assignment based on game rules
-            if (CurrentState != GameState.Preparation)
+            if (_gameState.Value != GameState.PreparingGame) return false;
+
+            int currentSeekers = _localAllPlayers.Count(p => p.clientId != clientId && p.role == Role.Seeker);
+
+            if (newRole == Role.Seeker)
             {
-                return false; // Can only assign roles during preparation or lobby
-            }
-
-            // Check if player exists
-            if (!players.ContainsKey(clientId))
-            {
-                return false;
-            }
-
-            // Check current role counts
-            int seekerCount = 0;
-            int hiderCount = 0;
-
-            foreach (var playerData in _networkAllPlayers)
-            {
-                if (playerData.clientId == clientId) continue; // Skip current player
-
-                if (playerData.role == Role.Seeker)
-                    seekerCount++;
-                else if (playerData.role == Role.Hider)
-                    hiderCount++;
-            }
-
-            // Enforce role balance (at least 1 seeker, max 1/3 seekers)
-            int totalPlayers = _networkAllPlayers.Count;
-            int maxSeekers = Mathf.Max(1, totalPlayers / 3);
-
-            if (newRole == Role.Seeker && seekerCount >= maxSeekers)
-            {
-                return false;
+                int maxSeekers = Mathf.Max(1, _localAllPlayers.Count / 4);
+                return currentSeekers < maxSeekers;
             }
 
             return true;
         }
 
-        public void OnPlayerTaskCompleted(ulong clientId, int taskId)
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Clear all local player caches
+        /// </summary>
+        private void ClearAllLocalCaches()
+        {
+            _localAllPlayers.Clear();
+            _localHiderPlayers.Clear();
+            _localSeekerPlayers.Clear();
+            _indexById.Clear();
+        }
+
+        /// <summary>
+        /// Coroutine: Return to lobby after game ends
+        /// </summary>
+        private IEnumerator ReturnToLobbyRoutine()
+        {
+            const float displayTime = 5f;
+
+            Debug.Log($"[GameManager] Server: Showing results for {displayTime} seconds...");
+            yield return new WaitForSeconds(displayTime);
+
+            Debug.Log("[GameManager] Server: Returning to lobby...");
+            yield return NetworkController.Instance.DisconnectAsync();
+
+            ResetGameState();
+            SceneController.Instance.LoadSceneAsync((int)SceneDefinitions.Home);
+            returnToLobbyCoroutine = null;
+        }
+
+        /// <summary>
+        /// Server: Reset game state for new game
+        /// </summary>
+        private void ResetGameState()
         {
             if (!IsServer) return;
 
-            // Validate the task completion
-            if (taskIdMapping.ContainsKey(taskId))
+            try
             {
-                var task = taskIdMapping[taskId];
+                _gameState.Value = GameState.PreparingGame;
+                _serverPlayers.Clear();
+                ClearAllDataClientRpc();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[GameManager] Server: Error resetting game state: {e.Message}");
+            }
+        }
 
-                // Mark task as completed and update progress
-                PlayerTaskCompletedServerRpc(clientId, taskId);
+        /// <summary>
+        /// Validate required component references
+        /// </summary>
+        private void ValidateConfiguration()
+        {
+            var errors = new List<string>();
+
+            if (gameSettings == null) errors.Add("GameSettings is null");
+            if (timeCountDown == null) errors.Add("TimeCountDown component is missing");
+            if (spawnerController == null) errors.Add("SpawnerController component is missing");
+            if (skillDatabase == null) errors.Add("SkillDatabase is missing");
+
+            if (errors.Count > 0)
+            {
+                Debug.LogError($"[GameManager] Configuration errors:\n- {string.Join("\n- ", errors)}");
             }
             else
             {
-                Debug.LogWarning($"[GameManager] Invalid task ID {taskId} for player {clientId}");
-            }
-        }
-
-        public bool IsTaskValidAtPosition(int taskId, Vector3 playerPosition, ulong clientId)
-        {
-            // Check if task exists and is accessible at the given position
-            if (!taskIdMapping.ContainsKey(taskId))
-            {
-                return false;
-            }
-
-            var task = taskIdMapping[taskId];
-
-            // Check distance to task (implement based on your task system)
-            float maxTaskDistance = 5f; // Configurable
-            float distance = Vector3.Distance(playerPosition, task.Position);
-
-            return distance <= maxTaskDistance;
-        }
-
-        public void CheckHiderWinCondition(ulong clientId)
-        {
-            if (!IsServer) return;
-
-            // Check if all tasks are completed
-            if (_networkGameState.Value.completedTasks >= _networkGameState.Value.totalTasks)
-            {
-                EndGame(Role.Hider);
-            }
-        }
-
-        public List<IGamePlayer> GetAlivePlayers()
-        {
-            return players.Values.Where(p => p.IsAlive).ToList();
-        }
-
-        public List<IGamePlayer> GetAllPlayers()
-        {
-            return players.Values.ToList();
-        }
-
-        public void OnHiderCaught(ulong hiderClientId, ulong seekerClientId)
-        {
-            if (!IsServer) return;
-
-            // Mark hider as caught/dead
-            PlayerKilledServerRpc(seekerClientId, hiderClientId);
-
-            Debug.Log($"[GameManager] Hider {hiderClientId} caught by seeker {seekerClientId}");
-        }
-
-        public IGamePlayer GetPlayerByClientId(ulong clientId)
-        {
-            players.TryGetValue(clientId, out var player);
-            return player;
-        }
-
-        public List<IGamePlayer> GetPlayersByRole(Role role)
-        {
-            return players.Values.Where(p => p.Role == role).ToList();
-        }
-
-        public void TriggerSeekerWin()
-        {
-            if (!IsServer) return;
-
-            EndGame(Role.Seeker);
-        }
-
-        #endregion
-
-
-        #region Per-player Handlers
-
-        private void OnPlayerRoleChanged(RolePlayer player, Role newRole)
-        {
-            if (!IsServer) return;
-
-            // Cập nhật networkPlayers entry tương ứng
-            for (int i = 0; i < _networkAllPlayers.Count; i++)
-            {
-                if (_networkAllPlayers[i].clientId == player.ClientId)
-                {
-                    var d = _networkAllPlayers[i];
-                    d.role = newRole;
-                    _networkAllPlayers[i] = d;
-                    break;
-                }
-            }
-
-            // (tuỳ chọn) gửi ClientRpc để cập nhật HUD
-            RoleChangedClientRpc(player.ClientId, newRole);
-        }
-
-        [ClientRpc]
-        private void RoleChangedClientRpc(ulong clientId, Role newRole)
-        {
-            // TODO: HUD / icon / marker
-        }
-
-        private void OnPlayerHealthChanged(IGamePlayer player, float cur, float max)
-        {
-            if (!IsServer) return;
-
-            for (int i = 0; i < _networkAllPlayers.Count; i++)
-            {
-                if (_networkAllPlayers[i].clientId == player.ClientId)
-                {
-                    var d = _networkAllPlayers[i];
-                    d.health = Mathf.Clamp(cur, 0, max);
-                    d.isAlive = d.health > 0f;
-                    _networkAllPlayers[i] = d;
-                    break;
-                }
+                Debug.Log("[GameManager] Configuration validation passed.");
             }
         }
 
         #endregion
 
-        #region Death pipe (server-authoritative)
-
-        /// <summary>
-        /// Được gọi khi ADefendable.OnDied bắn, hoặc RolePlayer override OnDeath gọi vào.
-        /// Hợp nhất thành 1 chỗ để cập nhật killer/victim & win conditions.
-        /// </summary>
-        public void NotifyPlayerDiedServer(RolePlayer victim, IAttackable killer)
-        {
-            if (!IsServer || victim == null) return;
-
-            ulong victimId = victim.ClientId;
-            ulong killerId = 0;
-
-            // Thử resolve killerId nếu killer là một NetworkObject của player
-            if (killer is MonoBehaviour mb && mb.TryGetComponent(out NetworkObject kNob))
-            {
-                // Nếu killer gắn trên RolePlayer/weapon của RolePlayer
-                var killerPlayer = kNob.GetComponentInParent<RolePlayer>();
-                if (killerPlayer != null) killerId = killerPlayer.ClientId;
-            }
-
-            // Reuse hàm bạn đã có để cập nhật list + heal seeker nếu giết hider
-            PlayerKilledServerRpc(killerId, victimId); // đã tồn tại ở code của bạn
-
-            // Kiểm tra điều kiện thắng
-            CheckWinConditions();
-        }
-
-        #endregion
-
-        #region Optional: gom các event tĩnh của role để bắc cầu UI
-
-        private void HandleHiderTaskProgressChanged(int completed, int total)
-        {
-            // bắc cầu ra OnTaskProgressUpdated đã có sẵn trong GameManager
-            OnTaskProgressUpdated?.Invoke(completed, total);
-        }
-
-        private void HandleSeekerCaughtChanged(int caught)
-        {
-            // tuỳ bạn: cập nhật một HUD tổng/announce
-            Debug.Log($"[GM] Seekers caught hiders: {caught}");
-        }
-
-        #endregion
-
-
-        #region Testing
-
-        [Header("Testing")] [SerializeField] private PlayerController playerPrefab;
-
-        [ContextMenu("Spawn Test Player")]
-        public void SpawnTestPlayer()
-        {
-            if (NetworkManager.Singleton == null || playerPrefab == null) return;
-
-            var playerInstance = Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
-            var networkObj = playerInstance.GetComponent<NetworkObject>();
-            if (networkObj != null)
-            {
-                networkObj.SpawnAsPlayerObject(NetworkManager.Singleton.LocalClientId);
-            }
-
-            // Assign random role for testing
-            var role = UnityEngine.Random.value > 0.5f ? Role.Hider : Role.Seeker;
-            playerInstance.SetRole(role);
-        }
-
-        #endregion
+        #if UNITY_EDITOR
+        [Header("Debug")] 
+        [SerializeField] private bool enableDebugLogs = true;
+        #endif
     }
 }

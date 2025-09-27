@@ -552,9 +552,10 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   interactionTags:
-  - PlayerInteractor
+  - SeekerInteractor
   interactionCooldown: 0.5
   uiIndicator: {fileID: 4010214363065495366}
+  useServerDrivenPrompt: 0
   weaponName: Base Weapon
   weaponType: 0
   weaponIcon: {fileID: 0}
@@ -652,7 +653,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   attackRate: 1
-  damage: 0
+  damage: 10
   inputComponent: {fileID: 132231500809755908}
   magazineComponent: {fileID: 4641513670209537577}
   effectsComponent: {fileID: 3406547959543967568}

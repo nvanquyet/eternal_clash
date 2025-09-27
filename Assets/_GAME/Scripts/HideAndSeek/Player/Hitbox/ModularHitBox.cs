@@ -1,68 +1,43 @@
+// ModularHitBox.cs
 using System;
 using _GAME.Scripts.DesignPattern.Interaction;
 using JetBrains.Annotations;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace _GAME.Scripts.HideAndSeek.Player.HitBox
 {
     /// <summary>
-    /// Generic hitBox info - can be defined for any object
+    /// MonoBehaviour hitbox cục bộ: nhận va chạm, xử lý multiplier/armor theo bộ phận
+    /// rồi forward damage lên ModularRootHitBox (ADefendable) để server sync HP.
     /// </summary>
-    [System.Serializable]
-    public struct HitBoxInfo
-    {
-        [Header("Identity")] 
-        public HitBoxType hitBoxType; 
-        public HitBoxCategory category; 
-        public string customId;
-
-        [Header("Damage Settings")] 
-        public float damageMultiplier;
-        public float armorValue;
-        public bool isPenetrable;
-
-        [Header("Effects")] 
-        public bool hasSpecialEffect;
-        public string specialEffectId; 
-
-        public string HitBoxId => string.IsNullOrEmpty(customId) ? hitBoxType.ToString() : customId;
-        public HitBoxCategory Category => category;
-        public HitBoxType HitBoxType => hitBoxType;
-    }
-
-    /// <summary>
-    /// Struct containing information when hitBox is hit
-    /// </summary>
-    [Serializable]
-    public struct HitBoxDamageInfo
-    {
-        public HitBoxCategory hitBoxCategory;
-        public float originalDamage;
-        public float finalDamage;
-        public DamageType damageType;
-        public bool hadSpecialEffect;
-        public string specialEffectId;
-
-        public HitBoxDamageInfo(HitBoxCategory category, float origDmg, float finalDmg, DamageType type,
-            bool special = false, string effectId = "")
-        {
-            hitBoxCategory = category;
-            originalDamage = origDmg;
-            finalDamage = finalDmg;
-            damageType = type;
-            hadSpecialEffect = special;
-            specialEffectId = effectId;
-        }
-    }
-
-    /// <summary>
-    /// Simple MonoBehaviour hitbox that forwards damage to ModularRootHitBox
-    /// Implements IDefendable to receive damage, but forwards all operations to root
-    /// Does NOT inherit from network classes - purely local damage receiver
-    /// </summary>
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(Collider))]
     public class ModularHitBox : MonoBehaviour, IDefendable
     {
-        [Header("HitBox Settings")] 
+        [Serializable]
+        public struct HitBoxInfo
+        {
+            [Header("Identity")] 
+            public HitBoxType hitBoxType;
+            public HitBoxCategory category;
+            public string customId;
+
+            [Header("Damage Settings")]
+            public float damageMultiplier;
+            public float armorValue;
+            public bool isPenetrable;
+
+            [Header("Effects")]
+            public bool hasSpecialEffect;
+            public string specialEffectId;
+
+            public string HitBoxId => string.IsNullOrEmpty(customId) ? hitBoxType.ToString() : customId;
+            public HitBoxCategory Category => category;
+            public HitBoxType HitBoxType => hitBoxType;
+        }
+
+        [Header("HitBox Settings")]
         [SerializeField] private HitBoxInfo hitBoxInfo = new HitBoxInfo
         {
             hitBoxType = HitBoxType.None,
@@ -72,96 +47,90 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
             isPenetrable = true,
             hasSpecialEffect = false
         };
-        
-        [Header("Debug")] 
+
+        [Header("Debug")]
         [SerializeField] private bool showDebugGizmos = true;
         [SerializeField] private Color debugColor = Color.red;
-        
-        private ModularRootHitBox rootModule;
-        private Collider hitboxCollider;
 
-        // Events - forward from root module
+        private ModularRootHitBox _rootModule;
+        private Collider _hitboxCollider;
+
+        // Bubble các event từ root để UI có thể sub trực tiếp ở child khi cần
         public event Action<float, float> OnHealthChanged
         {
-            add => RootModule.OnHealthChanged += value;
-            remove => RootModule.OnHealthChanged -= value;
+            add { if (RootModule != null) RootModule.OnHealthChanged += value; }
+            remove { if (RootModule != null) RootModule.OnHealthChanged -= value; }
         }
-        
+
         public event Action<IDefendable, IAttackable> OnDied
         {
-            add => RootModule.OnDied += value;
-            remove => RootModule.OnDied -= value;
+            add { if (RootModule != null) RootModule.OnDied += value; }
+            remove { if (RootModule != null) RootModule.OnDied -= value; }
         }
 
-        // Local hitbox-specific event
+        // Sự kiện riêng cho từng hitbox (để thể hiện FX khác nhau theo bộ phận)
         public event Action<ModularHitBox, HitBoxDamageInfo> OnHitBoxDamaged;
 
-        #region IInteractable Implementation
+        #region IInteractable
 
         public string EntityId => $"{name}_{GetInstanceID()}";
-        
         public bool CanInteract => RootModule != null && RootModule.CanInteract;
-        
-        public bool IsActive 
-        { 
+
+        public bool IsActive
+        {
             get => gameObject.activeInHierarchy && (RootModule?.IsActive ?? false);
             set => gameObject.SetActive(value);
         }
-        
+
         public Vector3 Position => transform.position;
-        
+
         public Collider InteractionCollider
         {
             get
             {
-                if (hitboxCollider != null) return hitboxCollider;
-                hitboxCollider = GetComponent<Collider>();
-                if (hitboxCollider == null)
-                    Debug.LogWarning($"[ModularHitBox] No collider found on {name}");
-                return hitboxCollider;
+                if (_hitboxCollider == null)
+                    _hitboxCollider = GetComponent<Collider>();
+                return _hitboxCollider;
             }
         }
 
-        /// <summary>
-        /// HitBoxes don't actively interact - they only receive interactions
-        /// </summary>
         public bool Interact(IInteractable target) => false;
 
-        /// <summary>
-        /// When something interacts with this hitbox
-        /// </summary>
         public void OnInteracted(IInteractable initiator)
         {
-            // Forward to root if needed
             RootModule?.OnInteracted(initiator);
         }
 
         #endregion
 
-        #region IDefendable Implementation
+        #region IDefendable
 
         public float CurrentHealth => RootModule?.CurrentHealth ?? 0f;
         public float MaxHealth => RootModule?.MaxHealth ?? 0f;
-        public float DefenseValue => RootModule?.DefenseValue ?? 0f + hitBoxInfo.armorValue;
+
+        // FIX: tổng armor = armor root + armor cục bộ của hitbox
+        public float DefenseValue => (RootModule?.DefenseValue ?? 0f) + hitBoxInfo.armorValue;
+
         public bool IsAlive => RootModule != null && RootModule.IsAlive;
         public bool IsInvulnerable => RootModule?.IsInvulnerable ?? false;
 
-        /// <summary>
-        /// Main damage entry point - applies hitbox-specific calculations then forwards to root
-        /// </summary>
         public float TakeDamage(IAttackable attacker, float damage, DamageType damageType = DamageType.Physical)
         {
+            // Bảo đảm chỉ server trừ máu (phòng client-side misuse)
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+                return 0f;
+
             if (RootModule == null || !IsAlive)
                 return 0f;
 
-            // Calculate hitbox-specific damage modifications
+            // Xử lý theo bộ phận (armor/multiplier cục bộ)
             var processedDamage = ProcessHitBoxDamage(damage, damageType);
-            
-            // Forward to root module for network synchronization
+
+            // Forward lên root để sync HP qua NetVar + bắn ClientRpc FX
             var actualDamage = RootModule.TakeDamage(attacker, processedDamage, damageType);
-            
-            // Fire local hitbox event
-            var damageInfo = new HitBoxDamageInfo(
+
+            // Notify per-hitbox (ví dụ headshot popup...)
+            var info = new HitBoxDamageInfo(
                 hitBoxInfo.Category,
                 damage,
                 actualDamage,
@@ -169,23 +138,13 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
                 hitBoxInfo.hasSpecialEffect,
                 hitBoxInfo.specialEffectId
             );
-            
-            OnHitBoxDamaged?.Invoke(this, damageInfo);
-            
+            OnHitBoxDamaged?.Invoke(this, info);
+
             return actualDamage;
         }
 
-        /// <summary>
-        /// Forward heal to root module
-        /// </summary>
-        public float Heal(float amount)
-        {
-            return RootModule?.Heal(amount) ?? 0f;
-        }
+        public float Heal(float amount) => RootModule?.Heal(amount) ?? 0f;
 
-        /// <summary>
-        /// Forward death handling to root module
-        /// </summary>
         public void OnDeath(IAttackable killer = null)
         {
             RootModule?.OnDeath(killer);
@@ -193,16 +152,42 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
 
         #endregion
 
-        #region Properties
+        #region Data structs
+
+        [Serializable]
+        public struct HitBoxDamageInfo
+        {
+            public HitBoxCategory hitBoxCategory;
+            public float originalDamage;
+            public float finalDamage;
+            public DamageType damageType;
+            public bool hadSpecialEffect;
+            public string specialEffectId;
+
+            public HitBoxDamageInfo(HitBoxCategory category, float orig, float final, DamageType type,
+                bool special = false, string effectId = "")
+            {
+                hitBoxCategory = category;
+                originalDamage = orig;
+                finalDamage = final;
+                damageType = type;
+                hadSpecialEffect = special;
+                specialEffectId = effectId;
+            }
+        }
+
+        #endregion
+
+        #region Props/Cache
 
         [CanBeNull]
         private ModularRootHitBox RootModule
         {
             get
             {
-                if (rootModule == null)
-                    rootModule = GetComponentInParent<ModularRootHitBox>();
-                return rootModule;
+                if (_rootModule == null)
+                    _rootModule = GetComponentInParent<ModularRootHitBox>();
+                return _rootModule;
             }
         }
 
@@ -213,74 +198,57 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
         #endregion
 
         #region Unity Lifecycle
-        
+
         private void Start()
         {
-            GameEvent.OnRoleAssignedSuccess += ValidateSetup;
+            GameEvent.OnRoleAssigned += ValidateSetup;
         }
-        
+
         private void OnDestroy()
         {
-            GameEvent.OnRoleAssignedSuccess -= ValidateSetup;
+            GameEvent.OnRoleAssigned -= ValidateSetup;
         }
 
         private void ValidateSetup()
         {
-            if (hitBoxInfo.HitBoxType == HitBoxType.None)
-            {
-                Debug.LogWarning($"[ModularHitBox] Empty hitBox type on {name}");
-            }
+            if (hitBoxInfo.hitBoxType == HitBoxType.None)
+                Debug.LogWarning($"[ModularHitBox] Empty HitBoxType on {name}");
 
-            if (hitBoxInfo.damageMultiplier <= 0)
+            if (hitBoxInfo.damageMultiplier <= 0f)
             {
-                Debug.LogWarning($"[ModularHitBox] Invalid damage multiplier on {name}, setting to 1.0");
+                Debug.LogWarning($"[ModularHitBox] Invalid damage multiplier on {name}, set to 1.0");
                 hitBoxInfo.damageMultiplier = 1f;
             }
 
             if (RootModule == null)
-            {
                 Debug.LogWarning($"[ModularHitBox] No ModularRootHitBox found in parents of {name}!");
-            }
 
             if (InteractionCollider == null)
-            {
-                Debug.LogError($"[ModularHitBox] No collider found on {name}!");
-            }
+                Debug.LogError($"[ModularHitBox] No Collider found on {name}!");
         }
 
         #endregion
 
-        #region Damage Processing
+        #region Damage helpers
 
-        /// <summary>
-        /// Apply hitbox-specific damage calculations before forwarding to root
-        /// </summary>
         private float ProcessHitBoxDamage(float baseDamage, DamageType damageType)
         {
-            if (damageType == DamageType.True) 
-                return baseDamage * hitBoxInfo.damageMultiplier;
+            if (damageType == DamageType.True)
+                return baseDamage * Mathf.Max(0f, hitBoxInfo.damageMultiplier);
 
-            // Apply armor reduction first
-            var damageAfterArmor = Mathf.Max(1f, baseDamage - hitBoxInfo.armorValue);
-            
-            // Apply damage multiplier
-            var finalDamage = damageAfterArmor * hitBoxInfo.damageMultiplier;
-            
-            return finalDamage;
+            // Armor cục bộ của bộ phận
+            var afterArmor = Mathf.Max(1f, baseDamage - Mathf.Max(0f, hitBoxInfo.armorValue));
+
+            // Multiplier cục bộ của bộ phận
+            return afterArmor * Mathf.Max(0f, hitBoxInfo.damageMultiplier);
         }
 
         #endregion
 
         #region Public API
 
-        /// <summary>
-        /// Get hitbox info (read-only)
-        /// </summary>
         public HitBoxInfo GetHitBoxInfo() => hitBoxInfo;
 
-        /// <summary>
-        /// Update hitbox info at runtime
-        /// </summary>
         public void UpdateHitBoxInfo(HitBoxInfo newInfo)
         {
             hitBoxInfo = newInfo;
@@ -289,28 +257,19 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
 
         #endregion
 
-        #region Debug Visualization
+        #region Gizmos
 
         private void OnDrawGizmos()
         {
-            if (!showDebugGizmos || InteractionCollider == null) return;
+            if (!showDebugGizmos) return;
+            var col = GetComponent<Collider>();
+            if (!col) return;
 
-            // Change color based on state
-            Color gizmoColor = debugColor;
-            if (!IsAlive) 
-                gizmoColor = Color.gray;
-            else if (!CanInteract) 
-                gizmoColor = Color.yellow;
+            Color c = debugColor;
+            if (RootModule != null && !RootModule.IsAlive) c = Color.gray;
+            else if (RootModule != null && !RootModule.CanInteract) c = Color.yellow;
 
-            Gizmos.color = gizmoColor;
-            DrawColliderGizmo();
-        }
-
-        private void DrawColliderGizmo()
-        {
-            var col = InteractionCollider;
-            if (col == null) return;
-
+            Gizmos.color = c;
             Gizmos.matrix = transform.localToWorldMatrix;
 
             switch (col)
@@ -318,22 +277,16 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
                 case BoxCollider box:
                     Gizmos.DrawWireCube(box.center, box.size);
                     break;
-                    
                 case SphereCollider sphere:
                     Gizmos.DrawWireSphere(sphere.center, sphere.radius);
                     break;
-                    
                 case CapsuleCollider capsule:
-                    // Simplified capsule visualization
-                    Vector3 topCenter = Vector3.up * (capsule.height * 0.5f - capsule.radius);
-                    Vector3 bottomCenter = Vector3.down * (capsule.height * 0.5f - capsule.radius);
-                    Gizmos.DrawWireSphere(topCenter + capsule.center, capsule.radius);
-                    Gizmos.DrawWireSphere(bottomCenter + capsule.center, capsule.radius);
+                    var up = Vector3.up * (capsule.height * 0.5f - capsule.radius);
+                    Gizmos.DrawWireSphere(capsule.center + up, capsule.radius);
+                    Gizmos.DrawWireSphere(capsule.center - up, capsule.radius);
                     break;
-                    
-                case MeshCollider mesh when mesh.convex:
-                    if (mesh.sharedMesh != null)
-                        Gizmos.DrawWireMesh(mesh.sharedMesh);
+                case MeshCollider { convex: true } mesh when mesh.sharedMesh:
+                    Gizmos.DrawWireMesh(mesh.sharedMesh);
                     break;
             }
         }

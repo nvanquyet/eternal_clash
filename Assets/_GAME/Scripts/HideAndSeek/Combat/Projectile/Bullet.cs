@@ -11,146 +11,130 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Projectile
         [SerializeField] private ParticleSystem hitEffect;
         [SerializeField] private ParticleSystem trailEffect;
         [SerializeField] private GameObject impactDecal;
-        
+
         [Header("Bullet Audio")]
         [SerializeField] private AudioClip hitSound;
         [SerializeField] private AudioClip flybySound;
         [SerializeField] private AudioSource audioSource;
-        
+
         protected override void Awake()
         {
             base.Awake();
-            
-            if (audioSource == null)
-                audioSource = GetComponent<AudioSource>();
+            if (audioSource == null) audioSource = GetComponent<AudioSource>();
         }
-        
+
+        public override bool Interact(IInteractable target) => false;
+
+        public override void OnInteracted(IInteractable initiator) { }
         protected override void OnProjectileSpawned()
         {
-            // Start visual effects
-            if (trailEffect != null)
-            {
-                trailEffect.Play();
-            }
-            
-            // Play flyby sound
+            // VFX bay
+            if (trailEffect != null) trailEffect.Play();
+
+            // SFX bay
             if (audioSource != null && flybySound != null)
             {
                 audioSource.PlayOneShot(flybySound);
             }
         }
-        
+
         protected override void OnHitTarget(IDefendable target, float damage)
         {
-            // FIX: Safe target name extraction
-            string targetName = "Unknown";
+            // Log nhẹ (server)
             if (target is MonoBehaviour mb)
             {
-                targetName = mb.name;
-                // If target is InteractableBase, we can get EntityId
-                if (target is InteractableBase interactable)
-                {
-                    targetName = interactable.EntityId;
-                }
+                string nameOrId = (target is InteractableBase ib) ? ib.EntityId : mb.name;
+                Debug.Log($"[Bullet] Hit target {nameOrId} for {damage} dmg");
             }
-            
-            Debug.Log($"[Bullet] Hit target {targetName} for {damage} damage");
-            
-            // FIX: Proper server and spawn checks
+
+            // Gửi hiệu ứng va chạm cho tất cả client (host cũng nhận)
             if (IsServer && NetworkObject != null && NetworkObject.IsSpawned)
             {
+                // Dùng vị trí/rotation hiện tại của viên đạn (server là nguồn thật)
                 OnHitTargetClientRpc(transform.position, transform.rotation);
             }
         }
-        
+
         protected override void OnHitObstacle(Collider obstacle)
         {
-            if (obstacle == null) return;
-            
-            // FIX: Proper server and spawn checks
+            if (!obstacle) return;
+
             if (IsServer && NetworkObject != null && NetworkObject.IsSpawned)
             {
                 OnHitObstacleClientRpc(transform.position, transform.rotation, obstacle.name);
             }
         }
-        
+
         protected override void OnProjectileExpired()
         {
             Debug.Log("[Bullet] Lifetime expired");
         }
-        
+
         protected override void OnProjectileDestroyed()
         {
-            // Stop any ongoing effects
-            if (trailEffect != null)
-            {
-                trailEffect.Stop();
-            }
+            // Ngừng trail. Nếu muốn để lại “smoke tail” thì có thể tách instance thay vì stop trực tiếp
+            if (trailEffect != null) trailEffect.Stop();
         }
-        
+
         #region Client RPC Effects
-        
+
         [ClientRpc]
         private void OnHitTargetClientRpc(Vector3 hitPosition, Quaternion hitRotation)
         {
             PlayHitEffects(hitPosition, hitRotation, true);
         }
-        
+
         [ClientRpc]
         private void OnHitObstacleClientRpc(Vector3 hitPosition, Quaternion hitRotation, string obstacleName)
         {
             PlayHitEffects(hitPosition, hitRotation, false);
         }
-        
+
         private void PlayHitEffects(Vector3 position, Quaternion rotation, bool isTarget)
         {
-            // Spawn hit particle effect
+            // Particle va chạm
             if (hitEffect != null)
             {
-                var effect = Instantiate(hitEffect, position, rotation);
-                Destroy(effect.gameObject, 3f);
+                var fx = Instantiate(hitEffect, position, rotation);
+                fx.Play();
+                Destroy(fx.gameObject, 3f);
             }
-            
-            // Spawn impact decal for obstacles
+
+            // Decal chỉ với obstacle (không phải entity)
             if (!isTarget && impactDecal != null)
             {
                 var decal = Instantiate(impactDecal, position, rotation);
-                Destroy(decal, 10f); // Clean up after 10 seconds
+                Destroy(decal, 10f);
             }
-            
-            // FIX: Better audio handling
-            if (hitSound != null)
-            {
-                PlayHitAudio(position);
-            }
+
+            // Âm thanh va chạm
+            if (hitSound != null) PlayHitAudio(position);
         }
-        
-        // FIX: Separate method for audio handling
+
         private void PlayHitAudio(Vector3 position)
         {
-            // Create temporary audio source for hit sound
-            GameObject tempAudio = new GameObject("BulletHitAudio");
-            tempAudio.transform.position = position;
-            AudioSource tempSource = tempAudio.AddComponent<AudioSource>();
-            
-            // Copy settings from original audio source
+            var go = new GameObject("BulletHitAudio");
+            go.transform.position = position;
+            var src = go.AddComponent<AudioSource>();
+
+            // Copy cấu hình cơ bản
             if (audioSource != null)
             {
-                tempSource.volume = audioSource.volume;
-                tempSource.pitch = audioSource.pitch;
-                tempSource.spatialBlend = audioSource.spatialBlend;
-                tempSource.rolloffMode = audioSource.rolloffMode;
-                tempSource.maxDistance = audioSource.maxDistance;
+                src.volume = audioSource.volume;
+                src.pitch = audioSource.pitch;
+                src.spatialBlend = audioSource.spatialBlend;
+                src.rolloffMode = audioSource.rolloffMode;
+                src.maxDistance = audioSource.maxDistance;
+                src.minDistance = audioSource.minDistance;
             }
-            
-            tempSource.clip = hitSound;
-            tempSource.Play();
-            
-            // FIX: Safe cleanup time
-            float cleanupTime = hitSound != null ? Mathf.Max(hitSound.length, 0.1f) + 0.5f : 2f;
-            Destroy(tempAudio, cleanupTime);
+
+            src.clip = hitSound;
+            src.Play();
+
+            float cleanup = hitSound ? Mathf.Max(0.1f, hitSound.length + 0.5f) : 2f;
+            Destroy(go, cleanup);
         }
-        
+
         #endregion
     }
 }

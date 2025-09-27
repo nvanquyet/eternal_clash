@@ -15,7 +15,6 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
         [Header("Configuration")] 
         [SerializeField] private ModelConfigSO modelConfig;
         [SerializeField] private PlayerAnimationSync animationSync;
-        [SerializeField] private PlayerEquipment playerEquipment;
         [SerializeField] private InputActionReference switchModelAction;
         [SerializeField] private GameMode currentGameMode = GameMode.PersonVsPerson;
 
@@ -38,6 +37,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
 
         // Components
         private PlayerController playerController;
+        private PlayerEquipment playerEquipment;
 
         // Performance tracking
         private float lastSwitchTime;
@@ -51,6 +51,17 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
         public Animator CurrentAnimator { get; private set; }
         public ModelConfigData CurrentModelData { get; private set; }
         public bool CanSwitch => (Time.time - lastSwitchTime) > switchCooldown;
+
+
+        public PlayerEquipment PlayerEquipment
+        {
+            get
+            {
+                if(playerEquipment == null)
+                    playerEquipment = GetComponentInChildren<PlayerEquipment>();
+                return playerEquipment;
+            }
+        }
 
         #region Initialization
 
@@ -262,7 +273,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
             if (enableDebugLogging)
                 Debug.Log($"Updating to model: {selectedModel.modelName} on {(IsServer ? "Server" : "Client")} for player {OwnerClientId}");
 
-            if(playerEquipment != null) playerEquipment.RefeshEquipableItemsForModel();
+            if(PlayerEquipment != null) PlayerEquipment.RefeshEquipableItemsForModel();
             
             // Destroy current model
             DestroyCurrentModel();
@@ -339,7 +350,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
 
         private void ReEquip()
         {
-            playerEquipment.ReEquipWeapon();
+            if(PlayerEquipment) PlayerEquipment.ReEquipWeapon();
         }
 
         private void SetupModelAnimator(ModelConfigData modelData)

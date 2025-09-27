@@ -136,21 +136,12 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         {
             if (bulletPrefab == null) return;
 
-            var bullet = Instantiate(bulletPrefab);
+            var bullet = Instantiate(bulletPrefab, null, false);
 
             // thiết lập thông số đạn
             bullet.SetBaseDamage(BaseDamage);
-            
-            if (bullet.TryGetComponent<NetworkObject>(out var nob))
-            {
-                var currentObj = weaponInteraction.CurrentHolder;
-                if (currentObj != null)
-                {
-                    nob.SpawnWithOwnership(currentObj.OwnerClientId, true);
-                    bullet.Initialize(currentObj.OwnerClientId, origin, direction);
-                }
-                
-            }
+            bullet.NetworkObject.SpawnWithOwnership(this.OwnerClientId, true);
+            bullet.Initialize(origin, direction);
 
             // nếu AProjectile hỗ trợ vận tốc:
             if (bullet.TryGetComponent<Rigidbody>(out var rb))

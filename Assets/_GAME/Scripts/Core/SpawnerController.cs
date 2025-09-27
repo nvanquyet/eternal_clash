@@ -44,10 +44,10 @@ namespace _GAME.Scripts.Core
         protected Coroutine _spawnWatchdog = null;
 
         // Callbacks
-        public Action<NetworkObject> OnPlayerSpawn;
-        public Action<NetworkObject> OnPlayerDespawn;
-        public Action OnFinishSpawning;
-
+        public static Action<NetworkObject> OnPlayerSpawn;
+        public static Action<NetworkObject> OnPlayerDespawn;
+        public static Action OnFinishSpawning;
+ 
         // Public Properties
         public int SpawnedPlayerCount => spawnedPlayers.Count;
         public List<NetworkObject> SpawnedPlayers => new List<NetworkObject>(spawnedPlayers.Values);

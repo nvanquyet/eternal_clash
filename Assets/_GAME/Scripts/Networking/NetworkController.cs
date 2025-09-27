@@ -285,7 +285,7 @@ namespace _GAME.Scripts.Networking
                 }
 
                 // 1) Join allocation bằng joinCode
-                var result = await RelayConnector.JoinAsClientAsync(joinCode, cancellationToken);
+                var result = await RelayHandler.ConnectClientToRelayAsync(joinCode, cancellationToken);
                 if (!result.IsSuccess)
                 {
                     await _stateManager.TryTransitionAsync(NetworkState.Failed, result.ErrorMessage);

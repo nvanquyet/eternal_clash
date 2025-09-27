@@ -349,7 +349,7 @@ namespace _GAME.Scripts.Networking.StateMachine
             try
             {
                 // Cancel all current operations
-                RelayConnector.CancelCurrentOperation();
+                RelayHandler.CancelCurrentOperation();
                 
                 // Force to failed state first, then to idle
                 ForceTransition(LobbyState.Failed);

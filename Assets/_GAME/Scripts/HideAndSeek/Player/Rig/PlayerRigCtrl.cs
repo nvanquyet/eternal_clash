@@ -13,7 +13,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
         public Transform rightHandGrip;
         public Transform leftHandGrip;
 
-        public Vector3 aimingOffset; // Offset for aiming position
+        public Vector3 aimingOffset;  // Offset for aiming position
         public Vector3 holdingOffset; // Offset for holding position
     }
 
@@ -27,9 +27,12 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
 
     public class PlayerRigCtrl : NetworkBehaviour
     {
-        [SerializeField] private PlayerRig playerRig;
-        [SerializeField] private PlayerEquipment playerEquipment;
         [SerializeField] private PlayerCamera playerCamera;
+
+        // Các thành phần rig cụ thể của bạn – giả định có class PlayerRig riêng
+        private PlayerRig playerRig;
+        private PlayerEquipment playerEquipment;
+
         private PlayerRig PlayerRig
         {
             get
@@ -39,29 +42,31 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
                     playerRig = GetComponentInChildren<PlayerRig>();
                     if (playerRig != null)
                     {
-                        playerRig.SetupConstraint(playerCamera.AimPoint);
+                        playerRig.SetupConstraint(playerCamera ? playerCamera.AimPoint : null);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[PlayerRigCtrl] PlayerRig not found.");
                     }
                 }
-
                 return playerRig;
             }
         }
 
-        #region Unity Life Circle
-
-        private void OnValidate()
+        private PlayerEquipment PlayerEquipment
         {
-            playerEquipment = transform.parent.GetComponentInChildren<PlayerEquipment>();
+            get
+            {
+                if (playerEquipment == null)
+                    playerEquipment = transform.root.GetComponentInChildren<PlayerEquipment>();
+                
+                return playerEquipment;
+            }
         }
 
-        #endregion
-
         // NetworkVariable để đồng bộ trạng thái rig
-        private NetworkVariable<RigState> currentRigState = new NetworkVariable<RigState>(
-            RigState.None,
-            NetworkVariableReadPermission.Everyone,
-            NetworkVariableWritePermission.Owner);
-        
+        private NetworkVariable<RigState> currentRigState =
+            new NetworkVariable<RigState>(RigState.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
         public override void OnNetworkSpawn()
         {
@@ -76,7 +81,6 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
             currentRigState.OnValueChanged -= OnRigStateChanged;
         }
 
-
         private void OnRigStateChanged(RigState oldState, RigState newState)
         {
             Debug.Log($"[PlayerRigCtrl] Rig state changed from {oldState} to {newState}");
@@ -85,6 +89,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
         
         private void ApplyRigState(RigState state)
         {
+            // Owner đã chạy local prediction → non-owner mới cần apply
             if (IsOwner) return;
             if (PlayerRig == null) return;
 
@@ -95,32 +100,37 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
                     break;
 
                 case RigState.Holding:
-                    if (playerEquipment && playerEquipment.CurrentWeaponRef)
+                {
+                    var w = PlayerEquipment?.CurrentWeaponRef;
+                    if (w != null)
                     {
                         PlayerRig.EnableHandsRig(true);
                         PlayerRig.EnableAimingRig(false);
-                        PlayerRig.SetupWeaponRig(playerEquipment.CurrentWeaponRef.RigSetup);
-                    }else
+                        PlayerRig.SetupWeaponRig(w.RigSetup);
+                    }
+                    else
                     {
-                        Debug.LogWarning("[PlayerRigCtrl] RigState is Holding but no weapon found");
+                        Debug.LogWarning("[PlayerRigCtrl] RigState=Holding but no weapon found");
                         PlayerRig.DisableRig();
-                        // Auto fix state
-                        if (IsOwner) currentRigState.Value = RigState.None;
                     }
                     break;
+                }
 
                 case RigState.Aiming:
-                    if (playerEquipment?.CurrentWeaponRef != null)
+                {
+                    var w = PlayerEquipment?.CurrentWeaponRef;
+                    if (w != null)
                     {
-                        playerCamera.SyncAimingPoint();
+                        if (playerCamera) playerCamera.SyncAimingPoint();
                         PlayerRig.EnableHandsRig(true);
                         PlayerRig.EnableAimingRig(true);
                     }
                     else
                     {
-                        if (IsOwner) currentRigState.Value = RigState.None;
+                        PlayerRig.DisableRig();
                     }
                     break;
+                }
             }
         }
 
@@ -128,12 +138,12 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
         {
             if (IsOwner && currentRigState.Value == RigState.Aiming)
             {
-                //Local prediction
+                // Local prediction revert
                 EnableAimingRig(false);
             }
         }
 
-        // Public API methods - chỉ owner có thể gọi
+        // Public API — chỉ owner gọi
         public void DropWeapon()
         {
             if (!IsOwner)
@@ -142,7 +152,6 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
                 return;
             }
 
-            Debug.Log($"[PlayerRigCtrl] Owner dropping weapon");
             currentRigState.Value = RigState.None;
             PlayerRig?.ClearWeaponRig();
         }
@@ -157,21 +166,20 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
 
             if (isEnable && currentRigState.Value == RigState.Holding)
             {
-                Debug.Log("[PlayerRigCtrl] Enabling aiming rig");
-                //Local prediction
                 PlayerRig?.EnableAimingRig(true);
                 currentRigState.Value = RigState.Aiming;
+
+                // Cho phép aim ngắn rồi tự tắt (tùy gameplay)
                 Invoke(nameof(DisableAimingFromServer), 0.12f);
             }
             else if (!isEnable && currentRigState.Value == RigState.Aiming)
             {
-                Debug.Log("[PlayerRigCtrl] Disabling aiming rig");
                 PlayerRig?.EnableAimingRig(false);
                 currentRigState.Value = RigState.Holding;
             }
         }
 
-        // Compatibility method for existing code
+        // Compatibility method cho code cũ
         public void PickUpWeapon(WeaponRig weaponRig)
         {
             if (!IsOwner)
@@ -180,25 +188,28 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
                 return;
             }
 
-            Debug.Log($"[PlayerRigCtrl] Owner picking up weapon (legacy method)");
             PlayerRig?.SetupWeaponRig(weaponRig);
             currentRigState.Value = RigState.Holding;
         }
 
-        // Getter methods
-        public RigState GetCurrentRigState()
-        {
-            return currentRigState.Value;
-        }
+        // Getter helpers
+        public RigState GetCurrentRigState() => currentRigState.Value;
+        public bool IsAiming() => currentRigState.Value == RigState.Aiming;
 
-        private bool IsHoldingWeapon()
+        // ====== Anchor helpers cho Equipment ======
+        // Tùy dự án, bạn sửa cho trỏ đúng tay cầm. Ở đây trả về weaponRig.weaponTransform nếu có.
+        public Transform GetWeaponHoldPoint(int index = 0)
         {
-            return currentRigState.Value != RigState.None;
-        }
+            // Ưu tiên anchor từ weapon hiện tại nếu đã setup
+            var weapon = PlayerEquipment?.CurrentWeaponRef;
+            if (weapon != null && weapon.RigSetup.weaponTransform != null)
+                return weapon.RigSetup.weaponTransform;
 
-        public bool IsAiming()
-        {
-            return currentRigState.Value == RigState.Aiming;
+            // Fallback: trả về transform của PlayerRig (hoặc camera) để không null
+            if (PlayerRig != null && PlayerRig.transform != null)
+                return PlayerRig.transform;
+
+            return transform; // cùng lắm trả về root
         }
     }
 }

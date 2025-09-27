@@ -22,9 +22,9 @@ namespace _GAME.Scripts.HideAndSeek
     
     public enum GameState
     {
-        Preparation,    // Setup phase
+        PreparingGame,
         Playing,
-        GameOver
+        GameEnded
     }
     
     public enum TaskType
@@ -74,7 +74,6 @@ namespace _GAME.Scripts.HideAndSeek
         bool HasSkillsAvailable { get; }
         
         void UseSkill(SkillType skillType, Vector3? targetPosition = null);
-        void SetAliveState(bool b);
     }
     
     public interface IHider : IGamePlayer
@@ -130,26 +129,20 @@ namespace _GAME.Scripts.HideAndSeek
     {
         public ulong clientId;
         public Role role;
-        public Vector3 position;
         public bool isAlive;
-        public float health;
         
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref clientId);
             serializer.SerializeValue(ref role);
-            serializer.SerializeValue(ref position);
             serializer.SerializeValue(ref isAlive);
-            serializer.SerializeValue(ref health);
         }
         
         public bool Equals(NetworkPlayerData other)
         {
             return clientId == other.clientId &&
                    role == other.role &&
-                   position.Equals(other.position) &&
-                   isAlive == other.isAlive &&
-                   Mathf.Approximately(health, other.health);
+                   isAlive == other.isAlive;
         }
         
         public override bool Equals(object obj)
@@ -159,7 +152,7 @@ namespace _GAME.Scripts.HideAndSeek
         
         public override int GetHashCode()
         {
-            return HashCode.Combine(clientId, role, position, isAlive, health);
+            return HashCode.Combine(clientId, role, isAlive);
         }
         
         public static bool operator ==(NetworkPlayerData left, NetworkPlayerData right)
@@ -173,53 +166,6 @@ namespace _GAME.Scripts.HideAndSeek
         }
     }
     
-    [System.Serializable]
-    public struct NetworkGameState : INetworkSerializable, IEquatable<NetworkGameState>
-    {
-        public GameState state;
-        public GameMode mode;
-        public int completedTasks;
-        public int totalTasks;
-        public int alivePlayers;
-        
-        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
-        {
-            serializer.SerializeValue(ref state);
-            serializer.SerializeValue(ref mode);
-            serializer.SerializeValue(ref completedTasks);
-            serializer.SerializeValue(ref totalTasks);
-            serializer.SerializeValue(ref alivePlayers);
-        }
-        
-        public bool Equals(NetworkGameState other)
-        {
-            return state == other.state &&
-                   mode == other.mode &&
-                   completedTasks == other.completedTasks &&
-                   totalTasks == other.totalTasks &&
-                   alivePlayers == other.alivePlayers;
-        }
-        
-        public override bool Equals(object obj)
-        {
-            return obj is NetworkGameState other && Equals(other);
-        }
-        
-        public override int GetHashCode()
-        {
-            return HashCode.Combine((int)state, (int)mode, completedTasks, totalTasks, alivePlayers);
-        }
-        
-        public static bool operator ==(NetworkGameState left, NetworkGameState right)
-        {
-            return left.Equals(right);
-        }
-        
-        public static bool operator !=(NetworkGameState left, NetworkGameState right)
-        {
-            return !left.Equals(right);
-        }
-    }
-
+   
     #endregion
 }

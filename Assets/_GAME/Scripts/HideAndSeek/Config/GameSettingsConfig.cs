@@ -13,6 +13,10 @@ namespace _GAME.Scripts.HideAndSeek.Config
         public float hiderKillReward;
         public float hiderMoveSpeed;
         public float seekerMoveSpeed;
+
+        public int requiredTasks = 5;
+        
+        
         public float seekerDetectionRange;
         public float seekerCatchRange;
     }

@@ -1,11 +1,10 @@
 ﻿using System;
 using _GAME.Scripts.DesignPattern.Interaction;
-using _GAME.Scripts.HideAndSeek.Combat.Gun;
+using _GAME.Scripts.HideAndSeek.Interaction;
 using _GAME.Scripts.HideAndSeek.Player;
 using _GAME.Scripts.HideAndSeek.Player.Rig;
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace _GAME.Scripts.HideAndSeek.Combat.Base
 {
@@ -23,8 +22,8 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         Equipped,   // Weapon đang được player cầm
         Hidden      // Weapon bị ẩn (khi player cầm weapon khác)
     }
-    
-   /// <summary>
+
+    /// <summary>
     /// Simplified BaseWeapon focused only on pickup/drop/state management.
     /// All specific logic is delegated to components.
     /// </summary>
@@ -42,18 +41,23 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         [Header("References")]
         [SerializeField] protected InputComponent inputComponent;
         [SerializeField] protected AttackComponent attackComponent;
-        
         [SerializeField] private WeaponRig rigSetup;
         
         public WeaponRig RigSetup => rigSetup;
         public AttackComponent AttackComponent => attackComponent;
         
         // Network Variables
-        protected NetworkVariable<WeaponState> networkWeaponState = new NetworkVariable<WeaponState>(
-            WeaponState.Dropped, writePerm: NetworkVariableWritePermission.Server);
+        protected NetworkVariable<WeaponState> networkWeaponState =
+            new NetworkVariable<WeaponState>(
+                WeaponState.Dropped,
+                NetworkVariableReadPermission.Everyone,
+                NetworkVariableWritePermission.Server
+            );
             
+        // Người đang cầm (server-only reference; không sync trực tiếp)
         protected PlayerInteraction currentHolder;
-        
+        public PlayerInteraction CurrentHolder => currentHolder;
+
         // Properties
         public WeaponState CurrentState => networkWeaponState.Value;
         public WeaponType Type => weaponType;
@@ -61,26 +65,24 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         public Sprite WeaponIcon => weaponIcon;
         public bool IsEquipped => networkWeaponState.Value == WeaponState.Equipped;
         public bool IsDropped => networkWeaponState.Value == WeaponState.Dropped;
-        public PlayerInteraction CurrentHolder => currentHolder;
         
-        // IInteractable implementation
-        public InteractionState State { get; protected set; } = InteractionState.Enable;
-        public virtual bool CanInteract => State == InteractionState.Enable && IsDropped;
-        
+        public InputComponent Input => inputComponent;
+
+        // Quan trọng: CanInteract bám theo base + trạng thái Dropped
+        public override bool CanInteract => base.CanInteract && IsDropped;
+
         // Events
         public Action<WeaponState> OnWeaponStateChanged;
         public Action<PlayerInteraction> OnWeaponPickedUp;
         public Action<PlayerInteraction> OnWeaponDropped;
 
-        #region Unity Lifecycle
-
-        
-        #if UNITY_EDITOR
+#if UNITY_EDITOR
         private void OnValidate()
         {
-            inputComponent = GetComponentInChildren<InputComponent>();
+            if (inputComponent == null)
+                inputComponent = GetComponentInChildren<InputComponent>();
         }
-        #endif
+#endif
 
         protected override void Awake()
         {
@@ -91,7 +93,6 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-            
             networkWeaponState.OnValueChanged += OnWeaponStateValueChanged;
             UpdateVisualState(networkWeaponState.Value);
             OnWeaponNetworkSpawned();
@@ -99,41 +100,65 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         
         public override void OnNetworkDespawn()
         {
-            base.OnNetworkDespawn();
-            
             if (networkWeaponState != null)
                 networkWeaponState.OnValueChanged -= OnWeaponStateValueChanged;
             OnWeaponNetworkDespawned();
+            base.OnNetworkDespawn();
         }
-
-        #endregion
-
-        #region Component Management
 
         protected virtual void InitializeComponents()
         {
-            //Show pickup model by default
+            // Show pickup model by default
             SetModelsActive(pickupActive: true, equippedActive: false);
+            // Bật/tắt collider & state qua base.SetState (networked)
             SetInteractionEnabled(true);
         }
-        
 
-        #endregion
+        #region Interaction (server-authoritative)
 
-        #region Interaction System
-
+        // Được gọi bởi APassiveInteractable khi actor (server) xác nhận tương tác
         protected override void PerformInteractionLogic(IInteractable initiator)
         {
-            if (initiator is PlayerInteraction player)
+            if (initiator is SeekerInteraction player)
             {
                 RequestPickupServerRpc(player.NetworkObjectId);
             }
         }
 
+        [ServerRpc(RequireOwnership = false)]
+        protected virtual void RequestPickupServerRpc(ulong playerNetworkId)
+        {
+            if (networkWeaponState.Value != WeaponState.Dropped) return;
+
+            if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(playerNetworkId, out NetworkObject playerNetObj))
+            {
+                PlayerInteraction player = playerNetObj.GetComponentInChildren<PlayerInteraction>();
+                if (player != null)
+                {
+                    // Giao cho PlayerEquipment làm chủ việc equip (ownership/parent/state)
+                    var equip = player.PlayerEquipment;
+                    if (equip != null)
+                    {
+                        // Option: lưu holder sớm để DropWeapon có vị trí rơi chính xác nếu cần
+                        currentHolder = player;
+                        equip.SetCurrentWeaponServer(this);
+                        OnPickedUp(player);
+                        OnWeaponPickedUp?.Invoke(player);
+                    }
+                }
+            }
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        protected virtual void RequestDropServerRpc()
+        {
+            DropWeapon();
+        }
+
         #endregion
 
-        #region State Management
-        
+        #region State & Visual
+
         protected virtual void OnWeaponStateValueChanged(WeaponState previousValue, WeaponState newValue)
         {
             UpdateVisualState(newValue);
@@ -167,15 +192,11 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
 
         protected virtual void UpdateComponentStates(WeaponState state)
         {
-            // Notify components about weapon state changes
-            // Components will handle their own logic
-            Debug.Log($"[WeaponInteraction]: {weaponName} state changed to {state}");
+            // Visuals chạy ở mọi máy; input chỉ owner
             if (inputComponent != null && IsOwner)
             {
-                if (state == WeaponState.Equipped)
-                    inputComponent.EnableInput();
-                else
-                    inputComponent.DisableInput();
+                if (state == WeaponState.Equipped) inputComponent.EnableInput();
+                else inputComponent.DisableInput();
             }
         }
 
@@ -188,88 +209,49 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         private void SetInteractionEnabled(bool enabled)
         {
             if (InteractionCollider) InteractionCollider.enabled = enabled;
+            // Sử dụng base.SetState để đồng bộ networkState
             SetState(enabled ? InteractionState.Enable : InteractionState.Disabled);
         }
 
         #endregion
-
-        #region Server RPCs
         
-        [ServerRpc(RequireOwnership = false)]
-        protected virtual void RequestPickupServerRpc(ulong playerNetworkId)
-        {
-            if (networkWeaponState.Value != WeaponState.Dropped) return;
-            if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(playerNetworkId, out NetworkObject playerNetObj))
-            {
-                PlayerInteraction player = playerNetObj.GetComponentInChildren<PlayerInteraction>();
-                if (player != null)
-                {
-                    PickupWeapon(player);
-                }
-            }
-        }
-        
-        [ServerRpc(RequireOwnership = false)]
-        protected virtual void RequestDropServerRpc()
-        {
-            DropWeapon();
-        }
+        #region Public Methods (Server authority)
 
-        #endregion
-        
-        #region Public Methods
-        // WeaponInteraction.cs
-        protected virtual void PickupWeapon(PlayerInteraction player)
-        {
-            if (!IsServer || networkWeaponState.Value != WeaponState.Dropped) return;
-
-            currentHolder = player;
-
-            // chuyển ownership vũ khí cho người nhặt
-            if (NetworkObject && NetworkObject.OwnerClientId != player.OwnerClientId)
-                NetworkObject.ChangeOwnership(player.OwnerClientId);
-            
-            // gắn vào tay (server side → tự replicate)
-            var equip = player.PlayerEquipment;
-            var hold = equip ? equip.transform : player.transform;
-            NetworkObject.TrySetParent(hold);
-
-            // cập nhật state (mọi client sẽ nhận OnValueChanged)
-            networkWeaponState.Value = WeaponState.Equipped;
-            
-            // đồng bộ PlayerEquipment.currentGunRef ngay tại server (1 nguồn sự thật)
-            if (equip) equip.SetCurrentWeaponServer(this);
-
-            OnWeaponPickedUp?.Invoke(player);
-            OnPickedUp(player);
-        }
-        
+        /// <summary>
+        /// Server-only. Bỏ parent (replicate), set state Dropped, đặt lại pose, clear callbacks.
+        /// </summary>
         public virtual void DropWeapon()
         {
             if (!IsServer || networkWeaponState.Value == WeaponState.Dropped) return;
-            
+
             PlayerInteraction previousHolder = currentHolder;
             currentHolder = null;
+
+            // ✅ replicate parenting: parent null qua TrySetParent
+            if (NetworkObject != null)
+                NetworkObject.TrySetParent((Transform)null);
+
             networkWeaponState.Value = WeaponState.Dropped;
             
-            transform.SetParent(null);
+            // Đặt world pose về gần vị trí holder cũ (nếu có)
             if (previousHolder != null)
             {
                 transform.position = previousHolder.transform.position + Vector3.forward;
                 transform.rotation = Quaternion.identity;
             }
             
-            //Change parent equipment model
+            // Gắn lại model con về weapon root
             var model = rigSetup.weaponTransform;
             if (model != null)
             {
                 model.SetParent(this.transform);
-                model.position = Vector3.zero;
-                model.rotation = Quaternion.identity;
+                model.localPosition = Vector3.zero;
+                model.localRotation = Quaternion.identity;
             }
             
-            //Clear callbacks
-            attackComponent.OnPreFire = null;
+            // Clear callbacks
+            if (attackComponent != null)
+                attackComponent.OnPreFire = null;
             
             OnWeaponDropped?.Invoke(previousHolder);
             OnDropped(previousHolder);
@@ -295,10 +277,20 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             }
         }
 
+        /// <summary>
+        /// (Tùy chọn) Gọi từ PlayerEquipment (server) khi đã equip xong để cập nhật holder,
+        /// giúp DropWeapon rơi đúng vị trí.
+        /// </summary>
+        public void ServerAssignHolder(PlayerInteraction holder)
+        {
+            if (!IsServer) return;
+            currentHolder = holder;
+        }
+
         #endregion
         
-        #region Abstract & Virtual Methods
-        // Virtual methods for weapon lifecycle
+        #region Virtual Hooks
+
         protected virtual void OnWeaponNetworkSpawned() { }
         protected virtual void OnWeaponNetworkDespawned() { }
         protected virtual void OnWeaponEnabled() { }
@@ -306,16 +298,18 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
 
         protected virtual void OnPickedUp(PlayerInteraction player)
         {
-            Debug.Log($"[WeaponInteraction]: {weaponName} picked up by {player.name}");
+            Debug.Log($"[WeaponInteraction]: {weaponName} picked up by {player?.name}");
             player?.OnInteracted(this);
         }
+
         protected virtual void OnDropped(PlayerInteraction player) { }
 
         #endregion
 
         public void RefreshEquipModel()
         {
-            this.equippedModel.transform.SetParent(this.transform);
+            if (equippedModel != null)
+                equippedModel.transform.SetParent(this.transform);
         }
     }
 }
