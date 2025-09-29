@@ -221,7 +221,7 @@ namespace _GAME.Scripts.Networking
             try
             {
                 await _stateManager.TryTransitionAsync(NetworkState.ClientConnecting);
-
+                RelayHandler.ResetAllState();
                 // Step 1: Setup relay
                 var relayResult = await RelayHandler.SetupHostRelayAsync(maxConnection, cancellationToken);
                 if (!relayResult.IsSuccess)
@@ -276,6 +276,8 @@ namespace _GAME.Scripts.Networking
             try
             {
                 await _stateManager.TryTransitionAsync(NetworkState.ClientConnecting);
+                
+                RelayHandler.ResetAllState();
 
                 var nm = NetworkManager.Singleton;
                 if (nm == null)
@@ -332,8 +334,6 @@ namespace _GAME.Scripts.Networking
                 Debug.LogWarning("[NetworkController] Only the server/host can initiate scene changes.");
                 return OperationResult.Failure("Only server/host can load scenes");
             }
-
-            SceneLoadingBroadcaster.Instance?.PreShowAllClients("Switching to gameplay...");
             
             var nsm = nm.SceneManager;
             if (nsm == null)
@@ -421,7 +421,7 @@ namespace _GAME.Scripts.Networking
                 {
                     nm.Shutdown();
                 }
-
+                await RelayHandler.SafeShutdownAsync();
                 await _stateManager.TryTransitionAsync(NetworkState.Default);
 
                 return OperationResult.Success("Disconnected successfully");
@@ -520,6 +520,7 @@ namespace _GAME.Scripts.Networking
             };
 
             OnNetworkError?.Invoke(error);
+            _ = RelayHandler.SafeShutdownAsync();
             _ = _stateManager.SafeReturnToDefaultAsync("Transport failure");
         }
 
@@ -589,6 +590,7 @@ namespace _GAME.Scripts.Networking
 
         public void StartGameAsync()
         {
+            SceneLoadingBroadcaster.Instance?.PreShowAllClients("Switching to gameplay...");
             //Swtich to gameplay scene
             _ = LoadSceneAsync(SceneDefinitions.GameScene, null, LoadSceneMode.Single);
         }

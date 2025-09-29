@@ -62,7 +62,7 @@ namespace _GAME.Scripts.HideAndSeek.Util
         }
 
         [ServerRpc(RequireOwnership = false)]
-        public void StartCountdownServerRpc(float time, string label)
+        public void StartCountdownWithLabelServerRpc(float time, string label)
         {
             if (time <= 0f) return;
             if (isCountingDown) CancelInvoke(nameof(UpdateCountdown));

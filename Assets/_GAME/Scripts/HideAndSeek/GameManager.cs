@@ -280,7 +280,7 @@ namespace _GAME.Scripts.HideAndSeek
         {
             if (!IsServer) return;
             const float preparationTime = 5f;
-            timeCountDown?.StartCountdownServerRpc(preparationTime, "Game Starting In");
+            timeCountDown?.StartCountdownWithLabelServerRpc(preparationTime, "Game Starting In");
             Invoke(nameof(AssignRoles), preparationTime);
         }
 
