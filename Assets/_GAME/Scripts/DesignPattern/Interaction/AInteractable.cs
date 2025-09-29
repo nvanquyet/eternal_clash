@@ -11,8 +11,9 @@ namespace _GAME.Scripts.DesignPattern.Interaction
     // =========================
     public abstract class InteractableBase : NetworkBehaviour, IInteractable
     {
-        [Header("Base Interactable Settings")]
-        [SerializeField] protected string entityId;
+        [Header("Base Interactable Settings")] [SerializeField]
+        protected string entityId;
+
         [SerializeField] protected bool isActive = true;
         [SerializeField] private Collider interactionCollider;
 
@@ -41,15 +42,21 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 if (interactionCollider != null) return interactionCollider;
                 interactionCollider = GetComponent<Collider>();
                 if (interactionCollider == null)
-                    Debug.LogWarning($"[InteractableBase] InteractionCollider not set and not found on {gameObject.name}");
+                    Debug.LogWarning(
+                        $"[InteractableBase] InteractionCollider not set and not found on {gameObject.name}");
                 return interactionCollider;
             }
         }
 
         public InteractionState CurrentState => networkState.Value;
 
-        protected virtual void Awake() { }
-        protected virtual void Start() { }
+        protected virtual void Awake()
+        {
+        }
+
+        protected virtual void Start()
+        {
+        }
 
         public bool IsActive
         {
@@ -113,8 +120,13 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         public abstract bool Interact(IInteractable target);
         public abstract void OnInteracted(IInteractable initiator);
 
-        protected virtual void OnStateChanged(InteractionState previousState, InteractionState newState) { }
-        protected virtual void OnActiveChanged(bool previousValue, bool newValue) { }
+        protected virtual void OnStateChanged(InteractionState previousState, InteractionState newState)
+        {
+        }
+
+        protected virtual void OnActiveChanged(bool previousValue, bool newValue)
+        {
+        }
     }
 
     // =========================
@@ -122,14 +134,16 @@ namespace _GAME.Scripts.DesignPattern.Interaction
     // =========================
     public abstract class APassiveInteractable : InteractableBase
     {
-        [Header("Trigger Settings")]
-        [SerializeField] protected LayerMask interactionLayer = ~0;
+        [Header("Trigger Settings")] [SerializeField]
+        protected LayerMask interactionLayer = ~0;
+
         [SerializeField] protected string[] interactionTags = { "Player" };
         [SerializeField] protected float interactionCooldown = 0.5f;
         [SerializeField] protected GameObject uiIndicator;
 
         [Tooltip("Nếu bật, server sẽ gửi RPC bật/tắt prompt. Nếu tắt, prompt hiển thị local-only ở client owner.")]
-        [SerializeField] private bool useServerDrivenPrompt = false;
+        [SerializeField]
+        private bool useServerDrivenPrompt = false;
 
         // Cooldown theo server-time
         private NetworkVariable<double> networkLastInteractionServerTime =
@@ -174,7 +188,8 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
             if (!TryGetValidNetworkObject(other, out var nob))
             {
-                Debug.LogWarning($"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or parents.");
+                Debug.LogWarning(
+                    $"[PassiveInteractable] NetworkObject not found on {other.gameObject.name} or parents.");
                 return;
             }
 
@@ -230,7 +245,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
             // Priority 4: Child hierarchy (less common but possible)
             networkObject = collider.GetComponentInChildren<NetworkObject>();
-            
+
             return networkObject != null;
         }
 
@@ -308,8 +323,14 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         // Abstracts
         protected abstract void PerformInteractionLogic(IInteractable initiator);
-        protected virtual void OnInteractionUIShown() { }
-        protected virtual void OnInteractionUIHidden() { }
+
+        protected virtual void OnInteractionUIShown()
+        {
+        }
+
+        protected virtual void OnInteractionUIHidden()
+        {
+        }
 
         // Props
         public bool HasNearbyInteractors => nearbyInteractors.Count > 0;
@@ -321,8 +342,9 @@ namespace _GAME.Scripts.DesignPattern.Interaction
     // =========================
     public abstract class AActiveInteractable : InteractableBase
     {
-        [Header("Active Interaction Settings")]
-        [SerializeField] protected LayerMask detectLayerMask = ~0;
+        [Header("Active Interaction Settings")] [SerializeField]
+        protected LayerMask detectLayerMask = ~0;
+
         [SerializeField] protected string[] detectTags = { "Interactable" };
         [SerializeField] protected float interactionRange = 3f;
         [SerializeField] protected float interactionValidationRange = 5f; // Server validation range (slightly larger)
@@ -355,7 +377,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (!ValidateRpcSender(rpcParams.Receive.SenderClientId)) return;
 
-            if (!targetRef.TryGet(out var targetNob)) 
+            if (!targetRef.TryGet(out var targetNob))
             {
                 SendInteractionFailedClientRpc("Target not found", rpcParams.Receive.SenderClientId);
                 return;
@@ -415,7 +437,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (!IsOwner || !CanInteract) return;
 
-            if (other.TryGetComponent<APassiveInteractable>(out var passive) && 
+            if (other.TryGetComponent<APassiveInteractable>(out var passive) &&
                 IsValidInteractable(other.gameObject) &&
                 passive.CanInteract)
             {
@@ -440,7 +462,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (obj == null) return false;
             if (((1 << obj.layer) & detectLayerMask) == 0) return false;
-            if (detectTags != null && detectTags.Length > 0) 
+            if (detectTags != null && detectTags.Length > 0)
                 return detectTags.Any(obj.CompareTag);
             return true;
         }
@@ -474,7 +496,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             if (CurrentState == InteractionState.Disabled) return false;
 
             SetState(InteractionState.Disabled);
-            
+
             try
             {
                 target.OnInteracted(this);
@@ -491,14 +513,22 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             }
         }
 
-        public override void OnInteracted(IInteractable initiator) { /* optional */ }
+        public override void OnInteracted(IInteractable initiator)
+        {
+            /* optional */
+        }
 
         // Abstracts
         protected abstract void OnNearInteractable(APassiveInteractable interactable);
         protected abstract void OnLeftInteractable(APassiveInteractable interactable);
 
-        protected virtual void OnInteractionPerformed(APassiveInteractable interactable) { }
-        protected virtual void OnInteractionFailed(string reason) { }
+        protected virtual void OnInteractionPerformed(APassiveInteractable interactable)
+        {
+        }
+
+        protected virtual void OnInteractionFailed(string reason)
+        {
+        }
 
         // Props
         public bool HasInteractable => currentPassiveInteractable != null;
@@ -510,14 +540,16 @@ namespace _GAME.Scripts.DesignPattern.Interaction
     // =========================
     public abstract class AAttackable : InteractableBase, IAttackable
     {
-        [Header("Attack Settings")]
-        [SerializeField] private float baseDamage = 10f;
+        [Header("Attack Settings")] [SerializeField]
+        private float baseDamage = 10f;
+
         [SerializeField] protected float attackRange = 2f;
         [SerializeField] protected float attackCooldown = 1f;
         [SerializeField] protected DamageType primaryDamageType = DamageType.Physical;
 
-        [Header("Collision Attack Settings")]
-        [SerializeField] protected bool enableCollisionAttack = false;
+        [Header("Collision Attack Settings")] [SerializeField]
+        protected bool enableCollisionAttack = false;
+
         [SerializeField] protected LayerMask attackableLayers = ~0;
         [SerializeField] protected string[] attackableTags = { "Enemy", "Destructible" };
         [SerializeField] public bool destroyAfterCollisionAttack = true;
@@ -541,9 +573,6 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         private float? pendingDamage = null;
         private bool damageInitialized = false;
 
-        // Thread-safe attack lock
-        private bool isAttacking = false;
-
         public float BaseDamage => networkBaseDamage.Value;
         public float AttackRange => attackRange;
         public float AttackCooldown => attackCooldown;
@@ -553,17 +582,11 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         public virtual bool CanAttack =>
             CanInteract &&
             CurrentState != InteractionState.Disabled &&
-            !isAttacking &&
             NetworkManager != null &&
             NetworkManager.Singleton != null &&
             NetworkManager.Singleton.ServerTime.Time >= networkNextAttackServerTime.Value;
 
         public event Action<IAttackable, IDefendable, float> OnAttackPerformed;
-
-        protected override void Awake()
-        {
-            base.Awake();
-        }
 
         public override void OnNetworkSpawn()
         {
@@ -580,10 +603,11 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (IsSpawned)
             {
-                Debug.LogWarning($"[{name}] Cannot set base damage after spawn. Use UpdateBaseDamageServerRpc instead.");
                 return;
             }
+
             pendingDamage = damage;
+            Debug.Log($"[AAttackable-SetBaseDamage] {name} Pending damage set: {damage}");
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -591,12 +615,19 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
             networkBaseDamage.Value = Mathf.Max(0f, newDamage);
+            Debug.Log($"[AAttackable-UpdateBaseDamageServerRpc] {name} Updated damage: {networkBaseDamage.Value}");
         }
 
         // Active Attack
         public virtual bool Attack(IDefendable target)
         {
-            if (target == null) return false;
+            Debug.Log($"[AAttackable-Attack] {name} Attacking target, IsServer: {IsServer}, IsOwner: {IsOwner}");
+
+            if (target == null)
+            {
+                Debug.Log($"[AAttackable-Attack] {name} Target is NULL");
+                return false;
+            }
 
             if (IsServer) return Server_AttemptAttack(target);
 
@@ -605,40 +636,80 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 var nob = (target as MonoBehaviour)?.GetComponent<NetworkObject>();
                 if (nob != null) AttackServerRpc(nob);
             }
+
             return false;
         }
 
         [ServerRpc(RequireOwnership = false)]
         protected virtual void AttackServerRpc(NetworkObjectReference targetRef, ServerRpcParams rpc = default)
         {
+            Debug.Log($"[AAttackable-AttackServerRpc] {name} Received attack RPC");
+
             if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
 
-            if (!targetRef.TryGet(out var targetNob)) return;
-            if (!targetNob.TryGetComponent<IDefendable>(out var target)) return;
+            if (!targetRef.TryGet(out var targetNob))
+            {
+                Debug.Log($"[AAttackable-AttackServerRpc] {name} Failed to get target NetworkObject");
+                return;
+            }
+
+            if (!targetNob.TryGetComponent<IDefendable>(out var target))
+            {
+                Debug.Log($"[AAttackable-AttackServerRpc] {name} Target has no IDefendable");
+                return;
+            }
 
             Server_AttemptAttack(target);
         }
 
         private bool Server_AttemptAttack(IDefendable target)
         {
-            if (!IsServer) return false;
+            Debug.Log($"[AAttackable-Server_AttemptAttack] {name} START");
+
+            if (!IsServer)
+            {
+                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} FAILED - Not server");
+                return false;
+            }
 
             // Thread-safe attack validation
-            if (!CanAttack || isAttacking) return false;
-            if (target == null || !target.IsAlive) return false;
-            if (!IsInAttackRange(target)) return false;
+            if (!CanAttack)
+            {
+                Debug.Log(
+                    $"[AAttackable-Server_AttemptAttack] {name} FAILED - CanAttack: {CanAttack}, IsAttacking");
+                return false;
+            }
+
+            if (target == null || !target.IsAlive)
+            {
+                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} FAILED - Target null or dead");
+                return false;
+            }
+
+            if (!IsInAttackRange(target))
+            {
+                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} FAILED - Out of range");
+                return false;
+            }
 
             var targetMb = target as MonoBehaviour;
-            if (!IsValidTargetGO(targetMb ? targetMb.gameObject : null)) return false;
+            if (!IsValidTargetGO(targetMb ? targetMb.gameObject : null))
+            {
+                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} FAILED - Invalid target GO");
+                return false;
+            }
 
             // Lock attack state
-            isAttacking = true;
             SetState(InteractionState.Disabled);
+            Debug.Log($"[AAttackable-Server_AttemptAttack] {name} Attack locked, processing...");
 
             try
             {
                 float damage = CalculateDamage(target);
+                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} Calculated damage: {damage}");
+
                 float appliedDamage = target.TakeDamage(this, damage, primaryDamageType);
+                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} Applied damage: {appliedDamage}");
 
                 networkNextAttackServerTime.Value = NetworkManager.Singleton.ServerTime.Time + attackCooldown;
 
@@ -650,23 +721,25 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 };
                 OnAttackFeedbackClientRpc(appliedDamage, p);
 
+                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} SUCCESS - Damage: {appliedDamage}");
                 return appliedDamage > 0f;
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[Attackable] Attack error: {ex.Message}");
+                Debug.LogError($"[AAttackable-Server_AttemptAttack] {name} ERROR: {ex.Message}\n{ex.StackTrace}");
                 return false;
             }
             finally
             {
-                isAttacking = false;
                 SetState(InteractionState.Enable);
+                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} Attack unlocked");
             }
         }
 
         [ClientRpc]
         protected virtual void OnAttackFeedbackClientRpc(float actualDamage, ClientRpcParams p = default)
         {
+            Debug.Log($"[AAttackable-OnAttackFeedbackClientRpc] {name} Received feedback: {actualDamage}");
             OnAttackFeedbackLocal(actualDamage);
         }
 
@@ -678,75 +751,147 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         // Collision Attack (server-authority)
         protected virtual void OnTriggerEnter(Collider other)
         {
-            if (!enableCollisionAttack || hasCollisionAttacked || !CanAttack) return;
-            if (!IsServer) return;
+            if (!IsServer)
+            {
+                Debug.Log($"[AAttackable-OnTriggerEnter] {name} SKIPPED - Not server");
+                return;
+            }
+            
+            Debug.Log($"[AAttackable-OnTriggerEnter] {name} triggered by: {other.name}");
+
+            if (!enableCollisionAttack || hasCollisionAttacked || !CanAttack)
+            {
+                Debug.Log($"[AAttackable-OnTriggerEnter] {name} SKIPPED - Conditions not met");
+                return;
+            }
+
+
             Server_ProcessCollision(other);
         }
 
         protected virtual void OnCollisionEnter(Collision collision)
         {
-            if (!enableCollisionAttack || hasCollisionAttacked || !CanAttack) return;
-            if (!IsServer) return;
+            
+            if (!IsServer)
+            {
+                Debug.Log($"[AAttackable-OnCollisionEnter] {name} SKIPPED - Not server");
+                return;
+            }
+            
+            if (!enableCollisionAttack || hasCollisionAttacked || !CanAttack)
+            {
+                Debug.Log($"[AAttackable-OnCollisionEnter] {name} SKIPPED - Conditions not met");
+                return;
+            }
+
             Server_ProcessCollision(collision.collider);
         }
 
         protected virtual void Server_ProcessCollision(Collider other)
         {
-            if (other == null || isAttacking) return;
-            
-            var go = other.attachedRigidbody ? other.attachedRigidbody.gameObject : other.gameObject;
-            if (go == null || go == this.gameObject) return;
-            
-            if (!IsValidTargetGO(go))
+            if (other == null)
             {
+                Debug.Log(
+                    $"[AAttackable-Server_ProcessCollision] {name} FAILED - Other null: {other == null}");
+                return;
+            }
+
+            var go = other.attachedRigidbody ? other.attachedRigidbody.gameObject : other.gameObject;
+
+            if (go == null || go == this.gameObject)
+            {
+                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} FAILED - GO is null or self");
+                return;
+            }
+
+            bool isValid = IsValidTargetGO(go);
+            Debug.Log($"[AAttackable-Server_ProcessCollision] {name} IsValidTarget: {isValid}");
+
+            if (!isValid)
+            {
+                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Calling OnHitInvalidTarget");
                 OnHitInvalidTarget(other);
                 return;
             }
 
-            if (!go.TryGetComponent<IDefendable>(out var target))
+            bool hasDefendable = go.TryGetComponent<IDefendable>(out var target);
+            Debug.Log($"[AAttackable-Server_ProcessCollision] {name} HasDefendable: {hasDefendable}");
+
+            if (!hasDefendable)
             {
                 OnHitNonDefendableTarget(other);
                 return;
             }
 
-            if (!target.IsAlive || !IsInAttackRange(target)) return;
+            Debug.Log(
+                $"[AAttackable-Server_ProcessCollision] {name} Target IsAlive: {target.IsAlive}, InRange: {IsInAttackRange(target)}");
+
+            if (!target.IsAlive) // !IsInAttackRange(target))
+            {
+                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} FAILED - Target dead or out of range");
+                return;
+            }
 
             hasCollisionAttacked = true;
-            isAttacking = true;
             SetState(InteractionState.Disabled);
+            Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Collision attack locked, processing damage...");
 
             try
             {
                 float damage = CalculateDamage(target);
+                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Calculated damage: {damage}");
+
                 float actualDamage = target.TakeDamage(this, damage, primaryDamageType);
+                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Actual damage: {actualDamage}");
 
                 networkNextAttackServerTime.Value = NetworkManager.Singleton.ServerTime.Time + attackCooldown;
 
                 OnAttackPerformed?.Invoke(this, target, actualDamage);
                 OnAttackFeedbackClientRpc(actualDamage);
 
-                if (destroyAfterCollisionAttack) 
+                if (destroyAfterCollisionAttack)
+                {
+                    Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Calling HandleDestruction");
                     HandleDestruction();
-                else 
+                }
+                else
+                {
                     SetState(InteractionState.Enable);
+                    Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Re-enabled for next attack");
+                }
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[Attackable] Collision attack error: {ex.Message}");
+                Debug.LogError($"[AAttackable-Server_ProcessCollision] {name} ERROR: {ex.Message}\n{ex.StackTrace}");
                 SetState(InteractionState.Enable);
             }
             finally
             {
-                isAttacking = false;
+                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Collision attack unlocked");
             }
         }
 
         protected virtual bool IsValidTargetGO(GameObject target)
         {
-            if (target == null) return false;
+            Debug.Log($"[AAttackable-IsValidTargetGO] {name} Checking target: {target?.name}");
+
+            if (target == null)
+            {
+                Debug.Log($"[AAttackable-IsValidTargetGO] {name} FAILED - Target is null");
+                return false;
+            }
 
             // Layer check
-            if (((1 << target.layer) & attackableLayers) == 0) return false;
+            int targetLayerMask = 1 << target.layer;
+            bool layerMatch = (targetLayerMask & attackableLayers) != 0;
+            Debug.Log(
+                $"[AAttackable-IsValidTargetGO] {name} Layer check - Target layer: {LayerMask.LayerToName(target.layer)}, Match: {layerMatch}");
+
+            if (!layerMatch)
+            {
+                Debug.Log($"[AAttackable-IsValidTargetGO] {name} FAILED - Layer mismatch");
+                return false;
+            }
 
             // Tag check
             if (attackableTags != null && attackableTags.Length > 0)
@@ -754,26 +899,46 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 bool tagOk = false;
                 for (int i = 0; i < attackableTags.Length; i++)
                 {
-                    if (target.CompareTag(attackableTags[i])) 
-                    { 
-                        tagOk = true; 
-                        break; 
+                    if (target.CompareTag(attackableTags[i]))
+                    {
+                        tagOk = true;
+                        Debug.Log($"[AAttackable-IsValidTargetGO] {name} Tag matched: {attackableTags[i]}");
+                        break;
                     }
                 }
-                if (!tagOk) return false;
+
+                if (!tagOk)
+                {
+                    Debug.Log(
+                        $"[AAttackable-IsValidTargetGO] {name} FAILED - Tag mismatch. Target tag: {target.tag}, Expected: {string.Join(", ", attackableTags)}");
+                    return false;
+                }
             }
 
             // Self-attack prevention
             if (target.TryGetComponent<NetworkObject>(out var nob))
             {
-                if (nob.OwnerClientId == OwnerClientId) return false;
+                bool isSameOwner = nob.OwnerClientId == OwnerClientId;
+                Debug.Log(
+                    $"[AAttackable-IsValidTargetGO] {name} Owner check - Target owner: {nob.OwnerClientId}, My owner: {OwnerClientId}, IsSame: {isSameOwner}");
+
+                if (isSameOwner)
+                {
+                    Debug.Log($"[AAttackable-IsValidTargetGO] {name} FAILED - Same owner (self-attack prevention)");
+                    return false;
+                }
             }
 
+            Debug.Log($"[AAttackable-IsValidTargetGO] {name} SUCCESS - Target is valid");
             return true;
         }
 
         // Hooks để override
-        protected virtual void OnAttackFeedbackLocal(float actualDamage) { }
+        protected virtual void OnAttackFeedbackLocal(float actualDamage)
+        {
+            Debug.Log($"[AAttackable-OnAttackFeedbackLocal] {name} Feedback: {actualDamage}");
+        }
+
         protected abstract void OnHitInvalidTarget(Collider other);
         protected abstract void OnHitNonDefendableTarget(Collider other);
         protected abstract void HandleDestruction();
@@ -784,8 +949,9 @@ namespace _GAME.Scripts.DesignPattern.Interaction
     // =========================
     public abstract class ADefendable : InteractableBase, IDefendable
     {
-        [Header("Defense Settings")]
-        [SerializeField] protected float maxHealth = 100f;
+        [Header("Defense Settings")] [SerializeField]
+        protected float maxHealth = 100f;
+
         [SerializeField] protected float defenseValue = 0f;
         [SerializeField] protected bool isInvulnerable = false;
 
@@ -971,15 +1137,34 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         }
 
         // Server-side hook sau khi chết
-        public virtual void OnDeath(IAttackable killer) { }
+        public virtual void OnDeath(IAttackable killer)
+        {
+        }
 
         // Local-only hooks cho FX/UI
-        protected virtual void OnHealthChangedLocal(float previousHealth, float newHealth) { }
-        protected virtual void OnInvulnerabilityChangedLocal(bool previousValue, bool newValue) { }
-        protected virtual void OnDeathStateChangedLocal(bool previousValue, bool newValue) { }
-        protected virtual void OnHitLocal(float appliedDamage) { }
-        protected virtual void OnDeathLocal(NetworkObject attackerNob) { }
-        protected virtual void OnRevivedLocal(float newHealth) { }
+        protected virtual void OnHealthChangedLocal(float previousHealth, float newHealth)
+        {
+        }
+
+        protected virtual void OnInvulnerabilityChangedLocal(bool previousValue, bool newValue)
+        {
+        }
+
+        protected virtual void OnDeathStateChangedLocal(bool previousValue, bool newValue)
+        {
+        }
+
+        protected virtual void OnHitLocal(float appliedDamage)
+        {
+        }
+
+        protected virtual void OnDeathLocal(NetworkObject attackerNob)
+        {
+        }
+
+        protected virtual void OnRevivedLocal(float newHealth)
+        {
+        }
     }
 
     // =========================
@@ -1040,6 +1225,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             {
                 networkObject = mb.GetComponent<NetworkObject>();
             }
+
             return networkObject != null;
         }
     }
@@ -1069,7 +1255,8 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             foreach (var kvp in interactionCounts)
             {
-                Debug.Log($"[InteractionMetrics] {kvp.Key}: {kvp.Value} interactions, avg distance: {averageDistances[kvp.Key]:F2}");
+                Debug.Log(
+                    $"[InteractionMetrics] {kvp.Key}: {kvp.Value} interactions, avg distance: {averageDistances[kvp.Key]:F2}");
             }
         }
 

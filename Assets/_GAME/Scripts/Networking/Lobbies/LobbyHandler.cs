@@ -1,12 +1,9 @@
-// LobbyHandler.cs — cập nhật sang dùng LobbyRuntime + bổ sung KickPlayerAsync
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using _GAME.Scripts.Config;
 using _GAME.Scripts.Data;
-using _GAME.Scripts.Lobbies;
-using _GAME.Scripts.Networking;
 using Unity.Services.Authentication;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
@@ -14,18 +11,23 @@ using UnityEngine;
 
 namespace _GAME.Scripts.Networking.Lobbies
 {
+    /// <summary>
+    /// Fixed LobbyHandler - Proper event flow và change detection
+    /// </summary>
     public class LobbyHandler
     {
-        [Header("Lobby Settings")]
-        [SerializeField] private float heartbeatInterval = 15f;
-        [SerializeField] private float lobbyRefreshInterval = 2f;
+        #region Fields & Properties
 
-        [SerializeField] private LobbyRuntime _runtime;
-
+        private LobbyRuntime _runtime;
         private bool _isInitialized = false;
-
-        public string CurrentLobbyId => CachedLobby?.Id;
+        private bool _isSubscribedToEvents = false;
+        
         public Lobby CachedLobby { get; private set; }
+        private LobbySnapshot _lastSnapshot;
+
+        #endregion
+
+        #region Initialization
 
         public void InitializeComponents(LobbyRuntime runtime)
         {
@@ -34,21 +36,32 @@ namespace _GAME.Scripts.Networking.Lobbies
             try
             {
                 _runtime = runtime;
+                
+                // Đảm bảo chỉ subscribe 1 lần
+                if (!_isSubscribedToEvents)
+                {
+                    LobbyEvents.OnLobbyUpdated += OnLobbyUpdated;
+                    _isSubscribedToEvents = true;
+                }
+                
                 _isInitialized = true;
-                Debug.Log("[LobbyHandler] Runtime initialized successfully");
+                Debug.Log("[LobbyHandler] Initialized successfully");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[LobbyHandler] Failed to initialize components: {e.Message}");
+                Debug.LogError($"[LobbyHandler] Failed to initialize: {e.Message}");
             }
         }
 
-        #region Public API
+        #endregion
+
+        #region Core Lobby Operations
 
         public async Task<Lobby> CreateLobbyAsync(string lobbyName, int maxPlayers, CreateLobbyOptions options = null)
         {
-            if (!ValidateService()) return null;
-            if (!ValidateInput(lobbyName, "Lobby name")) return null;
+            if (!ValidateService() || !ValidateInput(lobbyName, "Lobby name")) 
+                return null;
+
             if (maxPlayers <= 0 || maxPlayers > LobbyConstants.Validation.MAX_PLAYERS)
             {
                 Debug.LogError($"[LobbyHandler] Invalid max players: {maxPlayers}");
@@ -67,27 +80,16 @@ namespace _GAME.Scripts.Networking.Lobbies
                     return null;
                 }
 
-                // Mirror CODE + PHASE vào Data (Public + Indexed) để client có thể Query theo CODE
-                var code = lobby.LobbyCode?.Trim().ToUpperInvariant() ?? "";
-
-                var update = new UpdateLobbyOptions
-                {
-                    Data = new Dictionary<string, DataObject>
-                    {
-                        [LobbyConstants.LobbyKeys.CODE] = new DataObject(
-                            DataObject.VisibilityOptions.Public,
-                            code,
-                            DataObject.IndexOptions.S1),
-
-                        [LobbyConstants.LobbyKeys.PHASE] = new DataObject(
-                            DataObject.VisibilityOptions.Public,
-                            SessionPhase.WAITING,
-                            DataObject.IndexOptions.S2)
-                    }
-                };
-
-                lobby = await LobbyService.Instance.UpdateLobbyAsync(lobby.Id, update);
-                HandleLobbyCreated(lobby);
+                // Update cache immediately
+                UpdateCachedLobby(lobby);
+                
+                // Update lobby with searchable metadata
+                await UpdateLobbyMetadata(lobby);
+                
+                // KHÔNG start runtime ở đây nữa - để Manager làm
+                // Chỉ trigger event
+                LobbyEvents.TriggerLobbyCreated(lobby, true, $"Lobby '{lobby.Name}' created");
+                
                 return lobby;
             }
             catch (LobbyServiceException e)
@@ -106,98 +108,68 @@ namespace _GAME.Scripts.Networking.Lobbies
 
         public async Task<bool> PrecheckPhaseThenJoin(string code, string password = null)
         {
-            Debug.Log($"[LobbyHandler] === PrecheckPhaseThenJoin START ===");
-            Debug.Log($"[LobbyHandler] Input code: '{code}', Password: '{(string.IsNullOrEmpty(password) ? "null" : "***")}'");
-
-            if (!ValidateService()) return false;
-            if (!ValidateInput(code, "Lobby code")) return false;
+            if (!ValidateService() || !ValidateInput(code, "Lobby code")) 
+                return false;
 
             try
             {
-                var normalized = code.Trim().ToUpperInvariant();
-                var q = new QueryLobbiesOptions
-                {
-                    Count = 1,
-                    Filters = new List<QueryFilter>
-                    {
-                        // Sửa thứ tự tham số: field, op, value
-                        new QueryFilter(QueryFilter.FieldOptions.S1, normalized, QueryFilter.OpOptions.EQ)
-                    }
-                };
-
-                var res = await LobbyService.Instance.QueryLobbiesAsync(q);
-                var hit = res.Results.FirstOrDefault();
-                if (hit == null)
-                {
-                    Fail("Lobby not found");
-                    return false;
-                }
-
-                var phase = hit.Data != null && hit.Data.TryGetValue(LobbyConstants.LobbyKeys.PHASE, out var phaseObj)
-                    ? phaseObj.Value
-                    : SessionPhase.WAITING;
-
-                if (phase != SessionPhase.WAITING)
-                {
-                    var reason = phase switch
-                    {
-                        SessionPhase.STARTING => "Game is starting, cannot join",
-                        SessionPhase.PLAYING => "Game is already in progress, cannot join",
-                        _ => "Lobby is not accepting new players"
-                    };
-                    Fail(reason);
-                    return false;
-                }
-
-                var joinOpts = new JoinLobbyByCodeOptions
-                {
-                    Player = CreateDefaultPlayerData(),
-                    Password = string.IsNullOrEmpty(password) ? null : password
-                };
-
-                var lobby = await LobbyService.Instance.JoinLobbyByCodeAsync(normalized, joinOpts);
+                var lobby = await FindLobbyByCode(code);
                 if (lobby == null)
                 {
-                    Fail("Failed to join lobby");
+                    TriggerJoinFailed("Lobby not found");
                     return false;
                 }
 
-                HandleLobbyJoined(lobby);
-                return true;
+                UpdateCachedLobby(lobby);
+
+                if (!CanJoinLobby(lobby))
+                {
+                    var phase = GetLobbyPhase(lobby);
+                    var reason = GetJoinFailureReason(phase);
+                    TriggerJoinFailed(reason);
+                    return false;
+                }
+
+                var joinSuccess = await JoinLobbyInternal(code, password);
+                if (joinSuccess)
+                {
+                    var updatedLobby = await GetUpdatedLobby(CachedLobby.Id);
+                    if (updatedLobby != null)
+                    {
+                        UpdateCachedLobby(updatedLobby);
+                    }
+                    
+                    // KHÔNG start runtime ở đây nữa - để Manager làm
+                    LobbyEvents.TriggerLobbyJoined(CachedLobby, true, $"Joined lobby '{CachedLobby.Name}'");
+                }
+
+                return joinSuccess;
             }
             catch (LobbyServiceException e)
             {
-                Debug.LogError($"[LobbyHandler] LobbyServiceException - Reason: {e.Reason}, Message: {e.Message}");
-                Fail(e.Message);
+                Debug.LogError($"[LobbyHandler] Join failed: {e.Reason} - {e.Message}");
+                TriggerJoinFailed(e.Message);
                 return false;
             }
             catch (Exception e)
             {
-                Debug.LogError($"[LobbyHandler] Unexpected exception: {e.Message}");
-                Fail(e.Message);
+                Debug.LogError($"[LobbyHandler] Join failed: {e.Message}");
+                TriggerJoinFailed(e.Message);
                 return false;
             }
-
-            void Fail(string msg)
-            {
-                Debug.LogWarning($"[LobbyHandler] FAIL: {msg}");
-                Debug.Log("[LobbyHandler] === PrecheckPhaseThenJoin FAILED ===");
-                LobbyEvents.TriggerLobbyJoined(null, false, msg);
-            }
-        }
-
-        public async Task<bool> JoinLobbyAsync(string lobbyCode, string password = null)
-        {
-            if (!ValidateService()) return false;
-            if (!ValidateInput(lobbyCode, "Lobby code")) return false;
-            return await PrecheckPhaseThenJoin(lobbyCode, password);
         }
 
         public async Task<bool> LeaveLobbyAsync()
         {
             if (!ValidateService()) return false;
 
-            var lobbyId = CurrentLobbyId;
+            if (CachedLobby == null)
+            {
+                Debug.LogWarning("[LobbyHandler] No lobby to leave");
+                return false;
+            }
+
+            var lobbyId = CachedLobby.Id;
             var playerId = AuthenticationService.Instance.PlayerId;
 
             if (string.IsNullOrEmpty(lobbyId) || string.IsNullOrEmpty(playerId))
@@ -208,23 +180,24 @@ namespace _GAME.Scripts.Networking.Lobbies
 
             try
             {
-                bool isHost = NetworkController.Instance.IsHost;
+                bool isHost = IsCurrentPlayerHost();
 
                 if (isHost)
                 {
-                    return await RemoveLobbyAsync();
+                    Debug.LogWarning("[LobbyHandler] Host cannot leave, must remove lobby");
+                    return false;
                 }
                 else
                 {
                     await LobbyService.Instance.RemovePlayerAsync(lobbyId, playerId);
-                    HandleLobbyLeft();
+                    ClearCachedLobby();
                     return true;
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LobbyHandler] LeaveLobby failed: {e.Message}");
-                LobbyEvents.TriggerLobbyLeft(null, false, e.Message);
+                LobbyEvents.TriggerLobbyNotFound();
                 return false;
             }
         }
@@ -233,14 +206,20 @@ namespace _GAME.Scripts.Networking.Lobbies
         {
             if (!ValidateService()) return false;
 
-            var lobbyId = CurrentLobbyId;
+            if (CachedLobby == null)
+            {
+                Debug.LogWarning("[LobbyHandler] No lobby to remove");
+                return false;
+            }
+
+            var lobbyId = CachedLobby.Id;
             if (string.IsNullOrEmpty(lobbyId))
             {
                 Debug.LogWarning("[LobbyHandler] No lobby to remove");
                 return false;
             }
 
-            if (!NetworkController.Instance.IsHost)
+            if (!IsCurrentPlayerHost())
             {
                 Debug.LogWarning("[LobbyHandler] Only host can remove lobby");
                 return false;
@@ -249,93 +228,17 @@ namespace _GAME.Scripts.Networking.Lobbies
             try
             {
                 await LobbyService.Instance.DeleteLobbyAsync(lobbyId);
-                HandleLobbyRemoved();
+                ClearCachedLobby();
                 return true;
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LobbyHandler] RemoveLobby failed: {e.Message}");
-                LobbyEvents.TriggerLobbyRemoved(null, false, e.Message);
+                LobbyEvents.TriggerLobbyNotFound();
                 return false;
             }
         }
 
-        public async Task<Lobby> GetLobbyInfoAsync(string lobbyId)
-        {
-            if (!ValidateService()) return null;
-            if (!ValidateInput(lobbyId, "Lobby ID")) return null;
-
-            try
-            {
-                return await LobbyService.Instance.GetLobbyAsync(lobbyId);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[LobbyHandler] GetLobbyInfo failed: {e.Message}");
-                return null;
-            }
-        }
-
-        public async Task<Lobby> UpdateLobbyAsync(string lobbyId, UpdateLobbyOptions options)
-        {
-            if (!ValidateService()) return null;
-            if (!ValidateInput(lobbyId, "Lobby ID")) return null;
-
-            options ??= new UpdateLobbyOptions();
-
-            try
-            {
-                var updated = await LobbyService.Instance.UpdateLobbyAsync(lobbyId, options);
-                if (updated != null)
-                {
-                    UpdateCachedLobby(updated);
-                    LobbyEvents.TriggerLobbyUpdated(updated, "Lobby updated");
-                }
-
-                return updated;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[LobbyHandler] UpdateLobby failed: {e.Message}");
-                LobbyEvents.TriggerLobbyUpdated(null, e.Message);
-                return null;
-            }
-        }
-
-        /// <summary>Được gọi bởi LobbyRuntime thông qua LobbyManager</summary>
-        public void OnLobbyUpdated(Lobby lobby)
-        {
-            if (lobby == null) return;
-
-            bool shouldUpdate = false;
-
-            if (CachedLobby == null)
-                shouldUpdate = true;
-            else if (!string.Equals(CachedLobby.Id, lobby.Id, StringComparison.Ordinal))
-                shouldUpdate = true;
-            else
-            {
-                try
-                {
-                    shouldUpdate = lobby.LastUpdated != CachedLobby.LastUpdated;
-                }
-                catch
-                {
-                    shouldUpdate =
-                        (lobby.Players?.Count ?? 0) != (CachedLobby.Players?.Count ?? 0) ||
-                        (lobby.Data?.Count ?? 0) != (CachedLobby.Data?.Count ?? 0);
-                }
-            }
-
-            if (!shouldUpdate) return;
-
-            UpdateCachedLobby(lobby, "poll updated");
-            LobbyEvents.TriggerLobbyUpdated(lobby, "poll updated");
-        }
-
-        /// <summary>
-        /// Kick một player khỏi lobby (host-only).
-        /// </summary>
         public async Task<bool> KickPlayerAsync(string targetPlayerId)
         {
             if (!ValidateService()) return false;
@@ -347,144 +250,363 @@ namespace _GAME.Scripts.Networking.Lobbies
                 return false;
             }
 
-            if (!NetworkController.Instance.IsHost || lobby.HostId != AuthenticationService.Instance.PlayerId)
+            if (!IsCurrentPlayerHost())
             {
                 Debug.LogWarning("[LobbyHandler] Kick failed: Only host can kick players");
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(targetPlayerId))
+            if (string.IsNullOrWhiteSpace(targetPlayerId) || 
+                targetPlayerId == AuthenticationService.Instance.PlayerId ||
+                targetPlayerId == lobby.HostId)
             {
-                Debug.LogWarning("[LobbyHandler] Kick failed: target player id is empty");
+                Debug.LogWarning("[LobbyHandler] Kick failed: Invalid target player");
                 return false;
             }
-
-            if (targetPlayerId == AuthenticationService.Instance.PlayerId)
-            {
-                Debug.LogWarning("[LobbyHandler] Kick failed: host cannot kick self. Use RemoveLobbyAsync()");
-                return false;
-            }
-
-            if (targetPlayerId == lobby.HostId)
-            {
-                Debug.LogWarning("[LobbyHandler] Kick failed: cannot kick the host");
-                return false;
-            }
-
-            var oldPlayer = lobby.Players?.FirstOrDefault(p => p.Id == targetPlayerId);
 
             try
             {
                 await LobbyService.Instance.RemovePlayerAsync(lobby.Id, targetPlayerId);
-
-                // Lấy snapshot mới để cập nhật cache & bắn event chính xác
-                Lobby updated = null;
-                try
-                {
-                    updated = await LobbyService.Instance.GetLobbyAsync(lobby.Id);
-                }
-                catch
-                {
-                    // nếu lỗi tạm thời, vẫn tiếp tục với cache cũ đã loại player
-                }
-
-                if (updated != null)
-                    UpdateCachedLobby(updated, "player kicked");
-                else
-                    LobbyEvents.TriggerLobbyUpdated(lobby, "player kicked");
-
-                if (oldPlayer != null && updated != null)
-                    LobbyEvents.TriggerPlayerLeft(oldPlayer, updated, "Player kicked by host");
-                else
-                    LobbyEvents.TriggerLobbyUpdated(updated ?? lobby, "Player kicked by host");
-
                 Debug.Log($"[LobbyHandler] Kicked player {targetPlayerId}");
                 return true;
             }
             catch (LobbyServiceException ex)
             {
                 Debug.LogError($"[LobbyHandler] Kick failed: {ex.Reason} - {ex.Message}");
-                LobbyEvents.TriggerLobbyUpdated(lobby, $"Kick failed: {ex.Message}");
                 return false;
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LobbyHandler] Kick failed: {e.Message}");
-                LobbyEvents.TriggerLobbyUpdated(lobby, $"Kick failed: {e.Message}");
                 return false;
             }
         }
 
-        #endregion
-
-        #region Event Handlers
-
-        private void HandleLobbyCreated(Lobby lobby)
+        public async Task<Lobby> UpdateLobbyAsync(string lobbyId, UpdateLobbyOptions options)
         {
-            UpdateCachedLobby(lobby);
+            if (!ValidateService() || !ValidateInput(lobbyId, "Lobby ID")) 
+                return null;
 
-            // Bắt đầu runtime cho host
-            _runtime?.StartRuntime(lobby.Id, true);
+            options ??= new UpdateLobbyOptions();
 
-            LobbyEvents.TriggerLobbyCreated(lobby, true, $"Lobby '{lobby.Name}' created");
-        }
-
-        private void HandleLobbyJoined(Lobby lobby)
-        {
-            UpdateCachedLobby(lobby);
-
-            var isHost = NetworkController.Instance.IsHost;
-            _runtime?.StartRuntime(lobby.Id, isHost);
-
-            LobbyEvents.TriggerLobbyJoined(lobby, true, $"Joined lobby '{lobby.Name}'");
-        }
-
-        private void HandleLobbyLeft()
-        {
-            _runtime?.StopRuntime();
-            ClearCachedLobby();
-            LobbyEvents.TriggerLobbyLeft(null, true, "Left lobby");
-        }
-
-        private void HandleLobbyRemoved()
-        {
-            _runtime?.StopRuntime();
-            ClearCachedLobby();
-            LobbyEvents.TriggerLobbyRemoved(null, true, "Lobby removed");
-        }
-
-        #endregion
-
-        #region Internal Methods
-
-        private void UpdateCachedLobby(Lobby lobby, string message = "Lobby updated")
-        {
-            if (lobby != null)
+            try
             {
-                CachedLobby = lobby;
+                var updated = await LobbyService.Instance.UpdateLobbyAsync(lobbyId, options);
+                if (updated != null)
+                {
+                    UpdateCachedLobby(updated);
+                }
+                return updated;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[LobbyHandler] UpdateLobby failed: {e.Message}");
+                return null;
+            }
+        }
+
+        #endregion
+
+        #region Event Handlers & Polling
+
+        private void OnLobbyUpdated(Lobby lobby)
+        {
+            if (lobby == null || !ShouldUpdateCache(lobby)) return;
+            UpdateCachedLobby(lobby);
+        }
+
+        private bool ShouldUpdateCache(Lobby lobby)
+        {
+            if (CachedLobby == null) return true;
+            if (!string.Equals(CachedLobby.Id, lobby.Id, StringComparison.Ordinal)) return true;
+
+            try
+            {
+                return lobby.LastUpdated != CachedLobby.LastUpdated;
+            }
+            catch
+            {
+                return (lobby.Players?.Count ?? 0) != (CachedLobby.Players?.Count ?? 0) ||
+                       (lobby.Data?.Count ?? 0) != (CachedLobby.Data?.Count ?? 0);
+            }
+        }
+
+        #endregion
+
+        #region Snapshot System
+
+        private class LobbySnapshot
+        {
+            public string LobbyId { get; set; }
+            public int PlayerCount { get; set; }
+            public List<string> PlayerIds { get; set; } = new();
+            public Dictionary<string, Unity.Services.Lobbies.Models.Player> Players { get; set; } = new();
+            public string Phase { get; set; }
+            public string RelayJoinCode { get; set; }
+            public DateTime LastUpdated { get; set; }
+        }
+
+        private LobbySnapshot CreateSnapshot(Lobby lobby)
+        {
+            if (lobby == null) return null;
+
+            var snapshot = new LobbySnapshot
+            {
+                LobbyId = lobby.Id,
+                PlayerCount = lobby.Players?.Count ?? 0,
+                PlayerIds = lobby.Players?.Select(p => p.Id).ToList() ?? new List<string>(),
+                Phase = GetLobbyPhase(lobby),
+                RelayJoinCode = lobby.GetRelayJoinCode(),
+                LastUpdated = lobby.LastUpdated
+            };
+
+            // Snapshot player data
+            if (lobby.Players != null)
+            {
+                foreach (var player in lobby.Players)
+                {
+                    snapshot.Players[player.Id] = player;
+                }
             }
 
-            LobbyEvents.TriggerLobbyUpdated(lobby, message);
+            return snapshot;
         }
 
-        private void ClearCachedLobby()
+        #endregion
+
+        #region Internal Helpers
+
+        private async Task<Lobby> FindLobbyByCode(string code)
         {
-            CachedLobby = null;
+            var normalized = code.Trim().ToUpperInvariant();
+            var queryOptions = new QueryLobbiesOptions
+            {
+                Count = 1,
+                Filters = new List<QueryFilter>
+                {
+                    new QueryFilter(QueryFilter.FieldOptions.S1, normalized, QueryFilter.OpOptions.EQ)
+                }
+            };
+
+            var result = await LobbyService.Instance.QueryLobbiesAsync(queryOptions);
+            return result.Results.FirstOrDefault();
+        }
+
+        private bool CanJoinLobby(Lobby lobby)
+        {
+            var phase = GetLobbyPhase(lobby);
+            return phase == SessionPhase.WAITING;
+        }
+
+        private string GetJoinFailureReason(string phase)
+        {
+            return phase switch
+            {
+                SessionPhase.STARTING => "Game is starting, cannot join",
+                SessionPhase.PLAYING => "Game is already in progress, cannot join",
+                _ => "Lobby is not accepting new players"
+            };
+        }
+
+        private async Task<bool> JoinLobbyInternal(string code, string password)
+        {
+            var normalized = code.Trim().ToUpperInvariant();
+            var joinOptions = new JoinLobbyByCodeOptions
+            {
+                Player = CreateDefaultPlayerData(),
+                Password = string.IsNullOrEmpty(password) ? null : password
+            };
+
+            var lobby = await LobbyService.Instance.JoinLobbyByCodeAsync(normalized, joinOptions);
+            if (lobby != null)
+            {
+                UpdateCachedLobby(lobby);
+                return true;
+            }
+            return false;
+        }
+
+        private async Task UpdateLobbyMetadata(Lobby lobby)
+        {
+            var code = lobby.LobbyCode?.Trim().ToUpperInvariant() ?? "";
+            var updateOptions = new UpdateLobbyOptions
+            {
+                Data = new Dictionary<string, DataObject>
+                {
+                    [LobbyConstants.LobbyKeys.CODE] = new DataObject(
+                        DataObject.VisibilityOptions.Public, code, DataObject.IndexOptions.S1),
+                    [LobbyConstants.LobbyKeys.PHASE] = new DataObject(
+                        DataObject.VisibilityOptions.Public, SessionPhase.WAITING, DataObject.IndexOptions.S2)
+                }
+            };
+
+            try
+            {
+                var updated = await LobbyService.Instance.UpdateLobbyAsync(lobby.Id, updateOptions);
+                if (updated != null)
+                {
+                    UpdateCachedLobby(updated);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[LobbyHandler] Failed to update lobby metadata: {e.Message}");
+            }
+        }
+
+        private async Task<Lobby> GetUpdatedLobby(string lobbyId)
+        {
+            try
+            {
+                return await LobbyService.Instance.GetLobbyAsync(lobbyId);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[LobbyHandler] Failed to get updated lobby: {e.Message}");
+                return null;
+            }
+        }
+
+        private bool IsCurrentPlayerHost()
+        {
+            if (CachedLobby == null) return false;
+            return CachedLobby.HostId == AuthenticationService.Instance?.PlayerId;
+        }
+
+        private string GetLobbyPhase(Lobby lobby, string fallback = SessionPhase.WAITING)
+        {
+            if (lobby?.Data == null) return fallback;
+            
+            if (lobby.Data.TryGetValue(LobbyConstants.LobbyData.PHASE, out var p1) && !string.IsNullOrEmpty(p1.Value))
+                return p1.Value;
+            
+            if (lobby.Data.TryGetValue(LobbyConstants.LobbyKeys.PHASE, out var p2) && !string.IsNullOrEmpty(p2.Value))
+                return p2.Value;
+                
+            return fallback;
         }
 
         private Unity.Services.Lobbies.Models.Player CreateDefaultPlayerData()
         {
-            var playerId    = AuthenticationService.Instance?.PlayerId ?? "Unknown";
+            var playerId = AuthenticationService.Instance?.PlayerId ?? "Unknown";
             var displayName = LocalData.UserName ?? $"Player_{playerId[..Math.Min(6, playerId.Length)]}";
 
             return new Unity.Services.Lobbies.Models.Player
             {
                 Data = new Dictionary<string, PlayerDataObject>
                 {
-                    { LobbyConstants.PlayerData.DISPLAY_NAME, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, displayName) },
-                    { LobbyConstants.PlayerData.IS_READY,     new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, LobbyConstants.Defaults.READY_FALSE) }
+                    { LobbyConstants.PlayerData.DISPLAY_NAME, 
+                      new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, displayName) },
+                    { LobbyConstants.PlayerData.IS_READY, 
+                      new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, LobbyConstants.Defaults.READY_FALSE) }
                 }
             };
+        }
+
+        #endregion
+
+        #region Event Triggers & Cache Management
+
+        private void TriggerJoinFailed(string message)
+        {
+            Debug.LogWarning($"[LobbyHandler] Join failed: {message}");
+            LobbyEvents.TriggerLobbyJoined(null, false, message);
+        }
+
+        /// <summary>
+        /// FIXED: Proper change detection với snapshot comparison
+        /// </summary>
+        private void UpdateCachedLobby(Lobby lobby)
+        {
+            if (lobby == null) return;
+            
+            var newSnap = CreateSnapshot(lobby);
+            var oldSnap = _lastSnapshot;
+            
+            // Detect changes nếu có snapshot cũ
+            if (oldSnap != null)
+            {
+                // 1) Player join/leave detection
+                var oldPlayerSet = new HashSet<string>(oldSnap.PlayerIds);
+                var newPlayerSet = new HashSet<string>(newSnap.PlayerIds);
+
+                // Player joined
+                foreach (var newId in newSnap.PlayerIds)
+                {
+                    if (!oldPlayerSet.Contains(newId))
+                    {
+                        var player = lobby.Players?.Find(x => x.Id == newId);
+                        if (player != null)
+                        {
+                            LobbyEvents.TriggerPlayerJoined(player, lobby, "Player joined");
+                        }
+                    }
+                }
+
+                // Player left
+                foreach (var oldId in oldSnap.PlayerIds)
+                {
+                    if (!newPlayerSet.Contains(oldId))
+                    {
+                        // Tạo stub player từ snapshot cũ
+                        var oldPlayerSnap = oldSnap.Players.GetValueOrDefault(oldId);
+                        if (oldPlayerSnap != null)
+                        {
+                            LobbyEvents.TriggerPlayerLeft(oldSnap.Players[oldId], lobby, "Player left");
+                        }
+                    }
+                }
+
+                // 2) Player updated (ready/name/role change)
+                foreach (var playerId in newPlayerSet.Intersect(oldPlayerSet))
+                {
+                    var oldPlayerSnap = oldSnap.Players.GetValueOrDefault(playerId);
+                    var newPlayerSnap = newSnap.Players.GetValueOrDefault(playerId);
+
+                    if (oldPlayerSnap != null && newPlayerSnap != null)
+                    {
+                        bool changed = oldPlayerSnap.GetPlayerDisplayName() != newPlayerSnap.GetPlayerDisplayName() ||
+                                       oldPlayerSnap.IsPlayerReady() != newPlayerSnap.IsPlayerReady();
+
+                        if (changed)
+                        {
+                            var player = lobby.Players?.Find(x => x.Id == playerId);
+                            if (player != null)
+                            {
+                                LobbyEvents.TriggerPlayerUpdated(player, lobby, "Player updated");
+                            }
+                        }
+                    }
+                }
+
+                // 3) Phase change
+                if (oldSnap.Phase != newSnap.Phase)
+                {
+                    Debug.Log($"[LobbyHandler] Phase changed: {oldSnap.Phase} → {newSnap.Phase}");
+                }
+
+                // 4) Relay code change
+                if (oldSnap.RelayJoinCode != newSnap.RelayJoinCode)
+                {
+                    Debug.Log($"[LobbyHandler] Relay code updated: {newSnap.RelayJoinCode}");
+                }
+            }
+
+            // Save snapshot & cache
+            _lastSnapshot = newSnap;
+            CachedLobby = lobby;
+            
+            Debug.Log($"[LobbyHandler] Cache updated: " +
+                     $"Players={lobby.Players?.Count ?? 0} | " +
+                     $"Phase={lobby.GetPhase()} | " +
+                     $"RelayCode={(string.IsNullOrEmpty(lobby.GetRelayJoinCode()) ? "N/A" : "Set")}");
+        }
+
+        private void ClearCachedLobby()
+        {
+            CachedLobby = null;
+            _lastSnapshot = null;
+            Debug.Log("[LobbyHandler] Cache cleared");
         }
 
         #endregion
@@ -523,28 +645,30 @@ namespace _GAME.Scripts.Networking.Lobbies
                 Debug.LogError($"[LobbyHandler] {fieldName} cannot be null or empty");
                 return false;
             }
-
             return true;
         }
 
         #endregion
 
-        #region Debug & Cleanup
+        #region Cleanup
 
-        [ContextMenu("Debug Lobby State")]
-        private void DebugLobbyState()
-        {
-            Debug.Log($"[LobbyHandler] State:" +
-                      $"\n  Current Lobby ID: {CurrentLobbyId}" +
-                      $"\n  Cached Lobby: {(CachedLobby != null ? CachedLobby.Name : "null")}" +
-                      $"\n  Is Host: {NetworkController.Instance.IsHost}" +
-                      $"\n  Runtime Running: {(_runtime?.IsRunning ?? false)}");
-        }
-
-        // Cho LobbyManager gọi khi dispose hệ thống
         public void OnDestroy()
         {
-            try { _runtime?.StopRuntime(); } catch { /* no-op */ }
+            try 
+            { 
+                if (_isSubscribedToEvents)
+                {
+                    LobbyEvents.OnLobbyUpdated -= OnLobbyUpdated;
+                    _isSubscribedToEvents = false;
+                }
+                
+                _runtime?.StopRuntime(); 
+            } 
+            catch (Exception e)
+            { 
+                Debug.LogWarning($"[LobbyHandler] Cleanup error: {e.Message}");
+            }
+            
             ClearCachedLobby();
         }
 

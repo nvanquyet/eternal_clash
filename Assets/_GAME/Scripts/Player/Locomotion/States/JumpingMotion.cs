@@ -9,7 +9,7 @@ namespace _GAME.Scripts.Player.Locomotion.States
 
         public override void OnEnter(PlayerLocomotion locomotion)
         {
-            if (locomotion.IsGrounded)
+            if (locomotion.IsGrounded && !locomotion.IsFreezeMovement)
             {
                 locomotion.ApplyVerticalVelocity(locomotion.Config.JumpForce);
             }

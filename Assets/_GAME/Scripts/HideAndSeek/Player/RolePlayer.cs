@@ -217,7 +217,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
                 // Thông báo cho GameManager qua event chung
                 GameEvent.OnPlayerKilled?.Invoke(killerId, ClientId);
             }
-
+            //Call base to handle local death logic (e.g., UI update)
             base.OnDeath(killer);
         }
 

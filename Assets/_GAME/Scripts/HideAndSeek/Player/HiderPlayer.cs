@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using _GAME.Scripts.DesignPattern.Interaction;
+using _GAME.Scripts.HideAndSeek.Object;
 using _GAME.Scripts.HideAndSeek.SkillSystem;
 using _GAME.Scripts.Utils;
 using Unity.Netcode;
@@ -163,6 +165,17 @@ namespace _GAME.Scripts.HideAndSeek.Player
         #endregion
 
 
+        #region Implemented Methods
+
+        public override void OnDeath(IAttackable killer)
+        {
+            ActiveCage(true);
+            base.OnDeath(killer);
+        }
+
+        #endregion
+        
+        
         #region UI Updates
 
         protected virtual void UpdateTaskUI(int completedTasks, int totalTasks)
@@ -262,7 +275,6 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         #endregion
         
-
         #region Game Events Override
 
         public override void OnGameStart()
@@ -311,12 +323,25 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
                 // Show end game UI
                 ShowEndGameResults(winnerRole);
-                
                 CancelInvoke();
             }
             
         }
 
         #endregion
+
+
+        #region Cage
+
+        [SerializeField] private Cage cage;
+        
+        private void ActiveCage(bool active = true)
+        {
+            cage.SetActive(active);
+        }
+
+        #endregion
+        
+        
     }
 }

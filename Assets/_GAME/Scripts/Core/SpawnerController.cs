@@ -232,29 +232,62 @@ namespace _GAME.Scripts.Core
 
         protected virtual IEnumerator SpawnMultipleClients(List<ulong> clientIds)
         {
-            var spawnTasks = new List<Coroutine>();
+            if (clientIds == null || clientIds.Count == 0)
+            {
+                TryCallFinishSpawning();
+                yield break;
+            }
 
+            // Đánh dấu các client sắp spawn
             foreach (var clientId in clientIds)
             {
                 if (ShouldSpawnClient(clientId))
                 {
                     SetClientState(clientId, ClientSpawnState.Spawning);
-                    spawnTasks.Add(StartCoroutine(SpawnSingleClient(clientId)));
+                    StartCoroutine(SpawnSingleClient(clientId));
                 }
             }
 
-            if (debugMode) Debug.Log($"[{GetType().Name}] Waiting for {spawnTasks.Count} spawn tasks to complete");
+            float timeout = Mathf.Max(clientReadyTimeout, 2f);
+            float start = Time.time;
 
-            // Wait for all spawns to complete
-            while (spawnTasks.Any(task => task != null))
+            // Chờ tất cả clientIds đạt trạng thái Spawned hoặc hết thời gian
+            while (Time.time - start < timeout)
             {
-                yield return new WaitForSeconds(0.1f);
+                bool allDone = true;
+                foreach (var clientId in clientIds)
+                {
+                    var st = GetClientState(clientId);
+                    if (st != ClientSpawnState.Spawned && st != ClientSpawnState.Disconnected)
+                    {
+                        allDone = false;
+                        break;
+                    }
+                }
+
+                if (allDone) 
+                {
+                    if (debugMode) Debug.Log($"[{GetType().Name}] All {clientIds.Count} clients spawned successfully");
+                    break;
+                }
+                yield return null;
             }
 
-            Debug.Log($"[{GetType().Name}] All spawn tasks completed");
+            // Log warning nếu có client timeout
+            if (Time.time - start >= timeout)
+            {
+                foreach (var clientId in clientIds)
+                {
+                    var st = GetClientState(clientId);
+                    if (st != ClientSpawnState.Spawned && st != ClientSpawnState.Disconnected)
+                    {
+                        Debug.LogWarning($"[{GetType().Name}] Client {clientId} spawn timeout - State: {st}");
+                    }
+                }
+            }
+
             TryCallFinishSpawning();
         }
-
         protected virtual IEnumerator SpawnSingleClient(ulong clientId)
         {
             yield return new WaitForSeconds(spawnDelay);
@@ -423,7 +456,8 @@ namespace _GAME.Scripts.Core
             }
 
             if (spawnedPlayers.ContainsKey(clientId))
-            {
+            {   
+                
                 SetClientState(clientId, ClientSpawnState.Spawned);
                 return;
             }
@@ -491,7 +525,6 @@ namespace _GAME.Scripts.Core
             var index = Random.Range(0, available.Count);
             var spawnPoint = available[index];
             available.RemoveAt(index);
-
             return (spawnPoint.position, spawnPoint.rotation, spawnPoint);
         }
 
@@ -576,24 +609,24 @@ namespace _GAME.Scripts.Core
 #if UNITY_EDITOR
         protected virtual void OnValidate()
         {
-            if (spawnPoints == null || spawnPoints.Length == 0)
-            {
-                var container = transform.Find("SpawnPoints");
-                if (container != null)
-                {
-                    var list = new List<Transform>();
-                    foreach (Transform t in container)
-                        list.Add(t);
-                    spawnPoints = list.ToArray();
-                }
-                else
-                {
-                    var list = new List<Transform>();
-                    foreach (Transform t in transform)
-                        list.Add(t);
-                    spawnPoints = list.ToArray();
-                }
-            }
+            // if (spawnPoints == null || spawnPoints.Length == 0)
+            // {
+            //     var container = transform.Find("SpawnPoints");
+            //     if (container != null)
+            //     {
+            //         var list = new List<Transform>();
+            //         foreach (Transform t in container)
+            //             list.Add(t);
+            //         spawnPoints = list.ToArray();
+            //     }
+            //     else
+            //     {
+            //         var list = new List<Transform>();
+            //         foreach (Transform t in transform)
+            //             list.Add(t);
+            //         spawnPoints = list.ToArray();
+            //     }
+            // }
         }
 #endif
     }

@@ -5,6 +5,7 @@ using _GAME.Scripts.HideAndSeek.Player;
 using _GAME.Scripts.HideAndSeek.Player.Graphics;
 using _GAME.Scripts.Player.Config;
 using _GAME.Scripts.Player.Locomotion;
+using Mono.CSharp;
 using Unity.Netcode;
 using Unity.Netcode.Components;
 using UnityEngine;
@@ -79,11 +80,16 @@ namespace _GAME.Scripts.Player
         private void Start()
         {
             GameEvent.OnRoleAssigned += RoleAssigned;
+            GameEvent.OnGameEnded += OnGameEnd;
         }
+
+       
 
         public override void OnDestroy()
         {
             GameEvent.OnRoleAssigned -= RoleAssigned;
+            GameEvent.OnGameEnded -= OnGameEnd;
+
             base.OnDestroy();
         }
 
@@ -104,6 +110,8 @@ namespace _GAME.Scripts.Player
             {
                 SetupNonOwner();
             }
+            
+            GameEvent.OnPlayerDeath += OnPlayerDeath;
 
             base.OnNetworkSpawn();
         }
@@ -118,6 +126,8 @@ namespace _GAME.Scripts.Player
             {
                 modelSwitcher.OnAnimatorChanged -= OnAnimatorChanged;
             }
+            GameEvent.OnPlayerDeath -= OnPlayerDeath;
+
         }
 
         private void InitializeSystems()
@@ -382,5 +392,23 @@ namespace _GAME.Scripts.Player
                 playerCamera.EnableTppCam();
             }
         }
+        
+        
+        //Register Event
+        private void OnPlayerDeath(ulong pId)
+        {
+            if(pId != OwnerClientId) return;
+            _playerLocomotion.SetFreezeMovement(true);
+        }
+        
+        private void OnGameEnd(Role obj)
+        {
+            if (IsOwner)
+            {
+                //Disable input 
+                playerInput?.gameObject.SetActive(false);
+            }
+        }
+        
     }
 }

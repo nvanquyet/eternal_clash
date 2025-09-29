@@ -794,8 +794,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  playerRig: {fileID: 0}
-  playerEquipment: {fileID: 0}
   playerCamera: {fileID: 1265321555105187293}
 --- !u!1 &2313422510857155641
 GameObject:

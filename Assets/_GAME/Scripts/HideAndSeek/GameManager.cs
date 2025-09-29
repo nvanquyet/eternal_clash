@@ -48,8 +48,6 @@ namespace _GAME.Scripts.HideAndSeek
 
         // Events
         public static event Action<List<NetworkPlayerData>> OnPlayersListUpdated;
-
-        private Coroutine returnToLobbyCoroutine;
         private Coroutine spawnObjectRoutine;
 
         #region Unity Lifecycle
@@ -58,22 +56,14 @@ namespace _GAME.Scripts.HideAndSeek
         {
             base.OnNetworkAwake();
             ValidateConfiguration();
-
-            // SERVER ONLY SUBSCRIPTIONS
-            if (IsServer)
-            {
-                TimeCountDown.OnCountdownFinished += OnServerTimeCountdownFinished;
-                SpawnerController.OnFinishSpawning += OnServerPlayersSpawned;
-            }
+            TimeCountDown.OnCountdownFinished += OnServerTimeCountdownFinished;
+            SpawnerController.OnFinishSpawning += OnServerPlayersSpawned;
         }
 
         public override void OnDestroy()
         {
-            if (IsServer)
-            {
-                TimeCountDown.OnCountdownFinished -= OnServerTimeCountdownFinished;
-                SpawnerController.OnFinishSpawning -= OnServerPlayersSpawned;
-            }
+            TimeCountDown.OnCountdownFinished -= OnServerTimeCountdownFinished;
+            SpawnerController.OnFinishSpawning -= OnServerPlayersSpawned;
             base.OnDestroy();
         }
 
@@ -439,21 +429,14 @@ namespace _GAME.Scripts.HideAndSeek
                 _gameState.Value = GameState.GameEnded;
                 timeCountDown?.StopCountdownServerRpc();
                 
-                NotifyGameEndedClientRpc(winnerRole);
-
                 // Stop previous coroutine if running
                 if(spawnObjectRoutine != null)
                 {
                     StopCoroutine(spawnObjectRoutine);
                 }
                 
-                if (returnToLobbyCoroutine != null)
-                {
-                    StopCoroutine(returnToLobbyCoroutine);
-                }
-                
+                NotifyGameEndedClientRpc(winnerRole);
 
-                returnToLobbyCoroutine = StartCoroutine(ReturnToLobbyRoutine());
             }
             catch (Exception e)
             {
@@ -599,10 +582,8 @@ namespace _GAME.Scripts.HideAndSeek
         [ClientRpc]
         private void NotifyPlayerKilledClientRpc(ulong killerId, ulong victimId)
         {
-            GameEvent.OnPlayerKilled?.Invoke(killerId, victimId);
-            
-            string killerText = killerId == 0 ? "disconnection" : $"player {killerId}";
-            Debug.Log($"[GameManager] Player {victimId} eliminated by {killerText}");
+            GameEvent.OnPlayerDeath?.Invoke(victimId);
+            Debug.Log($"[GameManager] Player {victimId} has caught by Player {killerId}");
         }
 
         #endregion
@@ -671,23 +652,14 @@ namespace _GAME.Scripts.HideAndSeek
             _indexById.Clear();
         }
 
-        /// <summary>
-        /// Coroutine: Return to lobby after game ends
-        /// </summary>
-        private IEnumerator ReturnToLobbyRoutine()
+        public void Clear()
         {
-            const float displayTime = 5f;
-
-            Debug.Log($"[GameManager] Server: Showing results for {displayTime} seconds...");
-            yield return new WaitForSeconds(displayTime);
-
-            Debug.Log("[GameManager] Server: Returning to lobby...");
-            yield return NetworkController.Instance.DisconnectAsync();
-
+            GameNet.Instance.Clear();
             ResetGameState();
-            SceneController.Instance.LoadSceneAsync((int)SceneDefinitions.Home);
-            returnToLobbyCoroutine = null;
+            ClearAllLocalCaches();
+            ClearAllDataClientRpc();
         }
+        
 
         /// <summary>
         /// Server: Reset game state for new game

@@ -10,17 +10,18 @@ using UnityEngine;
 namespace _GAME.Scripts.Networking
 {
     // Chỉ giữ ClientIdentityRegistry, remove duplicate logic từ NetworkStateManager
-    public interface IClientIdentityManager 
+    public interface IClientIdentityManager
     {
         void RegisterMapping(string ugsId, ulong clientId);
         bool TryGetClientId(string ugsId, out ulong clientId);
     }
-    
+
     /// <summary>
     /// Registry to map between Unity Gaming Services Player IDs and Netcode Client IDs
     /// Essential for proper player management across Lobby and Network systems
     /// </summary>
-    public class ClientIdentityRegistry : SingletonDontDestroy<ClientIdentityRegistry>, IClientIdentityManager, IDisposable
+    public class ClientIdentityRegistry : SingletonDontDestroy<ClientIdentityRegistry>, IClientIdentityManager,
+        IDisposable
     {
         private readonly Dictionary<string, ulong> _ugsToNetcode = new();
         private readonly Dictionary<ulong, string> _netcodeToUgs = new();
@@ -46,9 +47,9 @@ namespace _GAME.Scripts.Networking
             }
 
             // Lobby events
-            LobbyEvents.OnLobbyJoined += OnLobbyJoined;
-            LobbyEvents.OnLeftLobby += OnLeftLobby;
-            LobbyEvents.OnLobbyRemoved += OnLobbyRemoved;
+            LobbyEvents.OnPlayerJoined += OnPlayerJoined;
+            LobbyEvents.OnPlayerLeft += OnPlayerLeft;
+            LobbyEvents.OnLobbyNotFound += OnLobbyNotFound;
         }
 
         private void UnregisterEvents()
@@ -62,9 +63,9 @@ namespace _GAME.Scripts.Networking
                 NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
             }
 
-            LobbyEvents.OnLobbyJoined -= OnLobbyJoined;
-            LobbyEvents.OnLeftLobby -= OnLeftLobby;
-            LobbyEvents.OnLobbyRemoved -= OnLobbyRemoved;
+            LobbyEvents.OnPlayerJoined -= OnPlayerJoined;
+            LobbyEvents.OnPlayerLeft -= OnPlayerLeft;
+            LobbyEvents.OnLobbyNotFound -= OnLobbyNotFound;
         }
 
         #region Public API
@@ -216,30 +217,20 @@ namespace _GAME.Scripts.Networking
             UnregisterByClient(clientId);
         }
 
-        private void OnLobbyJoined(Lobby lobby, bool success, string message)
-        {
-            if (!success || lobby == null) return;
 
-            Debug.Log("[ClientIdentityRegistry] Lobby joined, attempting to sync mappings");
-            SyncWithLobbyPlayers(lobby);
+        private void OnPlayerJoined(Unity.Services.Lobbies.Models.Player player, Lobby l, string message)
+        {
+            SyncPlayer(player);
         }
 
-        private void OnLeftLobby(Lobby lobby, bool success, string message)
+        private void OnPlayerLeft(Unity.Services.Lobbies.Models.Player player, Lobby l, string message)
         {
-            if (success)
-            {
-                Debug.Log("[ClientIdentityRegistry] Lobby left, clearing mappings");
-                ClearAll();
-            }
+            SyncPlayer(player);
         }
-
-        private void OnLobbyRemoved(Lobby lobby, bool success, string message)
+        
+        private void OnLobbyNotFound()
         {
-            if (success)
-            {
-                Debug.Log("[ClientIdentityRegistry] Lobby removed, clearing mappings");
-                ClearAll();
-            }
+            //Clear all mapping when lobby not found
         }
 
         #endregion
@@ -253,7 +244,7 @@ namespace _GAME.Scripts.Networking
         {
             if (!NetworkManager.Singleton.IsServer) return;
 
-            var lobby = LobbyManager.Instance.CurrentLobby;
+            var lobby = GameNet.Instance.Lobby.CurrentLobby;
             if (lobby?.Players == null) return;
 
             // Try to correlate with lobby players
@@ -301,6 +292,10 @@ namespace _GAME.Scripts.Networking
             {
                 UnregisterByUgs(ugsId);
             }
+        }
+
+        private void SyncPlayer(Unity.Services.Lobbies.Models.Player p)
+        {
         }
 
         #endregion
@@ -353,7 +348,7 @@ namespace _GAME.Scripts.Networking
         [ContextMenu("Sync with Current Lobby")]
         public void ForceSyncWithLobby()
         {
-            var lobby = LobbyManager.Instance.CurrentLobby;
+            var lobby = GameNet.Instance.Lobby.CurrentLobby;
             if (lobby != null)
             {
                 SyncWithLobbyPlayers(lobby);

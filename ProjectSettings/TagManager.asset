@@ -13,6 +13,7 @@ TagManager:
   - Environment
   - HiderInteractor
   - SeekerInteractor
+  - PlayerInteractor
   layers:
   - Default
   - TransparentFX
@@ -33,7 +34,7 @@ TagManager:
   - Interactable
   - Pickup
   - Environment
-  - 
+  - ActiveInteraction
   - 
   - 
   - 

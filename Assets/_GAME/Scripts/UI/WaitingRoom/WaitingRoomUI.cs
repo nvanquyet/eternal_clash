@@ -1,15 +1,11 @@
 using System;
-using System.Linq;
 using _GAME.Scripts.Controller;
-using _GAME.Scripts.Lobbies;
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.UI.Base;
 using TMPro;
-using Unity.Netcode;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
-using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace _GAME.Scripts.UI.WaitingRoom
@@ -57,19 +53,44 @@ namespace _GAME.Scripts.UI.WaitingRoom
             RegisterEvent();
             
             //Initial UI state
-            if (LobbyManager.Instance.CurrentLobby != null)
+            if (GameNet.Instance.Lobby.CurrentLobby != null)
             {
-                OnLobbyUpdated(LobbyManager.Instance.CurrentLobby, "Initial update");
+                OnLobbyUpdated(GameNet.Instance.Lobby.CurrentLobby);
             }
             else
             {
                 Debug.LogWarning("[WaitingRoomUI] No current lobby found on start.");
             }
+
+            LobbyEvents.OnPlayerLeft += OnPlayerLeft;
+            
+            //Call to hide loading
+            LoadingUI.Instance.SetProgress(1, 1, "Finished", () =>
+            {
+                LoadingUI.Instance.Complete();
+            });
+        }
+        
+        private async void OnPlayerLeft(Unity.Services.Lobbies.Models.Player p, Lobby lobby, string message)
+        {
+            try
+            {
+                //if player is me, Disconnect myself
+                if (PlayerIdManager.PlayerId == p.Id)
+                {
+                    Debug.Log($"[WaitingSpawnController] I was kicked from lobby: {message}");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[WaitingRoomUI] Error handling player left: {e}");
+            }
         }
 
-        
+
         private void OnDestroy()
         {
+            LobbyEvents.OnPlayerLeft += OnPlayerLeft;
             UnregisterEvent();
         }
 
@@ -81,9 +102,9 @@ namespace _GAME.Scripts.UI.WaitingRoom
             btnReady.onClick.AddListener(OnClickReady);
             
             //Register event lobby Update
-            LobbyEvents.OnLobbyUpdated += OnLobbyUpdated;
             LobbyEvents.OnPlayerUpdated += OnPlayerUpdated;
-            LobbyEvents.OnPlayerKicked += OnPlayerKicked;
+            LobbyEvents.OnLobbyUpdated += OnLobbyUpdated;
+            LobbyEvents.OnLobbyNotFound += OnLobbyNotFound;
         }
         
         private void UnregisterEvent()
@@ -93,30 +114,17 @@ namespace _GAME.Scripts.UI.WaitingRoom
             btnRoomInformation.onClick.RemoveListener(OnClickRoomInformation);
             btnReady.onClick.RemoveListener(OnClickReady);
             
-            LobbyEvents.OnLobbyUpdated -= OnLobbyUpdated;
             LobbyEvents.OnPlayerUpdated -= OnPlayerUpdated;
-            LobbyEvents.OnPlayerKicked -= OnPlayerKicked;
+            LobbyEvents.OnLobbyUpdated -= OnLobbyUpdated;
+            LobbyEvents.OnLobbyNotFound -= OnLobbyNotFound;
         }
         
         
         
-        private async void OnPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
+        private async void OnLobbyNotFound()
         {
-            try
-            {
-                //Check null and id
-                if (player == null || lobby == null || string.IsNullOrEmpty(player.Id) || player.Id != PlayerIdManager.PlayerId)
-                {
-                    Debug.LogError("[WaitingRoomUI] Player kicked event received with invalid data.");
-                    return;
-                }
-                Debug.Log("You have been kicked from the lobby.");
-                await NetworkController.Instance.DisconnectAsync();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[WaitingRoomUI] Error handling player kicked event: {e.Message}");
-            }
+            //Return to home UI
+            await GameNet.Instance.Network.StopAsync();
         }
 
         private void OnPlayerUpdated(Unity.Services.Lobbies.Models.Player p, Lobby arg2, string arg3)
@@ -144,28 +152,14 @@ namespace _GAME.Scripts.UI.WaitingRoom
             {
                 btnReady.interactable = false; // Disable the button to prevent multiple clicks
             }
-            _ = LobbyManager.Instance.SetPlayerReadyAsync(!isReady);
+            _ = GameNet.Instance.SetPlayerReadyAsync(!isReady);
         }
 
-        private void OnLobbyUpdated(Lobby lobby, string arg2)
+        private void OnLobbyUpdated(Lobby lobby)
         {
             if (lobby == null) return;
             
-            btnStartGame?.gameObject.SetActive(NetworkController.Instance.IsHost);
-            // if (btnStartGame && NetworkController.Instance.IsHost)
-            // {
-            //     if (lobby.Players.Count < 2)
-            //     {
-            //         btnStartGame.interactable = false;
-            //     }
-            //     //Check all player ready 
-            //     else
-            //     {
-            //         var allReady = lobby.Players.All(player => player.IsPlayerReady());
-            //         btnStartGame.interactable = allReady;
-            //     }
-            // }
-            
+            btnStartGame?.gameObject.SetActive(GameNet.Instance.Network.IsHost);
             
             // Update the lobby code text
             SetLobbyCode(lobby.LobbyCode);
@@ -186,7 +180,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         private void OnClickLeaveRoom()
         {
             //Remove lobby
-            _ = NetworkController.Instance.IsHost ? LobbyManager.Instance.RemoveLobbyAsync() : LobbyManager.Instance.LeaveLobbyAsync();
+            _ = GameNet.Instance.Network.IsHost ? GameNet.Instance.RemoveLobbyAsync() : GameNet.Instance.LeaveLobbyAsync();
         }
 
         private void OnClickStartGame()
@@ -194,10 +188,9 @@ namespace _GAME.Scripts.UI.WaitingRoom
             //Todo: Start Game
             Debug.Log("[WaitingRoomUI] Start Game button clicked. Implement game start logic here.");
             //Switch to game scene
-            if (NetworkController.Instance.IsHost)
+            if (GameNet.Instance.Network.IsHost)
             {
-                NetworkController.Instance.StartGameAsync();
-                //Broadcast
+                GameNet.Instance.Network.StartGame();
             }
             else
             {

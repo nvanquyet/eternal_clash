@@ -19,7 +19,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
             try
             {
                 var allPlayer = lobby.Players;
-                var isHost = NetworkController.Instance.IsHost;
+                var isHost = GameNet.Instance.Network.IsHost;
                 
                 if (playerListContainer == null || itemPlayerListPrefab == null)
                 {

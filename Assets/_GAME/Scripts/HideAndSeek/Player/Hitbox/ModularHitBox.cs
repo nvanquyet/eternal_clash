@@ -51,9 +51,9 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
         [Header("Debug")]
         [SerializeField] private bool showDebugGizmos = true;
         [SerializeField] private Color debugColor = Color.red;
+        [SerializeField] private Collider _hitboxCollider;
 
         private ModularRootHitBox _rootModule;
-        private Collider _hitboxCollider;
 
         // Bubble các event từ root để UI có thể sub trực tiếp ở child khi cần
         public event Action<float, float> OnHealthChanged
@@ -186,7 +186,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
             get
             {
                 if (_rootModule == null)
-                    _rootModule = GetComponentInParent<ModularRootHitBox>();
+                    _rootModule = transform.root.GetComponentInChildren<ModularRootHitBox>();
                 return _rootModule;
             }
         }
@@ -253,42 +253,6 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
         {
             hitBoxInfo = newInfo;
             ValidateSetup();
-        }
-
-        #endregion
-
-        #region Gizmos
-
-        private void OnDrawGizmos()
-        {
-            if (!showDebugGizmos) return;
-            var col = GetComponent<Collider>();
-            if (!col) return;
-
-            Color c = debugColor;
-            if (RootModule != null && !RootModule.IsAlive) c = Color.gray;
-            else if (RootModule != null && !RootModule.CanInteract) c = Color.yellow;
-
-            Gizmos.color = c;
-            Gizmos.matrix = transform.localToWorldMatrix;
-
-            switch (col)
-            {
-                case BoxCollider box:
-                    Gizmos.DrawWireCube(box.center, box.size);
-                    break;
-                case SphereCollider sphere:
-                    Gizmos.DrawWireSphere(sphere.center, sphere.radius);
-                    break;
-                case CapsuleCollider capsule:
-                    var up = Vector3.up * (capsule.height * 0.5f - capsule.radius);
-                    Gizmos.DrawWireSphere(capsule.center + up, capsule.radius);
-                    Gizmos.DrawWireSphere(capsule.center - up, capsule.radius);
-                    break;
-                case MeshCollider { convex: true } mesh when mesh.sharedMesh:
-                    Gizmos.DrawWireMesh(mesh.sharedMesh);
-                    break;
-            }
         }
 
         #endregion

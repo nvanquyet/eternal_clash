@@ -63,8 +63,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
             base.RegisterEarlyCallbacks();
             
             // Lobby events for waiting room
-            LobbyEvents.OnPlayerKicked += OnPlayerKicked;
-            LobbyEvents.OnLobbyRemoved += OnLobbyRemoved;
+            LobbyEvents.OnPlayerLeft += OnPlayerLeft;
+            LobbyEvents.OnLobbyNotFound += OnLobbyNotFound;
             
             if (debugMode) Debug.Log("[WaitingSpawnController] Waiting room callbacks registered");
         }
@@ -72,8 +72,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
         protected override void UnregisterEarlyCallbacks()
         {
             base.UnregisterEarlyCallbacks();
-            LobbyEvents.OnPlayerKicked -= OnPlayerKicked;
-            LobbyEvents.OnLobbyRemoved -= OnLobbyRemoved;
+            LobbyEvents.OnPlayerLeft -= OnPlayerLeft;
+            LobbyEvents.OnLobbyNotFound -= OnLobbyNotFound;
             
             if (debugMode) Debug.Log("[WaitingSpawnController] Waiting room callbacks unRegistered");
         }
@@ -306,16 +306,12 @@ namespace _GAME.Scripts.UI.WaitingRoom
         /// <summary>
         /// Handle player being kicked from lobby
         /// </summary>
-        private void OnPlayerKicked(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
+        private void OnPlayerLeft(Unity.Services.Lobbies.Models.Player player, Lobby lobby, string message)
         {
-            if (!IsServer || player == null) return;
-
-            if (debugMode) Debug.Log($"[WaitingSpawnController] Player kicked from lobby: {player.Id}");
-
             var registry = ClientIdentityRegistry.Instance;
             if (registry != null && registry.TryGetClientId(player.Id, out var clientId))
             {
-                if (debugMode) Debug.Log($"[WaitingSpawnController] Disconnecting kicked player: {clientId}");
+                Debug.Log($"[WaitingSpawnController] Disconnecting kicked player: {clientId}");
                 NetworkManager.Singleton.DisconnectClient(clientId, "Kicked from lobby");
             }
         }
@@ -323,11 +319,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
         /// <summary>
         /// Handle lobby being removed
         /// </summary>
-        private void OnLobbyRemoved(Lobby lobby, bool success, string message)
+        private void OnLobbyNotFound()
         {
-            if (!IsServer || !success) return;
-
-            Debug.Log("[WaitingSpawnController] Lobby removed, cleaning up waiting room");
             CleanupAllPlayers();
         }
 

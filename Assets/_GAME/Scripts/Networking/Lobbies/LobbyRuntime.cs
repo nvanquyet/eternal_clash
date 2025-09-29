@@ -1,15 +1,14 @@
 ﻿// LobbyRuntime.cs — gộp LobbyHeartbeat + LobbyUpdater thành 1 MonoBehaviour
+
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using _GAME.Scripts.Networking;
-using _GAME.Scripts.Networking.Lobbies;
 using Unity.Services.Authentication;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
 
-namespace _GAME.Scripts.Lobbies
+namespace _GAME.Scripts.Networking.Lobbies
 {
     /// <summary>
     /// Runtime duy nhất quản lý cả Heartbeat (host) & Polling (tất cả)
@@ -131,7 +130,7 @@ namespace _GAME.Scripts.Lobbies
                 Debug.LogError($"[LobbyRuntime] Heartbeat failed: {e}");
                 // Nếu lỗi heartbeat → nhiều khả năng lobby đã bị remove
                 StopRuntime();
-                LobbyEvents.TriggerLobbyRemoved(null, false, "Heartbeat failed - lobby may be removed");
+                LobbyEvents.TriggerLobbyNotFound();
             }
         }
 
@@ -143,12 +142,6 @@ namespace _GAME.Scripts.Lobbies
 
                 var lobby = await LobbyService.Instance.GetLobbyAsync(_currentLobbyId);
 
-                // 1) Diff players & fire events
-                CheckForPlayerChanges(lobby);
-
-                // 2) Game state flags (ví dụ)
-                CheckForGameStart(lobby);
-
                 // 3) Host migration: tự động bật/tắt heartbeat theo vai trò mới
                 bool iAmHost = lobby.HostId == AuthenticationService.Instance.PlayerId;
                 if (iAmHost != _weAreHost)
@@ -158,7 +151,7 @@ namespace _GAME.Scripts.Lobbies
                 }
 
                 // 4) Bắn snapshot mới cho hệ thống (giống Updater trước đây)
-                LobbyManager.Instance?.OnLobbyUpdated(lobby);
+                LobbyEvents.TriggerLobbyUpdated(lobby);
 
                 _lastSnapshot = lobby;
             }
@@ -168,7 +161,7 @@ namespace _GAME.Scripts.Lobbies
                 {
                     Debug.LogWarning("[LobbyRuntime] Lobby not found (removed?)");
                     StopRuntime();
-                    LobbyEvents.TriggerLobbyRemoved(null, false, "Lobby not found or removed");
+                    LobbyEvents.TriggerLobbyNotFound();
                     return;
                 }
 
@@ -180,55 +173,6 @@ namespace _GAME.Scripts.Lobbies
             {
                 _backoffSec = Mathf.Clamp(_backoffSec <= 0 ? 2f : _backoffSec * 1.5f, 0f, 30f);
                 Debug.LogError($"[LobbyRuntime] Unexpected poll error: {e.Message}, backoff={_backoffSec:0.0}s");
-            }
-        }
-
-        private void CheckForPlayerChanges(Lobby newLobby)
-        {
-            if (_lastSnapshot == null) return;
-
-            var oldSet = new System.Collections.Generic.HashSet<string>();
-            foreach (var p in _lastSnapshot.Players) oldSet.Add(p.Id);
-
-            var newSet = new System.Collections.Generic.HashSet<string>();
-            foreach (var p in newLobby.Players) newSet.Add(p.Id);
-
-            // Join
-            foreach (var p in newLobby.Players)
-                if (!oldSet.Contains(p.Id))
-                    LobbyEvents.TriggerPlayerJoined(p, newLobby, "Player joined");
-
-            // Leave
-            foreach (var p in _lastSnapshot.Players)
-                if (!newSet.Contains(p.Id))
-                    LobbyEvents.TriggerPlayerLeft(p, newLobby, "Player left");
-
-            // Data changes (ready/name)
-            foreach (var p in newLobby.Players)
-            {
-                var before = _lastSnapshot.Players.Find(x => x.Id == p.Id);
-                if (before == null) continue;
-
-                string oldReady = before.Data != null && before.Data.TryGetValue("IsReady", out var oR) ? oR.Value : null;
-                string newReady = p.Data     != null && p.Data.TryGetValue("IsReady", out var nR)      ? nR.Value : null;
-                string oldName  = before.Data != null && before.Data.TryGetValue("DisplayName", out var oN) ? oN.Value : null;
-                string newName  = p.Data     != null && p.Data.TryGetValue("DisplayName", out var nN)      ? nN.Value : null;
-
-                if (oldReady != newReady || oldName != newName)
-                    LobbyEvents.TriggerPlayerUpdated(p, newLobby, "Player data changed");
-            }
-        }
-
-        private void CheckForGameStart(Lobby lobby)
-        {
-            if (lobby.Data != null && lobby.Data.TryGetValue("gameStarted", out var value))
-            {
-                if (value.Value == "true")
-                {
-                    Debug.Log("[LobbyRuntime] Game started");
-                    // Có thể dừng polling nếu rule yêu cầu
-                    // StopRuntime();
-                }
             }
         }
 

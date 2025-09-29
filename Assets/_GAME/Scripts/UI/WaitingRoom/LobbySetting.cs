@@ -19,7 +19,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             // Initialize the dropdown with max players options
             InitDropDown();
-            if (NetworkController.Instance.IsHost)
+            if (GameNet.Instance.Network.IsHost)
             {
                 lobbyNameInputField.interactable = true;
                 passwordInputField.interactable = true;
@@ -40,7 +40,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         
         private void OnDestroy()
         {
-            if (NetworkController.Instance.IsHost)
+            if (GameNet.Instance.Network.IsHost)
             {
                 lobbyNameInputField.onEndEdit.RemoveListener(OnLobbyNameChanged);
                 passwordInputField.onEndEdit.RemoveListener(OnLobbyPasswordChanged);
@@ -57,7 +57,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 return;
             }
             lobbyNameInputField.text = lobby.Name;
-            passwordInputField.text = lobby.LobbyPassword();
+            passwordInputField.text = lobby.GetLobbyPassword();
             var maxPlayers = lobby.MaxPlayers;
             // Set the dropdown value based on the current max players
             if (maxPlayers > 0)
@@ -101,15 +101,11 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             try
             {
-                if (!NetworkController.Instance.IsHost)
+                if (!GameNet.Instance.Network.IsHost)
                 {
                     throw new Exception("Only the host can change the max players.");
                 }
-                var result =  await LobbyManager.Instance.UpdateMaxPlayersAsync(GameConfig.Instance.maxPlayersPerLobby[arg0]);
-                if (NetworkController.Instance.IsHost && !result)
-                {
-                    Debug.LogError("[LobbySetting] Failed to update max players.");
-                }
+                await GameNet.Instance.UpdateLobbyMaxPlayerAsync(GameConfig.Instance.maxPlayersPerLobby[arg0]);
             }
             catch (Exception e)
             {
@@ -129,11 +125,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
                     PopupNotification.Instance.ShowPopup(false, "Password must be at least 8 characters long.\n Using default password", "Warning");
                 }
                 
-                var result = await LobbyManager.Instance.UpdateLobbyPasswordAsync(arg0);
-                if (!result)
-                {
-                    Debug.LogError("[LobbySetting] Failed to update lobby password.");
-                }
+                await GameNet.Instance.UpdateLobbyPasswordAsync(arg0);
             }
             catch (Exception e)
             {
@@ -145,11 +137,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             try
             {
-                var result = await LobbyManager.Instance.UpdateLobbyNameAsync(arg0);
-                if (!result)
-                {
-                    Debug.LogError("[LobbySetting] Failed to update lobby password.");
-                }
+                await GameNet.Instance.UpdateLobbyNameAsync(arg0);
             }
             catch (Exception e)
             {

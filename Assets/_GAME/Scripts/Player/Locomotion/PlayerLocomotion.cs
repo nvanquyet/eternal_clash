@@ -1,3 +1,4 @@
+using _GAME.Scripts.HideAndSeek;
 using _GAME.Scripts.Player.Config;
 using _GAME.Scripts.Player.Enum;
 using _GAME.Scripts.Player.Locomotion.States;
@@ -112,8 +113,6 @@ namespace _GAME.Scripts.Player.Locomotion
 
         public void ApplyMovement(Vector3 inputDirection, float speed)
         {
-            _inputDirection = inputDirection * speed;
-
             // Track ground speed
             if (IsGrounded && inputDirection.magnitude > 0)
             {
@@ -130,8 +129,8 @@ namespace _GAME.Scripts.Player.Locomotion
                 Vector3 moveDir = Vector3.Normalize(camForward * inputDirection.z + camRight * inputDirection.x);
                 moveDir.y = 0;
 
-                _velocity.x = moveDir.x * speed;
-                _velocity.z = moveDir.z * speed;
+                _velocity.x = moveDir.x * ValidateSpeed(speed);
+                _velocity.z = moveDir.z * ValidateSpeed(speed);
 
                 // Rotation
                 if (moveDir != Vector3.zero)
@@ -139,12 +138,6 @@ namespace _GAME.Scripts.Player.Locomotion
                     Quaternion toRotation = Quaternion.LookRotation(moveDir);
                     _playerTransform.rotation = Quaternion.Slerp(
                         _playerTransform.rotation, toRotation, _config.RotationSpeed * Time.deltaTime);
-                    // Chỉ xoay khi là server (loại bỏ xoay client-prediction)
-                    // if (_playerController.IsServer)
-                    // {
-                    //     _playerTransform.rotation = Quaternion.Slerp(
-                    //         _playerTransform.rotation, toRotation, _config.RotationSpeed * Time.deltaTime);
-                    // }
                 }
             }
             else
@@ -208,12 +201,29 @@ namespace _GAME.Scripts.Player.Locomotion
 
         public bool CanGroundDash() => _dashCooldown <= 0 && IsGrounded;
         public bool CanAirDash() => _dashCooldown <= 0 && !IsGrounded && _airDashesUsed < _config.DashConfig.MaxAirDashes;
-        public bool CanDash() => CanGroundDash() || CanAirDash();
+        public bool CanDash() => !IsFreezeMovement && (CanGroundDash() || CanAirDash());
 
         public void StartDashCooldown() => _dashCooldown = _config.DashConfig.DashCooldown;
         public void ConsumeAirDash() => _airDashesUsed++;
         public void ResetAirDashes() => _airDashesUsed = 0;
         public void ResetDashCooldown() => _dashCooldown = 0f;
+        #endregion
+        
+        
+        #region FreeMovement
+        private bool _isFreezeMovement = false;
+        public bool IsFreezeMovement => _isFreezeMovement;
+        
+        public void SetFreezeMovement(bool freeze)
+        {
+            _isFreezeMovement = freeze;
+        }
+        
+        private float ValidateSpeed(float speed)
+        {
+            if (_isFreezeMovement) return 0f;
+            return speed;
+        }
         #endregion
         
     }

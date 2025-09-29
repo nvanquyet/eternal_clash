@@ -1,19 +1,13 @@
 using System;
-using System.Collections.Generic;
 using _GAME.Scripts.Authenticator;
-using _GAME.Scripts.Config;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Data;
 using _GAME.Scripts.Lobbies.UI;
 using _GAME.Scripts.Networking;
-using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.UI.Base;
 using TMPro;
-using Unity.Netcode;
 using Unity.Services.Authentication;
 using Unity.Services.Core;
-using Unity.Services.Lobbies;
-using Unity.Services.Lobbies.Models;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -26,7 +20,8 @@ namespace _GAME.Scripts.UI.Home
         [SerializeField] private LobbyPasswordConfirmation lobbyPasswordConfirmation;
         
         [SerializeField] private Button btnLogout;
-        private bool isProcessing = false;
+        
+        private bool _isProcessing = false;
         
         protected void Awake()
         {
@@ -48,6 +43,9 @@ namespace _GAME.Scripts.UI.Home
                 };
                 if (!AuthenticationService.Instance.IsSignedIn)
                     await AuthenticationService.Instance.SignInAnonymouslyAsync();
+                
+                //Hide Loading
+                LoadingUI.Instance.Complete();
             }
             catch (Exception e)
             {
@@ -55,83 +53,33 @@ namespace _GAME.Scripts.UI.Home
             }
             
             
-            //Hide Loading
-            LoadingUI.Instance.Complete();
+           
         }
 
         private void OnClickLogout()
         {
             // Log out from Unity PlayFab
             Debug.Log("Logging out from PlayFab...");
-            PlayFabAuthManager.Instance.Logout(null);
+            GameNet.Instance.Auth.Logout();
             LocalData.UserPassword = string.Empty; // Clear stored password
             LocalData.UserId = string.Empty; // Clear stored user ID
             LocalData.UserName = string.Empty; // Clear stored user name
             SceneController.Instance.LoadSceneAsync((int) SceneDefinitions.Login);
         }
 
-        private void OnEnable()
-        {
-            // Subscribe to network events for feedback
-            LobbyEvents.OnRelayHostReady += OnRelayHostReady;
-            LobbyEvents.OnRelayClientReady += OnRelayClientReady;
-            LobbyEvents.OnRelayError += OnRelayError;
-        }
-
-        private void OnDisable()
-        {
-            // Always unsubscribe to prevent memory leaks
-            LobbyEvents.OnRelayHostReady -= OnRelayHostReady;
-            LobbyEvents.OnRelayClientReady -= OnRelayClientReady;
-            LobbyEvents.OnRelayError -= OnRelayError;
-        }
-
         private async void OnHostButtonClicked()
         {
             try
             {
-                if (isProcessing) return;
+                if (_isProcessing) return;
             
                 try
                 {
-                    isProcessing = true;
-                
-                    // Show loading with initial progress
-                    LoadingUI.Instance.SetProgress(0.1f, 1f, "Creating lobby..");
-                
+                    _isProcessing = true;
                     // Disable buttons during processing
                     SetButtonsInteractable(false);
-                    var config = GameConfig.Instance;
-                    var createLobbyOption = new CreateLobbyOptions
-                    {
-                        Password = config.defaultPassword, // Built-in password protection
-                        Data = new Dictionary<string, DataObject>
-                        {
-                            // Store password in lobby data for UI display
-                            { LobbyConstants.LobbyData.PASSWORD, new DataObject(DataObject.VisibilityOptions.Member, config.defaultPassword) },
-                            // Set initial phase
-                            { LobbyConstants.LobbyData.PHASE, new DataObject(DataObject.VisibilityOptions.Member, SessionPhase.WAITING) }
-                        },
-                    };
-        
                     // Update progress
-                    LoadingUI.Instance.SetProgress(0.3f, 1f, "Setting up Lobby...");
-                
-                    var op = await LobbyManager.Instance.CreateLobbyAsync(config.defaultNameLobby, (int) GameConfig.Instance.defaultMaxPlayer, createLobbyOption);
-                    if (op.IsSuccess)
-                    {
-                        var lobby = LobbyManager.Instance.CurrentLobby;
-                        if (lobby != null)
-                        {
-                            Debug.Log($"[Home UI] Lobby created successfully: {lobby.Name} with code {lobby.LobbyCode}");
-                            //Trigger lobby update
-                            LobbyEvents.TriggerLobbyCreated(lobby, true, "Lobby created successfully");
-                            await NetworkController.Instance.LoadSceneAsync(SceneDefinitions.WaitingRoom);
-                            return;
-                        }
-                    }
-                    
-                    PopupNotification.Instance.ShowPopup(false, "Create lobby failed, please try again.", "Error");
+                    await GameNet.Instance.HostLobby();
                 }
                 catch (Exception e)
                 {
@@ -148,7 +96,7 @@ namespace _GAME.Scripts.UI.Home
         
         private void OnJoinButtonClicked()
         {
-            if (isProcessing) return;
+            if (_isProcessing) return;
             
             string lobbyCode = lobbyCodeInputField.text.Trim();
             if (string.IsNullOrEmpty(lobbyCode))
@@ -158,110 +106,37 @@ namespace _GAME.Scripts.UI.Home
                 return;
             }
             
-            // Subscribe to join result
-            LobbyEvents.OnLobbyJoined += OnLobbyJoined;
-            
             // Show password confirmation dialog
             lobbyPasswordConfirmation.Initialized(async (password) =>
             {
-                if (isProcessing) return;
+                if (_isProcessing) return;
                 
                 try
                 {
-                    isProcessing = true;
-                    
-                    // Show loading
-                    LoadingUI.Instance.SetProgress(0.2f, 1f, "Joining lobby...");
+                    _isProcessing = true;
                     
                     // Disable buttons
                     SetButtonsInteractable(false);
                     
                     Debug.Log($"Attempting to join lobby with code: {lobbyCode}");
-                    var op = await LobbyManager.Instance.JoinLobbyAsync(lobbyCode, password);
-                    if (op.IsSuccess)
-                    {
-                        var lobby = LobbyManager.Instance.CurrentLobby;
-                        if (lobby != null)
-                        {
-                            LoadingUI.Instance.Complete();
-                            return;
-                        }
-                        
-                    }
-                    PopupNotification.Instance.ShowPopup(false, "Join lobby failed, please try again.", "Error");
+                    await GameNet.Instance.JoinLobby(lobbyCode, password);
                 }
                 catch (Exception e)
                 {
                     Debug.LogError($"Error while joining lobby: {e.Message}");
                     HandleError($"Failed to join lobby: {e.Message}");
-                    
-                    // Unsubscribe on error
-                    LobbyEvents.OnLobbyJoined -= OnLobbyJoined;
                 }
             });
         }
-        
-        private void OnLobbyJoined(Lobby lobby, bool isSuccess, string message)
-        {
-            if (isSuccess)
-            {
-                Debug.Log($"Successfully joined lobby: {lobby.Name}");
-                
-                // Update progress
-                LoadingUI.Instance.SetProgress(0.7f, 1f, "Waiting for network setup...");
-                
-                // Check if relay code is available immediately
-                if (lobby.HasValidRelayCode())
-                {
-                    LoadingUI.Instance.SetProgress(0.8f, 1f, "Connecting to relay server...");
-                }
-                else
-                {
-                    LoadingUI.Instance.SetProgress(0.6f, 1f, "Waiting for host to setup game server...");
-                }
-            }
-            else
-            {
-                Debug.LogError($"Failed to join lobby: {message}");
-                HandleError(message);
-            }
-            
-            // Unsubscribe from the event
-            LobbyEvents.OnLobbyJoined -= OnLobbyJoined;
-        }
-
-        // Relay event handlers
-        private void OnRelayHostReady(string joinCode)
-        {
-            Debug.Log($"[HomeUI] Relay host ready with join code: {joinCode}");
-            ResetProcessingState();
-        }
-
-        private void OnRelayClientReady()
-        {
-            Debug.Log("[HomeUI] Relay client connected successfully");
-            ResetProcessingState();
-        }
-
-        private void OnRelayError(string errorMessage)
-        {
-            Debug.LogError($"[HomeUI] Relay error: {errorMessage}");
-            HandleError($"Network error: {errorMessage}");
-            
-            // Cleanup network state if needed
-            if (NetworkManager.Singleton != null && 
-                (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer))
-            {
-                NetworkManager.Singleton.Shutdown();
-            }
-        }
-
+  
         // Helper methods
         private void HandleError(string errorMessage)
         {
-            LoadingUI.Instance.Complete();
-            PopupNotification.Instance?.ShowPopup(false, errorMessage);
-            ResetProcessingState();
+            LoadingUI.Instance.Complete(() =>
+            {
+                PopupNotification.Instance?.ShowPopup(false, errorMessage);
+                ResetProcessingState();
+            });
         }
 
         private void SetButtonsInteractable(bool interactable)
@@ -272,42 +147,13 @@ namespace _GAME.Scripts.UI.Home
 
         private void ResetProcessingState()
         {
-            isProcessing = false;
+            _isProcessing = false;
             SetButtonsInteractable(true);
-        }
-
-        public void ReInit()
-        {
-            // Hide loading if showing
-            LoadingUI.Instance.Complete();
-            
-            // Reset processing state
-            ResetProcessingState();
-            
-            // Deactivate confirm pass and set empty input 
-            if (lobbyPasswordConfirmation != null)
-            {
-                lobbyPasswordConfirmation.gameObject.SetActive(false);
-            }
-            if (lobbyCodeInputField != null)
-            {
-                lobbyCodeInputField.text = string.Empty;
-            }
-
-            // Cleanup any pending network state
-            if (NetworkManager.Singleton != null && 
-                (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer))
-            {
-                NetworkManager.Singleton.Shutdown();
-            }
         }
 
         // Cleanup on destroy
         private void OnDestroy()
         {
-            // Ensure we don't have hanging subscriptions
-            LobbyEvents.OnLobbyJoined -= OnLobbyJoined;
-            
             btnBtnHost.onClick.RemoveListener(OnHostButtonClicked);
             btnLogout.onClick.RemoveListener(OnClickLogout);
             btnJoin.onClick.RemoveListener(OnJoinButtonClicked);

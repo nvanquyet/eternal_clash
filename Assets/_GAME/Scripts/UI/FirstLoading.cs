@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using _GAME.Scripts.Authenticator;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Data;
+using _GAME.Scripts.Networking;
 using Unity.Services.Core;
 using UnityEngine;
 
@@ -56,7 +57,7 @@ namespace _GAME.Scripts.UI
 
         private async Task<bool> UserIsLoggedIn()
         {
-            var authManager = PlayFabAuthManager.Instance;
+            var authManager = GameNet.Instance.Auth;
             var isLogin = await authManager.LoginAsync(LocalData.UserName, LocalData.UserPassword);
             return isLogin.success;
         }

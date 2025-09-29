@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: 6384719953585072006}
   - component: {fileID: 4309935383660666368}
   - component: {fileID: 5705921970734469002}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: New Bullet
   m_TagString: Projectile
   m_Icon: {fileID: 0}
@@ -187,7 +187,7 @@ MonoBehaviour:
   enableCollisionAttack: 1
   attackableLayers:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 521217
   attackableTags:
   - HitboxPart
   - Defendable

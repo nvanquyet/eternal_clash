@@ -342,7 +342,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
             Invoke(nameof(ReEquip), 0.2f);
 
             // Disable colliders
-            DisableModelColliders();
+            //DisableModelColliders();
 
             // Notify systems
             NotifyModelChanged();

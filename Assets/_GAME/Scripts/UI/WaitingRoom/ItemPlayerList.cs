@@ -46,17 +46,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
             }
             //Disable the kick button to prevent multiple clicks
             kickButton.interactable = false;
-            LobbyManager.Instance.KickPlayerAsync(player.Id).ContinueWith(task =>
-            {
-                if (task.IsFaulted)
-                {
-                    Debug.LogError($"[ItemPlayerList] Failed to kick player {player.Id}: {task.Exception}");
-                }
-                else
-                {
-                    Debug.Log($"[ItemPlayerList] Player {player.Id} has been kicked from the lobby.");
-                }
-            });
+            GameNet.Instance.KickPlayerAsync(player.Id);
         }
 
         private void OnToggleValueChanged(bool arg0)
@@ -68,17 +58,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 return;
             }
             //Disable the toggle to prevent multiple clicks
-            LobbyManager.Instance.SetPlayerReadyAsync(arg0).ContinueWith(task =>
-            {
-                if (task.IsFaulted)
-                {
-                    Debug.LogError($"[ItemPlayerList] Failed to set player {player.Id} ready state: {task.Exception}");
-                }
-                else
-                {
-                    Debug.Log($"[ItemPlayerList] Player {player.Id} ready state set to {arg0}.");
-                }
-            });
+            GameNet.Instance.SetPlayerReadyAsync(arg0);
         }
 
         public void Initialize(Unity.Services.Lobbies.Models.Player player, bool isMe, bool isHost)

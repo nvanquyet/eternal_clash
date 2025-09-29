@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.Networking.Relay;
-using _GAME.Scripts.Networking.StateMachine;
 using _GAME.Scripts.UI;
 using GAME.Scripts.DesignPattern;
 using Unity.Netcode;
@@ -18,13 +17,11 @@ using UnityEngine.UIElements;
 namespace _GAME.Scripts.Networking
 {
     /// <summary>
-    /// Enhanced NetworkController with improved callback handling and error recovery
+    /// Enhanced NetworkController - Fixed để sync với GameNet flow
     /// </summary>
-    public class NetworkController : SingletonDontDestroy<NetworkController>
+    public class NetworkController : MonoBehaviour
     {
         #region Fields & Properties
-
-        private NetworkStateManager _stateManager;
         private NetworkCallbackHandler _callbackHandler;
         private CancellationTokenSource _operationCancellationSource;
         private Coroutine _connectionMonitoringCoroutine;
@@ -34,7 +31,6 @@ namespace _GAME.Scripts.Networking
         public bool IsHost => NetworkManager.Singleton?.IsHost ?? false;
         public bool IsClient => NetworkManager.Singleton?.IsClient ?? false;
         public ulong LocalClientId => NetworkManager.Singleton?.LocalClientId ?? 0;
-        public NetworkState CurrentNetworkState => _stateManager?.CurrentState ?? NetworkState.Default;
 
         #endregion
 
@@ -43,7 +39,8 @@ namespace _GAME.Scripts.Networking
         public event Action<ulong> OnClientJoined;
         public event Action<ulong> OnClientLeft;
         public event Action<NetworkError> OnNetworkError;
-        public event Action<NetworkState, NetworkState> OnNetworkStateChanged;
+        public event Action OnHostStarted;
+        public event Action OnClientConnected;
 
         #endregion
 
@@ -102,6 +99,7 @@ namespace _GAME.Scripts.Networking
                 Debug.Log($"[NetworkCallbacks] Server stopped (wasHost: {wasHost})");
                 _controller.HandleServerStopped(wasHost);
             }
+            
             private void OnClientStarted()
             {
                 Debug.Log($"[NetworkCallbacks] Client Started");
@@ -119,8 +117,6 @@ namespace _GAME.Scripts.Networking
                 Debug.Log($"[NetworkCallbacks] Client {clientId} disconnected");
                 _controller.HandleClientDisconnected(clientId);
             }
-            
-        
             
             private void OnClientStopped(bool stopped)
             {
@@ -152,9 +148,8 @@ namespace _GAME.Scripts.Networking
 
         #region Lifecycle
 
-        protected override void OnAwake()
+        protected void Awake()
         {
-            base.OnAwake();
             InitializeController();
         }
 
@@ -162,14 +157,8 @@ namespace _GAME.Scripts.Networking
         {
             try
             {
-                // Initialize state manager
-                _stateManager = new NetworkStateManager();
-                _stateManager.Init();
-                _stateManager.OnStateChanged += OnNetworkStateChanged;
-
                 // Initialize callback handler
                 _callbackHandler = new NetworkCallbackHandler(this);
-
                 Debug.Log("[NetworkController] Initialized successfully");
             }
             catch (Exception ex)
@@ -178,10 +167,9 @@ namespace _GAME.Scripts.Networking
             }
         }
 
-        protected override void OnDestroy()
+        protected void OnDestroy()
         {
             Cleanup();
-            base.OnDestroy();
         }
 
         private void Cleanup()
@@ -192,17 +180,12 @@ namespace _GAME.Scripts.Networking
             _callbackHandler?.Dispose();
             StopConnectionMonitoring();
 
-            if (_stateManager != null)
-            {
-                _stateManager.OnStateChanged -= OnNetworkStateChanged;
-                _stateManager.Clear();
-            }
-
             // Clear events
             OnClientJoined = null;
             OnClientLeft = null;
             OnNetworkError = null;
-            OnNetworkStateChanged = null;
+            OnHostStarted = null;
+            OnClientConnected = null;
         }
 
         #endregion
@@ -210,114 +193,131 @@ namespace _GAME.Scripts.Networking
         #region Public API
 
         /// <summary>
-        /// Start as host with progress tracking
+        /// Start as host with relay - CHỈ SETUP NETWORK, không tạo lobby
         /// </summary>
         public async Task<OperationResult> StartHostAsync(int maxConnection,
             CancellationToken cancellationToken = default)
         {
-            if (!_stateManager.CanTransitionTo(NetworkState.ClientConnecting))
-                return OperationResult.Failure("Cannot start host in current state");
-
             try
             {
-                await _stateManager.TryTransitionAsync(NetworkState.ClientConnecting);
+                Debug.Log("[NetworkController] Starting host with relay...");
+                
+                // Cancel previous operations
+                _operationCancellationSource?.Cancel();
+                _operationCancellationSource = new CancellationTokenSource();
+
+                // Reset relay state
                 RelayHandler.ResetAllState();
-                // Step 1: Setup relay
+                
+                // Validate authentication
+                if (!AuthenticationService.Instance.IsSignedIn)
+                {
+                    return OperationResult.Failure("Not authenticated");
+                }
+
+                // Step 1: Setup relay allocation và get join code
                 var relayResult = await RelayHandler.SetupHostRelayAsync(maxConnection, cancellationToken);
                 if (!relayResult.IsSuccess)
                 {
-                    await _stateManager.TryTransitionAsync(NetworkState.Failed, relayResult.ErrorMessage);
-                    return OperationResult.Failure(relayResult.ErrorMessage);
+                    Debug.LogError($"[NetworkController] Relay setup failed: {relayResult.ErrorMessage}");
+                    return OperationResult.Failure($"Relay setup failed: {relayResult.ErrorMessage}");
                 }
 
                 string joinCode = relayResult.Data;
+                Debug.Log($"[NetworkController] Relay allocated, join code: {joinCode}");
 
-                // Step 2: Start Netcode host (transport đã config bởi RelayConnector)
-                var nm = NetworkManager.Singleton;
-                if (nm == null)
-                    return OperationResult.Failure("NetworkManager not found");
-
-                if (!nm.StartHost())
+                // Step 2: Start Netcode host (transport đã được config bởi RelayHandler)
+                var hostResult = RelayHandler.StartNetworkHost();
+                if (!hostResult.IsSuccess)
                 {
-                    await _stateManager.TryTransitionAsync(NetworkState.Failed, "Failed to start host");
-                    return OperationResult.Failure("Failed to start host");
+                    Debug.LogError($"[NetworkController] Failed to start network host: {hostResult.ErrorMessage}");
+                    await RelayHandler.SafeShutdownAsync();
+                    return OperationResult.Failure($"Failed to start network host: {hostResult.ErrorMessage}");
                 }
 
-                Debug.Log($"[NetworkController] Host started with Relay. JoinCode={joinCode}");
+                Debug.Log($"[NetworkController] Host started successfully with join code: {joinCode}");
 
-                // Có thể emit joinCode ra UI hoặc Lobby system
-                return OperationResult.Success($"Host started successfully with Relay. JoinCode={joinCode}", joinCode);
+                // Return success với join code để GameNet update vào lobby
+                return OperationResult.Success($"Host started successfully", joinCode);
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.LogWarning("[NetworkController] Host start operation was cancelled");
+                return OperationResult.Failure("Operation cancelled");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetworkController] StartHostWithRelay failed: {ex.Message}");
-                await _stateManager.TryTransitionAsync(NetworkState.Failed, ex.Message);
-                return OperationResult.Failure(ex.Message);
+                Debug.LogError($"[NetworkController] StartHostAsync failed: {ex}");
+                await RelayHandler.SafeShutdownAsync();
+                return OperationResult.Failure($"Host start failed: {ex.Message}");
             }
         }
 
+        /// <summary>
+        /// Start as client with join code - CHỈ CONNECT NETWORK, không join lobby
+        /// </summary>
         public async Task<OperationResult> StartClientAsync(string joinCode,
             CancellationToken cancellationToken = default)
         {
-            // Yêu cầu: đã Initialize Unity Services + đã SignIn 
-            if (!AuthenticationService.Instance.IsSignedIn)
-                return OperationResult.Failure("Not signed in. Call Authentication first.");
-
             if (string.IsNullOrWhiteSpace(joinCode))
-                return OperationResult.Failure("Join code is required for Relay client.");
+            {
+                return OperationResult.Failure("Join code is required");
+            }
 
-            if (!_stateManager.CanTransitionTo(NetworkState.ClientConnecting))
-                return OperationResult.Failure("Cannot start client in current state");
-
-            _operationCancellationSource?.Cancel();
-            _operationCancellationSource = new CancellationTokenSource();
-            var token = _operationCancellationSource.Token;
+            if (!AuthenticationService.Instance.IsSignedIn)
+            {
+                return OperationResult.Failure("Not authenticated");
+            }
 
             try
             {
-                await _stateManager.TryTransitionAsync(NetworkState.ClientConnecting);
+                Debug.Log($"[NetworkController] Starting client with join code: {joinCode}");
                 
+                // Cancel previous operations
+                _operationCancellationSource?.Cancel();
+                _operationCancellationSource = new CancellationTokenSource();
+
+                // Reset relay state
                 RelayHandler.ResetAllState();
 
-                var nm = NetworkManager.Singleton;
-                if (nm == null)
+                // Step 1: Connect to relay server
+                var relayResult = await RelayHandler.ConnectClientToRelayAsync(joinCode, cancellationToken);
+                if (!relayResult.IsSuccess)
                 {
-                    await _stateManager.TryTransitionAsync(NetworkState.Failed, "NetworkManager not found");
-                    return OperationResult.Failure("NetworkManager not found");
+                    Debug.LogError($"[NetworkController] Failed to connect to relay: {relayResult.ErrorMessage}");
+                    return OperationResult.Failure($"Failed to connect to relay: {relayResult.ErrorMessage}");
                 }
 
-                // 1) Join allocation bằng joinCode
-                var result = await RelayHandler.ConnectClientToRelayAsync(joinCode, cancellationToken);
-                if (!result.IsSuccess)
+                Debug.Log("[NetworkController] Connected to relay, starting network client...");
+
+                // Step 2: Start network client
+                var clientResult = RelayHandler.StartNetworkClient();
+                if (!clientResult.IsSuccess)
                 {
-                    await _stateManager.TryTransitionAsync(NetworkState.Failed, result.ErrorMessage);
-                    return OperationResult.Failure(result.ErrorMessage);
+                    Debug.LogError($"[NetworkController] Failed to start network client: {clientResult.ErrorMessage}");
+                    await RelayHandler.SafeShutdownAsync();
+                    return OperationResult.Failure($"Failed to start network client: {clientResult.ErrorMessage}");
                 }
 
-                // 3) Bắt đầu client sau khi đã set Relay
-                bool startSuccess = nm.StartClient();
-                if (!startSuccess)
-                {
-                    await _stateManager.TryTransitionAsync(NetworkState.Failed, "Failed to start client");
-                    return OperationResult.Failure("Failed to start client");
-                }
-
-                return OperationResult.Success("Client connection initiated via Relay");
+                Debug.Log("[NetworkController] Client started successfully");
+                return OperationResult.Success("Client connected successfully");
             }
-            catch (RelayServiceException rse)
+            catch (OperationCanceledException)
             {
-                Debug.LogError($"[NetworkController] Relay join failed: {rse.Message}");
-                await _stateManager.TryTransitionAsync(NetworkState.Failed, rse.Message);
-                return OperationResult.Failure($"Relay join failed: {rse.Message}");
+                Debug.LogWarning("[NetworkController] Client start operation was cancelled");
+                return OperationResult.Failure("Operation cancelled");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetworkController] Start client failed: {ex.Message}");
-                await _stateManager.TryTransitionAsync(NetworkState.Failed, ex.Message);
+                Debug.LogError($"[NetworkController] StartClientAsync failed: {ex}");
+                await RelayHandler.SafeShutdownAsync();
                 return OperationResult.Failure($"Client start failed: {ex.Message}");
             }
         }
 
+        /// <summary>
+        /// Load scene on network - CHỈ HOST mới được gọi
+        /// </summary>
         public async Task<OperationResult> LoadSceneAsync(
             SceneDefinitions sceneDefinitions, 
             Action onSceneLoaded = null, 
@@ -325,193 +325,220 @@ namespace _GAME.Scripts.Networking
             float timeoutSeconds = 30f,
             CancellationToken cancellationToken = default)
         {
-            var nm = NetworkManager.Singleton; 
+            var nm = NetworkManager.Singleton;
             if (nm == null)
-                return OperationResult.Failure("NetworkManager not found");
-
-            if (!nm.IsServer) // Host hoặc Dedicated Server
             {
-                Debug.LogWarning("[NetworkController] Only the server/host can initiate scene changes.");
-                return OperationResult.Failure("Only server/host can load scenes");
+                return OperationResult.Failure("NetworkManager not found");
+            }
+
+            if (!nm.IsHost && !nm.IsServer)
+            {
+                Debug.LogWarning("[NetworkController] Only host/server can load scenes");
+                return OperationResult.Failure("Only host/server can load scenes");
             }
             
             var nsm = nm.SceneManager;
             if (nsm == null)
+            {
                 return OperationResult.Failure("NetworkSceneManager not found");
+            }
 
             var sceneName = SceneHelper.ToSceneName(sceneDefinitions);
 
-            // Optional: tránh lỗi scene không có trong Build Settings
+            // Validate scene exists
             if (!Application.CanStreamedLevelBeLoaded(sceneName))
-                return OperationResult.Failure($"Scene '{sceneName}' not found in Build Settings");
-
-            var tcs = new TaskCompletionSource<(IReadOnlyList<ulong> completed, IReadOnlyList<ulong> timedOut)>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-
-            void OnLoadEventCompleted(string loadedSceneName, LoadSceneMode loadedMode,
-                List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
             {
-                if (loadedSceneName == sceneName && loadedMode == mode)
-                {
-                    tcs.TrySetResult((clientsCompleted, clientsTimedOut));
-                }
+                return OperationResult.Failure($"Scene '{sceneName}' not found in Build Settings");
             }
-
-            // Đăng ký callback trước khi gọi LoadScene để không miss sự kiện
-            nsm.OnLoadEventCompleted += OnLoadEventCompleted;
 
             try
             {
-                // Phát lệnh load scene tới tất cả client
-                nsm.LoadScene(sceneName, mode);
+                Debug.Log($"[NetworkController] Loading scene: {sceneName}");
 
-                // Chờ hoàn tất hoặc timeout/cancel
-                using var ctsTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-                using var linkedCts =
-                    CancellationTokenSource.CreateLinkedTokenSource(ctsTimeout.Token, cancellationToken);
+                var tcs = new TaskCompletionSource<(IReadOnlyList<ulong> completed, IReadOnlyList<ulong> timedOut)>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
 
-                var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, linkedCts.Token));
-                if (completedTask != tcs.Task)
+                void OnLoadEventCompleted(string loadedSceneName, LoadSceneMode loadedMode,
+                    List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
                 {
-                    // Timeout hoặc bị hủy
-                    if (ctsTimeout.IsCancellationRequested)
-                        return OperationResult.Failure($"Scene load timeout after {timeoutSeconds:0.#}s");
-
-                    if (cancellationToken.IsCancellationRequested)
-                        return OperationResult.Failure("Scene load canceled");
+                    if (loadedSceneName == sceneName && loadedMode == mode)
+                    {
+                        Debug.Log($"[NetworkController] Scene load completed: {loadedSceneName}, Clients: {clientsCompleted?.Count ?? 0}, Timed out: {clientsTimedOut?.Count ?? 0}");
+                        tcs.TrySetResult((clientsCompleted, clientsTimedOut));
+                    }
                 }
 
-                var (clientsCompleted, clientsTimedOut) = await tcs.Task;
+                // Register callback before loading
+                nsm.OnLoadEventCompleted += OnLoadEventCompleted;
 
-                if (clientsTimedOut != null && clientsTimedOut.Count > 0)
+                try
                 {
-                    // Có client không kịp load — vẫn coi là loaded nhưng cảnh báo
-                    Debug.LogWarning($"[NetworkController] Scene '{sceneName}' loaded with timeouts. " +
-                                     $"Timed out clients: {string.Join(", ", clientsTimedOut)}");
-                    return OperationResult.Success(
-                        $"Scene '{sceneName}' loaded (with timeouts: {clientsTimedOut.Count})");
+                    // Load scene for all clients
+                    nsm.LoadScene(sceneName, mode);
+
+                    // Wait for completion with timeout
+                    using var ctsTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ctsTimeout.Token, cancellationToken);
+
+                    var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, linkedCts.Token));
+                    
+                    if (completedTask != tcs.Task)
+                    {
+                        if (ctsTimeout.IsCancellationRequested)
+                            return OperationResult.Failure($"Scene load timeout after {timeoutSeconds:0.#}s");
+                        if (cancellationToken.IsCancellationRequested)
+                            return OperationResult.Failure("Scene load cancelled");
+                    }
+
+                    var (clientsCompleted, clientsTimedOut) = await tcs.Task;
+
+                    if (clientsTimedOut != null && clientsTimedOut.Count > 0)
+                    {
+                        Debug.LogWarning($"[NetworkController] Scene '{sceneName}' loaded with timeouts. Timed out clients: {string.Join(", ", clientsTimedOut)}");
+                        return OperationResult.Success($"Scene '{sceneName}' loaded (with {clientsTimedOut.Count} timeouts)");
+                    }
+
+                    onSceneLoaded?.Invoke();
+                    Debug.Log($"[NetworkController] Scene '{sceneName}' loaded successfully for all clients");
+                    return OperationResult.Success($"Scene '{sceneName}' loaded successfully");
                 }
-                onSceneLoaded?.Invoke();
-                return OperationResult.Success($"Scene '{sceneName}' loaded successfully");
+                finally
+                {
+                    nsm.OnLoadEventCompleted -= OnLoadEventCompleted;
+                }
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetworkController] LoadSceneAsync failed: {ex.Message}");
+                Debug.LogError($"[NetworkController] LoadSceneAsync failed: {ex}");
                 return OperationResult.Failure($"Load scene failed: {ex.Message}");
             }
-            finally
-            {
-                nsm.OnLoadEventCompleted -= OnLoadEventCompleted;
-            }
         }
 
         /// <summary>
-        /// Disconnect from network
+        /// Stop network - sẽ được gọi từ GameNet
         /// </summary>
-        public async Task<OperationResult> DisconnectAsync(string reason = null)
+        public async Task<OperationResult> StopAsync(string reason = null)
         {
             try
             {
-                Debug.Log($"[NetworkController] Disconnecting. Reason: {reason ?? "User initiated"}");
+                Debug.Log($"[NetworkController] Stopping network. Reason: {reason ?? "User initiated"}");
 
-                await _stateManager.TryTransitionAsync(NetworkState.Disconnecting);
+                // Cancel any ongoing operations
+                _operationCancellationSource?.Cancel();
 
-                var nm = NetworkManager.Singleton;
-                if (nm != null && (nm.IsHost || nm.IsClient))
-                {
-                    nm.Shutdown();
-                }
+                // Stop connection monitoring
+                StopConnectionMonitoring();
+
+                // Shutdown relay and network
                 await RelayHandler.SafeShutdownAsync();
-                await _stateManager.TryTransitionAsync(NetworkState.Default);
 
-                return OperationResult.Success("Disconnected successfully");
+                Debug.Log("[NetworkController] Network stopped successfully");
+                return OperationResult.Success("Network stopped successfully");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetworkController] Disconnect failed: {ex.Message}");
-                return OperationResult.Failure($"Disconnect failed: {ex.Message}");
+                Debug.LogError($"[NetworkController] Stop failed: {ex}");
+                return OperationResult.Failure($"Stop failed: {ex.Message}");
             }
         }
 
-        /// <summary>
-        /// Get current network state info
-        /// </summary>
-        public NetworkStateInfo GetNetworkStateInfo()
+        
+        public void ForceAllClientDisconnect()
         {
-            return _stateManager?.GetCurrentStateInfo() ?? new NetworkStateInfo
+            if(!IsHost) return;
+            var nm = NetworkManager.Singleton;
+            if(nm == null) return;
+            foreach (var clientId in nm.ConnectedClientsIds)
             {
-                CurrentState = NetworkState.Default,
-                DisplayName = "Not Initialized"
-            };
+                if (clientId != LocalClientId)
+                {
+                    nm.DisconnectClient(clientId);
+                    Debug.Log($"[NetworkController] Forced disconnect for client {clientId}");
+                }
+            }
         }
-
+        
+        
         #endregion
 
         #region Network Callback Handlers
 
         private void HandleServerStarted()
         {
-            _ = _stateManager.TryTransitionAsync(NetworkState.Connected);
+            Debug.Log("[NetworkController] Host server started");
             StartConnectionMonitoring();
+            OnHostStarted?.Invoke();
         }
 
         private void HandleServerStopped(bool wasHost)
         {
+            Debug.Log($"[NetworkController] Server stopped (was host: {wasHost})");
             StopConnectionMonitoring();
-            _ = _stateManager.TryTransitionAsync(NetworkState.Disconnected, $"Server stopped (wasHost: {wasHost})");
         }
 
         private void HandleClientStarted()
         {
-            
+            Debug.Log("[NetworkController] Client started");
         }
         
         private void HandleClientConnected(ulong clientId)
         {
+            Debug.Log($"[NetworkController] Client {clientId} connected");
+            
             if (clientId == LocalClientId)
             {
                 // Local client connected
-                _ = _stateManager.TryTransitionAsync(NetworkState.Connected);
+                Debug.Log("[NetworkController] Local client connected successfully");
                 StartConnectionMonitoring();
+                OnClientConnected?.Invoke();
             }
             else
             {
                 // Remote client connected
+                Debug.Log($"[NetworkController] Remote client {clientId} joined");
                 OnClientJoined?.Invoke(clientId);
             }
         }
 
         private void HandleClientDisconnected(ulong clientId)
         {
+            Debug.Log($"[NetworkController] Client {clientId} disconnected");
+            
             if (clientId == LocalClientId)
             {
                 // Local client disconnected
+                Debug.LogWarning("[NetworkController] Local client disconnected");
                 StopConnectionMonitoring();
-                _ = HandleUnexpectedDisconnectionAsync("Local client disconnected");
+                HandleUnexpectedDisconnection("Local client disconnected");
             }
             else
             {
                 // Remote client disconnected
+                Debug.Log($"[NetworkController] Remote client {clientId} left");
                 OnClientLeft?.Invoke(clientId);
             }
         }
         
         private void HandleClientStopped(bool stopped)
         {
-            
+            Debug.Log($"[NetworkController] Client stopped: {stopped}");
+            StopConnectionMonitoring();
         }
-
 
         private void HandleConnectionApproval(NetworkManager.ConnectionApprovalRequest request,
             NetworkManager.ConnectionApprovalResponse response)
         {
-            // Simple approval logic - can be enhanced
+            // Simple approval - có thể enhance với validation
             response.Approved = true;
             response.CreatePlayerObject = true;
+            
+            Debug.Log($"[NetworkController] Connection approved for client");
         }
 
         private void HandleTransportFailure()
         {
+            Debug.LogError("[NetworkController] Transport failure detected");
+            
             var error = new NetworkError
             {
                 Type = NetworkErrorType.TransportFailure,
@@ -520,50 +547,50 @@ namespace _GAME.Scripts.Networking
             };
 
             OnNetworkError?.Invoke(error);
-            _ = RelayHandler.SafeShutdownAsync();
-            _ = _stateManager.SafeReturnToDefaultAsync("Transport failure");
+            HandleUnexpectedDisconnection("Transport failure");
         }
 
         #endregion
 
         #region Error Handling
 
-        private async Task HandleUnexpectedDisconnectionAsync(string reason)
+        private void HandleUnexpectedDisconnection(string reason)
         {
             Debug.LogWarning($"[NetworkController] Unexpected disconnection: {reason}");
 
-            try
+            StopConnectionMonitoring();
+            
+            //Lose connection popup + return to home
+            LoadingUI.Instance.RunTimed(1, () =>
             {
-                StopConnectionMonitoring();
-
+                SceneController.Instance.LoadSceneAsync(SceneHelper.ToSceneName(SceneDefinitions.Home));
                 PopupNotification.Instance?.ShowPopup(false,
                     "Lost connection to the session",
                     "Connection Lost");
+            }, "Lost connection. ReturningHome",false);
 
-                await _stateManager.SafeReturnToDefaultAsync(reason);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[NetworkController] Error handling disconnection: {ex.Message}");
-            }
+            // Emergency cleanup
+            _ = StopAsync($"Unexpected disconnection: {reason}");
         }
 
         #endregion
 
         #region Connection Monitoring
 
-        public void StartConnectionMonitoring()
+        private void StartConnectionMonitoring()
         {
             if (_connectionMonitoringCoroutine == null && IsConnected)
             {
+                Debug.Log("[NetworkController] Starting connection monitoring");
                 _connectionMonitoringCoroutine = StartCoroutine(MonitorConnection());
             }
         }
 
-        public void StopConnectionMonitoring()
+        private void StopConnectionMonitoring()
         {
             if (_connectionMonitoringCoroutine != null)
             {
+                Debug.Log("[NetworkController] Stopping connection monitoring");
                 StopCoroutine(_connectionMonitoringCoroutine);
                 _connectionMonitoringCoroutine = null;
             }
@@ -573,27 +600,38 @@ namespace _GAME.Scripts.Networking
         {
             while (IsConnected)
             {
-                // Basic connection health check
                 var nm = NetworkManager.Singleton;
                 if (nm == null || !nm.IsConnectedClient)
                 {
                     Debug.LogWarning("[NetworkController] Connection health check failed");
-                    _ = HandleUnexpectedDisconnectionAsync("Health check failed");
+                    HandleUnexpectedDisconnection("Health check failed");
                     yield break;
                 }
 
                 yield return new WaitForSeconds(5f);
             }
+            
+            Debug.Log("[NetworkController] Connection monitoring ended");
         }
 
         #endregion
 
-        public void StartGameAsync()
+        #region Game Flow Methods
+
+        public void StartGame()
         {
+            if (!IsHost)
+            {
+                Debug.LogWarning("[NetworkController] Only host can start the game");
+                return;
+            }
+
+            Debug.Log("[NetworkController] Starting game...");
             SceneLoadingBroadcaster.Instance?.PreShowAllClients("Switching to gameplay...");
-            //Swtich to gameplay scene
             _ = LoadSceneAsync(SceneDefinitions.GameScene, null, LoadSceneMode.Single);
         }
+
+        #endregion
     }
 
     #region Supporting Types
@@ -612,11 +650,10 @@ namespace _GAME.Scripts.Networking
             Message = message;
             JoinCode = joinCode;
             Exception = exception;
-            ErrorMessage = exception != null ? exception.Message : "";
+            ErrorMessage = exception?.Message ?? (isSuccess ? "" : message);
         }
 
-        public static OperationResult Success(string message = "Operation completed successfully",
-            string joinCode = null)
+        public static OperationResult Success(string message = "Operation completed successfully", string joinCode = null)
         {
             return new OperationResult(true, message, joinCode);
         }

@@ -35,7 +35,7 @@ namespace _GAME.Scripts.UI
         public void ShowPopup(bool isSuccess, string message, string title = "")
         {
             popupPanel.SetActive(true);
-
+            Debug.Log($"[PopupNotification] ShowPopup: isSuccess={isSuccess}, title={title}, message={message}");
             iconImage.sprite = isSuccess ? successIcon : errorIcon;
 
             titleText.text = string.IsNullOrEmpty(title) ? (isSuccess ? "Successful" : "Error") : title;

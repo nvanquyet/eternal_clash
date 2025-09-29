@@ -22,7 +22,7 @@ namespace _GAME.Scripts.HideAndSeek.UI
 
         private void OnRoleAssigned()
         {
-            var role = GameManager.Instance.GetPlayerRoleWithId(NetworkController.Instance.LocalClientId);
+            var role = GameManager.Instance.GetPlayerRoleWithId(PlayerIdManager.LocalClientId);
             //Debug.Log($"[UINotice] Local player assigned role: {role}");
             switch (role)
             {

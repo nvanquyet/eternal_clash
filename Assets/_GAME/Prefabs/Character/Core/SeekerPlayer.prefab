@@ -108,6 +108,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: SeekerInteraction
       objectReference: {fileID: 0}
+    - target: {fileID: 4789736089138322641, guid: 8afc61036e889aa4b879043d4c1a741d, type: 3}
+      propertyPath: m_Layer
+      value: 19
+      objectReference: {fileID: 0}
     - target: {fileID: 7828428356017685873, guid: 8afc61036e889aa4b879043d4c1a741d, type: 3}
       propertyPath: playerEquipment
       value: 

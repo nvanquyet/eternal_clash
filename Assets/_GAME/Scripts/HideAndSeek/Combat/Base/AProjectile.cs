@@ -126,6 +126,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
 
         protected override void Server_ProcessCollision(Collider other)
         {
+            Debug.Log($"[Projectile-Server_ProcessCollision] START - Collided with: {other.name}, Layer: {LayerMask.LayerToName(other.gameObject.layer)}, Tag: {other.tag}");
             // Ignore nếu va chạm với chính owner (shooter)
             if(IsHitOwner(other)) return;
             base.Server_ProcessCollision(other);
