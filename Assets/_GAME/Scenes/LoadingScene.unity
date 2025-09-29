@@ -571,6 +571,57 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 796588685}
   m_CullTransparentMesh: 1
+--- !u!1 &813223771
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 813223775}
+  - component: {fileID: 813223776}
+  m_Layer: 0
+  m_Name: SceneLoading
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &813223775
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 813223771}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &813223776
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 813223771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ba2f846c0cf1894c9f41ca71fed1f7a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minLoadingTime: 1
+  loadingTips:
+  - Synchronizing with other players...
+  - Loading new environment...
+  - Preparing multiplayer session...
+  - Almost ready to play!
+  - Setting up game world...
 --- !u!1 &967902439
 GameObject:
   m_ObjectHideFlags: 0
@@ -1198,6 +1249,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2828935496178282829, guid: c01f222863811604399fdd2dd02614c6, type: 3}
+      propertyPath: m_SortingOrder
+      value: 800
+      objectReference: {fileID: 0}
     - target: {fileID: 5652311928991170581, guid: c01f222863811604399fdd2dd02614c6, type: 3}
       propertyPath: m_Name
       value: PopUp Loading
@@ -1826,8 +1881,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9ba2f846c0cf1894c9f41ca71fed1f7a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  showLoadingOnSceneChange: 1
   minLoadingTime: 1
   loadingTips:
   - Synchronizing with other players...
@@ -1859,12 +1912,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 2127744197}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0cb3360fd54a76c4681b4247d9903634, type: 3}
+  m_Script: {fileID: 11500000, guid: bffbb313c59b69445864d81832aa6193, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  setupOnStart: 1
-  dontDestroyOnLoad: 1
+  autoSpawnOnServerStart: 1
 --- !u!222 &13055544375634243
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2702,3 +2754,4 @@ SceneRoots:
   - {fileID: 1631848632}
   - {fileID: 93326931}
   - {fileID: 2127744200}
+  - {fileID: 813223775}

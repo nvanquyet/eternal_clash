@@ -53,6 +53,10 @@ namespace _GAME.Scripts.UI.Home
             {
                 Debug.LogError($"Failed to init Unity Services: {e}");
             }
+            
+            
+            //Hide Loading
+            LoadingUI.Instance.Complete();
         }
 
         private void OnClickLogout()
@@ -122,10 +126,7 @@ namespace _GAME.Scripts.UI.Home
                             Debug.Log($"[Home UI] Lobby created successfully: {lobby.Name} with code {lobby.LobbyCode}");
                             //Trigger lobby update
                             LobbyEvents.TriggerLobbyCreated(lobby, true, "Lobby created successfully");
-                            NetworkController.Instance.LoadSceneAsync(SceneDefinitions.WaitingRoom, () =>
-                            {
-                                LoadingUI.Instance.Complete();
-                            });
+                            await NetworkController.Instance.LoadSceneAsync(SceneDefinitions.WaitingRoom);
                             return;
                         }
                     }

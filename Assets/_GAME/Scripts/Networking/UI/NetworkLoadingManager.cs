@@ -1,15 +1,22 @@
 using System.Collections;
+using GAME.Scripts.DesignPattern;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace _GAME.Scripts.Networking.UI
 {
-    public class NetworkLoadingManager : NetworkBehaviour
+    /// <summary>
+    /// Pure UI manager for network loading overlay.
+    /// - Not a NetworkBehaviour. No RPC here.
+    /// - Shows/hides progress locally.
+    /// - Receives calls from a networked broadcaster (SceneLoadingBroadcaster) via public methods.
+    /// </summary>
+    public class NetworkLoadingManager : SingletonDontDestroy<NetworkLoadingManager>
     {
         [Header("Settings")]
-        [SerializeField] private bool showLoadingOnSceneChange = true;
         [SerializeField] private float minLoadingTime = 1f;
-        [SerializeField] private string[] loadingTips = new string[]
+
+        [SerializeField] private string[] loadingTips =
         {
             "Synchronizing with other players...",
             "Loading new environment...",
@@ -18,221 +25,185 @@ namespace _GAME.Scripts.Networking.UI
             "Setting up game world..."
         };
 
-        private NetworkVariable<bool> isLoading = new NetworkVariable<bool>(false, 
-            NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
-        
-        private NetworkVariable<float> loadingProgress = new NetworkVariable<float>(0f,
-            NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
-
-        private bool _isSubscribedToSceneEvents = false;
+        private bool _isCurrentlyLoading = false;
         private Coroutine _loadingCoroutine;
+        private float _loadingProgress = 0f;
 
-        public override void OnNetworkSpawn()
+        protected override void OnAwake()
         {
-            base.OnNetworkSpawn();
-            
-            // Subscribe to loading state changes
-            isLoading.OnValueChanged += OnLoadingStateChanged;
-            loadingProgress.OnValueChanged += OnLoadingProgressChanged;
-            
-            // Subscribe to scene events (only once)
-            if (!_isSubscribedToSceneEvents)
+            base.OnAwake();
+            Debug.Log("[NetworkLoadingManager] Awake (UI-only, no RPC inside)");
+        }
+
+        protected override void OnDestroy()
+        {
+            if (_loadingCoroutine != null) StopCoroutine(_loadingCoroutine);
+            base.OnDestroy();
+        }
+
+        // -------------------------
+        // Entry points called BY broadcaster (runs on each client)
+        // -------------------------
+
+        /// <summary>
+        /// Called by SceneLoadingBroadcaster (ClientRpc) to show overlay locally.
+        /// </summary>
+        public void ShowFromBroadcaster(string mainText, string tipText)
+        {
+            _isCurrentlyLoading = true;
+            _loadingProgress = 0f;
+
+            ShowLoadingUI(mainText, string.IsNullOrEmpty(tipText) ? GetRandomLoadingTip() : tipText);
+
+            if (_loadingCoroutine != null) StopCoroutine(_loadingCoroutine);
+            _loadingCoroutine = StartCoroutine(SimulateLoadingProgress());
+        }
+
+        /// <summary>
+        /// Called by SceneLoadingBroadcaster (ClientRpc) to update progress locally.
+        /// </summary>
+        public void UpdateFromBroadcaster(float progress, string tipText = null)
+        {
+            _loadingProgress = Mathf.Max(_loadingProgress, progress);
+            UpdateLoadingProgress(_loadingProgress, tipText);
+        }
+
+        /// <summary>
+        /// Called by SceneLoadingBroadcaster (ClientRpc) to finish and hide overlay locally.
+        /// </summary>
+        public void CompleteFromBroadcaster()
+        {
+            if (_loadingCoroutine != null) StopCoroutine(_loadingCoroutine);
+            _loadingCoroutine = StartCoroutine(CompleteLoading());
+        }
+
+        /// <summary>
+        /// Called by SceneLoadingBroadcaster (ClientRpc) to force hide overlay locally.
+        /// </summary>
+        public void HideFromBroadcaster()
+        {
+            if (_loadingCoroutine != null) StopCoroutine(_loadingCoroutine);
+            _isCurrentlyLoading = false;
+            HideLoadingUI();
+        }
+
+        // -------------------------
+        // Optional local API (host can call pre-show for everyone via broadcaster)
+        // -------------------------
+
+        /// <summary>
+        /// If server/host: broadcast pre-show to ALL clients via SceneLoadingBroadcaster.
+        /// Otherwise: show locally (fallback).
+        /// </summary>
+        public void ForceShowLoading(string tip = null)
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm != null && nm.IsServer &&
+                SceneLoadingBroadcaster.Instance != null &&
+                SceneLoadingBroadcaster.Instance.IsSpawned)
             {
-                SubscribeToSceneEvents();
-                _isSubscribedToSceneEvents = true;
+                SceneLoadingBroadcaster.Instance.PreShowAllClients(tip ?? GetRandomLoadingTip());
+            }
+            else
+            {
+                // Local fallback (useful for standalone or before network starts)
+                ShowLoadingUI("Loading...", tip ?? GetRandomLoadingTip());
+                if (_loadingCoroutine != null) StopCoroutine(_loadingCoroutine);
+                _isCurrentlyLoading = true;
+                _loadingProgress = 0f;
+                _loadingCoroutine = StartCoroutine(SimulateLoadingProgress());
             }
         }
 
-        public override void OnNetworkDespawn()
+        public void ForceHideLoading()
         {
-            // Unsubscribe from loading state changes
-            isLoading.OnValueChanged -= OnLoadingStateChanged;
-            loadingProgress.OnValueChanged -= OnLoadingProgressChanged;
-            
-            base.OnNetworkDespawn();
+            if (_loadingCoroutine != null) StopCoroutine(_loadingCoroutine);
+            _isCurrentlyLoading = false;
+            HideLoadingUI();
         }
 
-        private void OnDestroy()
-        {
-            UnsubscribeFromSceneEvents();
-        }
+        public bool IsCurrentlyLoading => _isCurrentlyLoading;
 
-        private void SubscribeToSceneEvents()
+        // -------------------------
+        // Internal UI helpers
+        // -------------------------
+
+        private IEnumerator SimulateLoadingProgress()
         {
-            if (NetworkManager.Singleton?.SceneManager != null)
+            // Simulate from 0 → ~0.7 while waiting for real sync events from broadcaster
+            while (_loadingProgress < 0.7f && _isCurrentlyLoading)
             {
-                NetworkManager.Singleton.SceneManager.OnSceneEvent += OnSceneEvent;
-                Debug.Log("[NetworkLoadingManager] Subscribed to scene events");
+                _loadingProgress += Random.Range(0.05f, 0.15f);
+                _loadingProgress = Mathf.Clamp01(_loadingProgress);
+                UpdateLoadingProgress(_loadingProgress);
+                yield return new WaitForSeconds(Random.Range(0.1f, 0.3f));
             }
         }
 
-        private void UnsubscribeFromSceneEvents()
+        private IEnumerator CompleteLoading()
         {
-            if (NetworkManager.Singleton?.SceneManager != null)
+            // Smoothly fill to 1.0
+            const float step = 0.1f;
+            while (_loadingProgress < 1f)
             {
-                NetworkManager.Singleton.SceneManager.OnSceneEvent -= OnSceneEvent;
-                Debug.Log("[NetworkLoadingManager] Unsubscribed from scene events");
+                _loadingProgress = Mathf.Clamp01(_loadingProgress + step);
+                UpdateLoadingProgress(_loadingProgress, "Almost ready...");
+                yield return new WaitForSeconds(0.05f);
             }
-        }
 
-        private void OnSceneEvent(SceneEvent sceneEvent)
-        {
-            if (!showLoadingOnSceneChange) return;
-
-            Debug.Log($"[NetworkLoadingManager] Scene Event: {sceneEvent.SceneEventType} for client {sceneEvent.ClientId}");
-
-            switch (sceneEvent.SceneEventType)
-            {
-                case SceneEventType.LoadEventCompleted:
-                    HandleSceneLoadStart(sceneEvent);
-                    break;
-                    
-                case SceneEventType.LoadComplete:
-                    HandleSceneLoadComplete(sceneEvent);
-                    break;
-                    
-                case SceneEventType.UnloadEventCompleted:
-                    HandleSceneUnloadStart(sceneEvent);
-                    break;
-                    
-                case SceneEventType.UnloadComplete:
-                    HandleSceneUnloadComplete(sceneEvent);
-                    break;
-            }
-        }
-
-        private void HandleSceneLoadStart(SceneEvent sceneEvent)
-        {
-            // Chỉ server mới set loading state
-            if (IsServer)
-            {
-                Debug.Log($"[NetworkLoadingManager] Starting scene load: {sceneEvent.SceneName}");
-                SetLoadingStateServerRpc(true, 0f, GetRandomLoadingTip());
-            }
-        }
-
-        private void HandleSceneLoadComplete(SceneEvent sceneEvent)
-        {
-            if (IsServer)
-            {
-                Debug.Log($"[NetworkLoadingManager] Scene load completed: {sceneEvent.SceneName}");
-                
-                // Đảm bảo loading hiển thị đủ lâu
-                if (_loadingCoroutine != null)
-                    StopCoroutine(_loadingCoroutine);
-                    
-                _loadingCoroutine = StartCoroutine(CompleteLoadingAfterDelay());
-            }
-        }
-
-        private void HandleSceneUnloadStart(SceneEvent sceneEvent)
-        {
-            if (IsServer)
-            {
-                Debug.Log($"[NetworkLoadingManager] Starting scene unload: {sceneEvent.SceneName}");
-                SetLoadingStateServerRpc(true, 0f, "Leaving current area...");
-            }
-        }
-
-        private void HandleSceneUnloadComplete(SceneEvent sceneEvent)
-        {
-            if (IsServer)
-            {
-                Debug.Log($"[NetworkLoadingManager] Scene unload completed: {sceneEvent.SceneName}");
-                // Unload thường được theo sau bởi load, nên không tắt loading ngay
-            }
-        }
-
-        private IEnumerator CompleteLoadingAfterDelay()
-        {
-            // Simulate progress to 100%
-            for (float progress = 0.5f; progress <= 1f; progress += 0.1f)
-            {
-                loadingProgress.Value = progress;
-                yield return new WaitForSeconds(0.1f);
-            }
-            
-            // Đợi thêm một chút để đảm bảo smooth
+            // Small delay to avoid flicker
             yield return new WaitForSeconds(minLoadingTime);
-            
-            // Tắt loading
-            SetLoadingStateServerRpc(false, 1f, "");
+
+            _isCurrentlyLoading = false;
+            HideLoadingUI();
+            _loadingCoroutine = null;
         }
 
-        [ServerRpc(RequireOwnership = false)]
-        private void SetLoadingStateServerRpc(bool loading, float progress, string tip)
+        private void ShowLoadingUI(string mainText, string tipText = null)
         {
-            isLoading.Value = loading;
-            loadingProgress.Value = progress;
-            
-            // Gửi tip đến all clients
-            if (!string.IsNullOrEmpty(tip))
+            var ui = _GAME.Scripts.UI.LoadingUI.Instance;
+            if (ui != null)
             {
-                UpdateLoadingTipClientRpc(tip);
+                ui.ShowNetworkLoading(tipText ?? GetRandomLoadingTip());
             }
+
+            Debug.Log($"[NetworkLoadingManager] Show Loading: {mainText} | tip: {tipText}");
         }
 
-        [ClientRpc]
-        private void UpdateLoadingTipClientRpc(string tip)
+        private void UpdateLoadingProgress(float progress, string tipText = null)
         {
-            if (_GAME.Scripts.UI.LoadingUI.Instance != null)
+            var ui = _GAME.Scripts.UI.LoadingUI.Instance;
+            if (ui != null)
             {
-                // Cập nhật tip text trực tiếp
-                _GAME.Scripts.UI.LoadingUI.Instance.SetTipText(tip);
-            }
-        }
-
-        private void OnLoadingStateChanged(bool oldValue, bool newValue)
-        {
-            Debug.Log($"[NetworkLoadingManager] Loading state changed: {oldValue} -> {newValue}");
-            
-            if (_GAME.Scripts.UI.LoadingUI.Instance == null) return;
-
-            if (newValue) // Show loading
-            {
-                _GAME.Scripts.UI.LoadingUI.Instance.ShowNetworkLoading(GetRandomLoadingTip());
-            }
-            else // Hide loading
-            {
-                _GAME.Scripts.UI.LoadingUI.Instance.HideNetworkLoading();
+                ui.UpdateNetworkProgress(progress);
+                if (!string.IsNullOrEmpty(tipText))
+                    ui.SetTipText(tipText);
             }
         }
 
-        private void OnLoadingProgressChanged(float oldValue, float newValue)
+        private void HideLoadingUI()
         {
-            if (_GAME.Scripts.UI.LoadingUI.Instance != null && isLoading.Value)
+            var ui = _GAME.Scripts.UI.LoadingUI.Instance;
+            if (ui != null)
             {
-                _GAME.Scripts.UI.LoadingUI.Instance.UpdateNetworkProgress(newValue);
+                ui.HideNetworkLoading();
             }
+
+            Debug.Log("[NetworkLoadingManager] Hide Loading");
         }
 
         private string GetRandomLoadingTip()
         {
-            if (loadingTips == null || loadingTips.Length == 0) 
-                return "Loading...";
-                
-            return loadingTips[UnityEngine.Random.Range(0, loadingTips.Length)];
+            if (loadingTips == null || loadingTips.Length == 0) return "Loading...";
+            return loadingTips[Random.Range(0, loadingTips.Length)];
         }
 
-        // Public methods for manual control
-        [ServerRpc(RequireOwnership = false)]
-        public void ShowLoadingServerRpc(string tip = null)
+        // Auto-initialize singleton early (optional)
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void AutoInitialize()
         {
-            SetLoadingStateServerRpc(true, 0f, tip ?? GetRandomLoadingTip());
-        }
-
-        [ServerRpc(RequireOwnership = false)]
-        public void HideLoadingServerRpc()
-        {
-            SetLoadingStateServerRpc(false, 1f, "");
-        }
-
-        [ServerRpc(RequireOwnership = false)]
-        public void UpdateProgressServerRpc(float progress, string tip = null)
-        {
-            loadingProgress.Value = Mathf.Clamp01(progress);
-            if (!string.IsNullOrEmpty(tip))
-                UpdateLoadingTipClientRpc(tip);
+            var _ = Instance;
+            Debug.Log("[NetworkLoadingManager] Auto-initialized");
         }
     }
 }

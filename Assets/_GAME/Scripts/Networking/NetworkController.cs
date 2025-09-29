@@ -333,6 +333,8 @@ namespace _GAME.Scripts.Networking
                 return OperationResult.Failure("Only server/host can load scenes");
             }
 
+            SceneLoadingBroadcaster.Instance?.PreShowAllClients("Switching to gameplay...");
+            
             var nsm = nm.SceneManager;
             if (nsm == null)
                 return OperationResult.Failure("NetworkSceneManager not found");
@@ -589,7 +591,6 @@ namespace _GAME.Scripts.Networking
         {
             //Swtich to gameplay scene
             _ = LoadSceneAsync(SceneDefinitions.GameScene, null, LoadSceneMode.Single);
-            LobbyManager.Instance.StopCheckingLobby();
         }
     }
 

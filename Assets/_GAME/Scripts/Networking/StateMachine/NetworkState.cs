@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.UI;
 using Unity.Netcode;

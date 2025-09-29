@@ -155,11 +155,10 @@ namespace _GAME.Scripts.UI
             _runCo = StartCoroutine(Co_CompleteThenHide(onHidden));
         }
 
-        /// <summary>Chạy loading theo thời gian (giả lập), có đổi tip ở nửa chừng.</summary>
-        public void RunTimed(float seconds, Action onComplete = null, string tipAtStart = null)
+        public void RunTimed(float seconds, Action onComplete = null, string tipAtStart = null, bool autoHide = true)
         {
             if (_runCo != null) StopCoroutine(_runCo);
-            _runCo = StartCoroutine(Co_RunTimed(seconds, onComplete, tipAtStart));
+            _runCo = StartCoroutine(Co_RunTimed(seconds, onComplete, tipAtStart, autoHide));
         }
 
         // =================== PRIVATE ===================
@@ -199,7 +198,7 @@ namespace _GAME.Scripts.UI
 
         public void SetTipText(string tip)
         {
-            if (tipText != null) 
+            if (tipText != null)
             {
                 tipText.text = string.IsNullOrEmpty(tip) ? "Loading..." : $"{tip}\n\nLoading...";
             }
@@ -276,7 +275,8 @@ namespace _GAME.Scripts.UI
             _runCo = null;
         }
 
-        private IEnumerator Co_RunTimed(float seconds, Action onComplete, string tipAtStart)
+
+        private IEnumerator Co_RunTimed(float seconds, Action onComplete, string tipAtStart, bool autoHide = true)
         {
             seconds = Mathf.Max(0f, seconds);
 
@@ -289,7 +289,15 @@ namespace _GAME.Scripts.UI
             while (t < seconds)
             {
                 t += Time.unscaledDeltaTime;
-                ApplyProgressUI(Mathf.Clamp01(t / seconds));
+                float progress = Mathf.Clamp01(t / seconds);
+
+                // Nếu không auto hide, giới hạn tối đa 95%
+                if (!autoHide)
+                {
+                    progress = Mathf.Min(progress, 0.95f);
+                }
+
+                ApplyProgressUI(progress);
 
                 if (!tipSwapped && t >= seconds * 0.5f)
                 {
@@ -300,21 +308,35 @@ namespace _GAME.Scripts.UI
                 yield return null;
             }
 
-            ApplyProgressUI(1f);
+            if (autoHide)
+            {
+                // Behavior cũ: hoàn thành và ẩn
+                ApplyProgressUI(1f);
 
-            // bảo đảm minDisplayTime
-            float elapsed = (Time.unscaledTime - _shownAt);
-            if (elapsed < minDisplayTime)
-                yield return new WaitForSecondsRealtime(minDisplayTime - elapsed);
+                // bảo đảm minDisplayTime
+                float elapsed = (Time.unscaledTime - _shownAt);
+                if (elapsed < minDisplayTime)
+                    yield return new WaitForSecondsRealtime(minDisplayTime - elapsed);
 
-            yield return FadeCanvas(0f);
-            onComplete?.Invoke();
+                yield return FadeCanvas(0f);
+                onComplete?.Invoke();
 
-            // reset
-            ApplyProgressUI(0f);
-            SetPercentText("0%");
-            SetTipText(string.Empty);
-            _runCo = null;
+                // reset
+                ApplyProgressUI(0f);
+                SetPercentText("0%");
+                SetTipText(string.Empty);
+                _runCo = null;
+            }
+            else
+            {
+                // Behavior mới: dừng ở 95% và đợi Complete()
+                ApplyProgressUI(0.95f);
+                SetPercentText("95%");
+                SetTipText("Finalizing...");
+
+                // Gọi callback nhưng KHÔNG ẩn loading và KHÔNG reset _runCo
+                onComplete?.Invoke();
+            }
         }
 
 
@@ -359,7 +381,7 @@ namespace _GAME.Scripts.UI
             // Update percent text immediately (no tween)
             SetPercentText($"{Mathf.RoundToInt(progress01 * 100f)}%");
         }
-        
+
         // =================== PRIVATE NETWORK HELPERS ===================
 
         private IEnumerator DelayedHideNetwork()

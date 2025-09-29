@@ -1,4 +1,5 @@
-﻿using _GAME.Scripts.Controller;
+﻿using System;
+using _GAME.Scripts.Controller;
 using _GAME.Scripts.Data;
 using _GAME.Scripts.UI;
 using UnityEngine;
@@ -15,6 +16,10 @@ namespace _GAME.Scripts.Authenticator
             authManager = PlayFabAuthManager.Instance;
             uiManager.Initialized(async (user, pass) =>
             {
+                LoadingUI.Instance.RunTimed(1, () =>
+                {
+                    Debug.Log($"[AuthController] Attempting login for user: {user}");
+                }, "Please wait...");
                 var (success, message) = await authManager.LoginAsync(user, pass);
                 //Show popup notification
                 if (success)
@@ -29,19 +34,41 @@ namespace _GAME.Scripts.Authenticator
                 PopupNotification.Instance.ShowPopup(success, message);
             }, async (username, email, pass, confirm) =>
             {
+                LoadingUI.Instance.RunTimed(1, () =>
+                {
+                    Debug.Log($"[AuthController] Attempting Register for user");
+                }, "Please wait...");
                 var (success, message) = await authManager.RegisterAsync(username, email, pass, confirm);
                 //Show popup notification
-                PopupNotification.Instance.ShowPopup(success, message);
+                LoadingUI.Instance.Complete(() =>
+                {
+                    Debug.Log($"[AuthController] Done");
+                    PopupNotification.Instance.ShowPopup(success, message);
+                });
             }, async email =>
             {
+                LoadingUI.Instance.RunTimed(1, () =>
+                {
+                    Debug.Log($"[AuthController] Attempting forgot pass for user");
+                }, "Please wait...");
                 var (success, message) = await authManager.ForgotPasswordAsync(email);
                 //Show popup notification
-                PopupNotification.Instance.ShowPopup(success, message);
+                LoadingUI.Instance.Complete(() =>
+                {
+                    Debug.Log($"[AuthController] Done");
+                    PopupNotification.Instance.ShowPopup(success, message);
+                });
             });
             
             RegisterEvent();
         }
-        
+
+        private void Start()
+        {
+            //Hide loading UI if any
+            LoadingUI.Instance.Complete();
+        }
+
         private void OnDestroy()
         {
             UnRegisterEvent();

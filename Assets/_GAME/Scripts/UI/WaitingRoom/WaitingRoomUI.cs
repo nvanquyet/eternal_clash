@@ -197,6 +197,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
             if (NetworkController.Instance.IsHost)
             {
                 NetworkController.Instance.StartGameAsync();
+                //Broadcast
             }
             else
             {

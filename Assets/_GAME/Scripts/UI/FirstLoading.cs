@@ -14,11 +14,11 @@ namespace _GAME.Scripts.UI
         void Start()
         {
             //Show Loading UI
-            LoadingUI.Instance.RunTimed(5f, () =>
+            LoadingUI.Instance.RunTimed(1, () =>
             {
                 //After loading time is over, initialize services and personal information
                 Debug.Log("[FirstCtrl] Fake loading done!");
-            });
+            }, "Loading...", false);
             //Initialize services, settings, etc.
             //InitializeServices();
 
