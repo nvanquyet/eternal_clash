@@ -46,26 +46,33 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         public WeaponRig RigSetup => rigSetup;
         public AttackComponent AttackComponent => attackComponent;
         
-        // Network Variables
-        protected NetworkVariable<WeaponState> networkWeaponState =
+        // ✅ Network Variables with proper naming
+        private readonly NetworkVariable<WeaponState> networkWeaponState =
             new NetworkVariable<WeaponState>(
                 WeaponState.Dropped,
                 NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Server
             );
-            
-        // Người đang cầm (server-only reference; không sync trực tiếp)
-        protected PlayerInteraction currentHolder;
-        public PlayerInteraction CurrentHolder => currentHolder;
+        
+        // ✅ Sync holder client ID qua network
+        private readonly NetworkVariable<ulong> networkHolderClientId = new(
+            ulong.MaxValue, // MaxValue = no holder
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server
+        );
 
+        // Server-only reference cache (để tránh lookup liên tục)
+        private PlayerInteraction currentHolder;
+        
         // Properties
+        public ulong HolderClientId => networkHolderClientId.Value;
+        public PlayerInteraction CurrentHolder => currentHolder;
         public WeaponState CurrentState => networkWeaponState.Value;
         public WeaponType Type => weaponType;
         public string WeaponName => weaponName;
         public Sprite WeaponIcon => weaponIcon;
         public bool IsEquipped => networkWeaponState.Value == WeaponState.Equipped;
         public bool IsDropped => networkWeaponState.Value == WeaponState.Dropped;
-        
         public InputComponent Input => inputComponent;
 
         // Quan trọng: CanInteract bám theo base + trạng thái Dropped
@@ -94,6 +101,8 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         {
             base.OnNetworkSpawn();
             networkWeaponState.OnValueChanged += OnWeaponStateValueChanged;
+            networkHolderClientId.OnValueChanged += OnHolderClientIdChanged;
+            
             UpdateVisualState(networkWeaponState.Value);
             OnWeaponNetworkSpawned();
         }
@@ -102,6 +111,9 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         {
             if (networkWeaponState != null)
                 networkWeaponState.OnValueChanged -= OnWeaponStateValueChanged;
+            if (networkHolderClientId != null)
+                networkHolderClientId.OnValueChanged -= OnHolderClientIdChanged;
+            
             OnWeaponNetworkDespawned();
             base.OnNetworkDespawn();
         }
@@ -139,8 +151,9 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
                     var equip = player.PlayerEquipment;
                     if (equip != null)
                     {
-                        // Option: lưu holder sớm để DropWeapon có vị trí rơi chính xác nếu cần
-                        currentHolder = player;
+                        // ✅ Lưu holder và sync qua network
+                        ServerAssignHolder(player);
+                        
                         equip.SetCurrentWeaponServer(this);
                         OnPickedUp(player);
                         OnWeaponPickedUp?.Invoke(player);
@@ -164,6 +177,13 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             UpdateVisualState(newValue);
             UpdateComponentStates(newValue);
             OnWeaponStateChanged?.Invoke(newValue);
+        }
+        
+        protected virtual void OnHolderClientIdChanged(ulong previousId, ulong newId)
+        {
+            // Client có thể dùng để hiển thị UI "Player X is holding this weapon"
+            // hoặc update cache local nếu cần
+            OnHolderChanged(previousId, newId);
         }
         
         protected virtual void UpdateVisualState(WeaponState state)
@@ -225,7 +245,10 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             if (!IsServer || networkWeaponState.Value == WeaponState.Dropped) return;
 
             PlayerInteraction previousHolder = currentHolder;
+            
+            // ✅ Clear holder trước khi drop
             currentHolder = null;
+            networkHolderClientId.Value = ulong.MaxValue;
 
             // ✅ replicate parenting: parent null qua TrySetParent
             if (NetworkObject != null)
@@ -278,13 +301,24 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         }
 
         /// <summary>
-        /// (Tùy chọn) Gọi từ PlayerEquipment (server) khi đã equip xong để cập nhật holder,
-        /// giúp DropWeapon rơi đúng vị trí.
+        /// ✅ Server-only: Assign holder và sync qua network
+        /// Gọi từ PlayerEquipment (server) khi đã equip xong.
         /// </summary>
         public void ServerAssignHolder(PlayerInteraction holder)
         {
             if (!IsServer) return;
+            
             currentHolder = holder;
+            
+            // ✅ Sync holder client ID
+            if (holder != null && holder.TryGetComponent<NetworkObject>(out var nob))
+            {
+                networkHolderClientId.Value = nob.OwnerClientId;
+            }
+            else
+            {
+                networkHolderClientId.Value = ulong.MaxValue;
+            }
         }
 
         #endregion
@@ -295,6 +329,14 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         protected virtual void OnWeaponNetworkDespawned() { }
         protected virtual void OnWeaponEnabled() { }
         protected virtual void OnWeaponDisabled() { }
+        
+        /// <summary>
+        /// ✅ Hook khi holder client ID thay đổi (chạy trên tất cả clients)
+        /// </summary>
+        protected virtual void OnHolderChanged(ulong previousId, ulong newId)
+        {
+            // Override để hiển thị UI hoặc xử lý logic khác
+        }
 
         protected virtual void OnPickedUp(PlayerInteraction player)
         {

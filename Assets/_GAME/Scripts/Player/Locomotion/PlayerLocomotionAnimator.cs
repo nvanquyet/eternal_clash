@@ -38,11 +38,10 @@ namespace _GAME.Scripts.Player.Locomotion
             if (!_playerController.IsOwner) return;
 
             var velocity       = _playerLocomotion.Velocity;
-            var inputDirection = _playerLocomotion.InputDirection;
             var state          = _playerLocomotion.CurrentState.LocomotionState;
             var isGrounded     = _playerLocomotion.IsGrounded;
 
-            SmoothInputDirection(inputDirection);
+            SmoothInputDirection(velocity);
 
             if (isGrounded != _lastGroundedState)
             {
@@ -130,7 +129,7 @@ namespace _GAME.Scripts.Player.Locomotion
         // === Animation Triggers ===
 
         /// Gọi cho các action kiểu Trigger (Dash/Attack). Chỉ owner gọi.
-        public void SetTrigger(string triggerName)
+        public void SetTrigger(string triggerName) 
         {
             if (!_playerController.IsOwner || _playerController.AnimationSync == null) return;
             

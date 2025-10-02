@@ -16,7 +16,6 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         private InputAction _attackAction;
 
         #region Unity Lifecycle
-        
 
         private void Awake()
         {

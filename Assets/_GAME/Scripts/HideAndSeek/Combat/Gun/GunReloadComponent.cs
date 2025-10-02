@@ -10,6 +10,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         [Header("Reload References")]
         [SerializeField] private GunInputComponent inputComponent;
         [SerializeField] private GunMagazineComponent magazineComponent;
+        [SerializeField] private GunEffectComponent effectComponent;
 
         [Header("Reload Configuration")]
         [SerializeField] private float reloadTime = 2f;
@@ -102,7 +103,11 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
             if (!CanReload())
                 return;
 
-            if (clientSideFXPrediction) OnReloadStarted?.Invoke();
+            if (clientSideFXPrediction)
+            {
+                OnReloadStarted?.Invoke();
+                effectComponent?.PlayReloadSound();
+            }
             RequestStartReloadServerRpc();
         }
 
@@ -151,6 +156,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         {
             if (!clientSideFXPrediction || !IsOwner)
                 OnReloadStarted?.Invoke();
+            if(!IsOwner) effectComponent?.PlayReloadSound();
         }
 
         [ClientRpc]

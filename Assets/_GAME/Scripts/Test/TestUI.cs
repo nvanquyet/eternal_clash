@@ -1,3 +1,4 @@
+using _GAME.Scripts.HideAndSeek;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
@@ -24,6 +25,5 @@ namespace _GAME.Scripts.Test
                  NetworkManager.Singleton.StartClient();
             });
         }
-        
     }
 }

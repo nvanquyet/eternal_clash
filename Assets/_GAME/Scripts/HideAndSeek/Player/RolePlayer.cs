@@ -16,7 +16,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         [SerializeField] protected string playerName = "Player";
 
         // Network Variables - Synchronized across all clients (server-write)
-        protected NetworkVariable<Role> networkRole = new NetworkVariable<Role>(
+        protected readonly NetworkVariable<Role> networkRole = new NetworkVariable<Role>(
             Role.None,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server
@@ -24,7 +24,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         // Local skill management
         protected readonly Dictionary<SkillType, ISkill> Skills = new Dictionary<SkillType, ISkill>();
-        protected readonly Dictionary<SkillType, float> skillCooldowns = new Dictionary<SkillType, float>();
+        private readonly Dictionary<SkillType, float> _skillCooldowns = new Dictionary<SkillType, float>();
 
         protected GameManager GameManager => GameManager.Instance;
         
@@ -177,7 +177,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
             }
 
             Skills.Clear();
-            skillCooldowns.Clear();
+            _skillCooldowns.Clear();
         }
         
 
@@ -199,7 +199,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         protected abstract void InitializeSkills();
         public abstract void UseSkill(SkillType skillType, Vector3? targetPosition = null);
-
+        public abstract void ApplyPenaltyForKillingBot();
         protected virtual void OnRoleInitialized()
         {
             // Override in derived classes
@@ -211,7 +211,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
         /// </summary>
         public override void OnDeath(IAttackable killer)
         {
-            if (IsServer)
+            if (IsServer && Role != Role.Bot)
             {
                 ulong killerId = ResolveKillerClientId(killer);
                 // Thông báo cho GameManager qua event chung
@@ -221,7 +221,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
             base.OnDeath(killer);
         }
 
-        private ulong ResolveKillerClientId(IAttackable killer)
+        protected ulong ResolveKillerClientId(IAttackable killer)
         {
             if (killer == null) return 0UL;
 

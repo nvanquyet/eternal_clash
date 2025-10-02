@@ -5,6 +5,7 @@ using _GAME.Scripts.HideAndSeek.Player;
 using _GAME.Scripts.HideAndSeek.Player.Graphics;
 using _GAME.Scripts.Player.Config;
 using _GAME.Scripts.Player.Locomotion;
+using _GAME.Scripts.UI.Base;
 using Mono.CSharp;
 using Unity.Netcode;
 using Unity.Netcode.Components;
@@ -27,7 +28,6 @@ namespace _GAME.Scripts.Player
         [SerializeField] private PlayerCamera playerCamera;
 
         [SerializeField] private PlayerRoleSO playerRoleSO;
-        [Header("Input")] [SerializeField] private MobileInputBridge playerInput;
 
         [Header("Model Switching")] [SerializeField]
         private PlayerModelSwitcher modelSwitcher;
@@ -38,8 +38,11 @@ namespace _GAME.Scripts.Player
         public PlayerCamera PlayerCamera => playerCamera;
 
         // Core systems
+        private MobileInputBridge _playerInput;
         private PlayerLocomotion _playerLocomotion;
         private PlayerLocomotionAnimator _animationController;
+        
+        private bool _isNetworkInitialized = false;
 
         // Input handling
         private PlayerInputData _lastInputData = PlayerInputData.Empty;
@@ -63,6 +66,7 @@ namespace _GAME.Scripts.Player
                 animationSync = modelSwitcher.GetAnimationSync();
                 modelSwitcher.OnAnimatorChanged += OnAnimatorChanged;
             }
+
             PlayerCamera.DisableAllCams();
         }
 
@@ -83,7 +87,6 @@ namespace _GAME.Scripts.Player
             GameEvent.OnGameEnded += OnGameEnd;
         }
 
-       
 
         public override void OnDestroy()
         {
@@ -99,6 +102,8 @@ namespace _GAME.Scripts.Player
 
         public override void OnNetworkSpawn()
         {
+            if(_isNetworkInitialized) return;
+            _isNetworkInitialized = true;
             InitializeSystems();
             Debug.Log($"🔵 [OnNetworkSpawn] Registering callback for Player {OwnerClientId}");
             _networkRole.OnValueChanged += OnNetworkRoleChanged;
@@ -110,7 +115,7 @@ namespace _GAME.Scripts.Player
             {
                 SetupNonOwner();
             }
-            
+
             GameEvent.OnPlayerDeath += OnPlayerDeath;
 
             base.OnNetworkSpawn();
@@ -126,8 +131,9 @@ namespace _GAME.Scripts.Player
             {
                 modelSwitcher.OnAnimatorChanged -= OnAnimatorChanged;
             }
-            GameEvent.OnPlayerDeath -= OnPlayerDeath;
 
+            GameEvent.OnPlayerDeath -= OnPlayerDeath;
+            _isNetworkInitialized = false;
         }
 
         private void InitializeSystems()
@@ -135,7 +141,7 @@ namespace _GAME.Scripts.Player
             // Initialize systems
             _playerLocomotion = new PlayerLocomotion(playerConfig, characterController, this);
             _animationController =
-                new PlayerLocomotionAnimator(animationSync.GetCurrentAnimator(), _playerLocomotion, this);
+                new PlayerLocomotionAnimator(animationSync.CurrentAnimator, _playerLocomotion, this);
         }
 
         private void SetupOwner()
@@ -143,8 +149,8 @@ namespace _GAME.Scripts.Player
             PlayerCamera.EnableTppCam();
             // Owner có CharacterController để local movement
             if (characterController) characterController.enabled = true;
-
-            playerInput?.SetOwner();
+            if (_playerInput == null) _playerInput = HUD.Instance.GetUI<MobileInputBridge>(UIType.Input);
+            _playerInput?.SetOwner();
         }
 
         private void SetupNonOwner()
@@ -152,8 +158,6 @@ namespace _GAME.Scripts.Player
             PlayerCamera.DisableAllCams();
             // Non-owners tắt CharacterController, để NetworkTransform sync
             if (characterController) characterController.enabled = false;
-
-            playerInput?.SetNonOwner();
         }
 
         #endregion
@@ -193,7 +197,15 @@ namespace _GAME.Scripts.Player
 
         private PlayerInputData GatherInput()
         {
-            return playerInput.GetPlayerInput();
+            if (_playerInput == null)
+                return new PlayerInputData()
+                {
+                    moveInput = Vector2.zero,
+                    jumpPressed = false,
+                    sprintHeld = false,
+                    dashPressed = false
+                };
+            return _playerInput.GetPlayerInput();
         }
 
         #endregion
@@ -213,7 +225,7 @@ namespace _GAME.Scripts.Player
 
         private void RoleAssigned()
         {
-            if(!IsServer) return;
+            if (!IsServer) return;
             Debug.Log($"🟠 [RoleAssigned] Server assigning role for Player {OwnerClientId}");
             var role = GameManager.Instance.GetPlayerRoleWithId(this.OwnerClientId);
             SetRole(role);
@@ -261,7 +273,7 @@ namespace _GAME.Scripts.Player
             Debug.Log(
                 $"🟢 [OnNetworkRoleChanged] CALLBACK TRIGGERED! Client {NetworkManager.Singleton.LocalClientId} - Player {OwnerClientId}: {previousRole} -> {newRole}");
             Debug.Log($"🟢 [OnNetworkRoleChanged] IsServer: {IsServer}, IsClient: {IsClient}");
-            
+
             if (IsServer)
             {
                 Debug.Log($"🟢 [OnNetworkRoleChanged] Server calling SpawnRoleObject for role {newRole}");
@@ -338,7 +350,7 @@ namespace _GAME.Scripts.Player
 
             Debug.Log($"🟣 [SpawnRoleObject] Instantiating prefab {prefab.name}");
             var gO = Instantiate(prefab);
- 
+
             if (gO == null)
             {
                 Debug.LogError($"❌ [SpawnRoleObject] Failed to instantiate prefab!");
@@ -353,7 +365,7 @@ namespace _GAME.Scripts.Player
                 gO.transform.localPosition = Vector3.zero;
                 gO.SetRole(newRole);
             };
-            
+
             Debug.Log($"🟣 [SpawnRoleObject] About to spawn with ownership - Owner: {OwnerClientId}");
 
             try
@@ -362,7 +374,7 @@ namespace _GAME.Scripts.Player
                 gO.NetworkObject.SpawnWithOwnership(OwnerClientId);
                 Debug.Log(
                     $"✅ [SpawnRoleObject] Successfully spawned {gO.name} for Player {OwnerClientId} as {newRole}");
-                
+
                 gO.SetRole(newRole);
                 Debug.Log($"✅ [SpawnRoleObject] Set role on spawned object");
             }
@@ -382,33 +394,32 @@ namespace _GAME.Scripts.Player
         public void EnableSoulMode(bool enable)
         {
             if (!IsOwner) return;
-            playerInput?.gameObject.SetActive(enable);
             if (enable)
             {
                 playerCamera.DisableAllCams();
+                _playerInput?.Hide(null);
             }
             else
             {
                 playerCamera.EnableTppCam();
+                _playerInput?.Show(null);
             }
         }
-        
-        
+
         //Register Event
-        private void OnPlayerDeath(ulong pId)
+        private void OnPlayerDeath(string namePlayer, ulong pId)
         {
-            if(pId != OwnerClientId) return;
+            if (pId != OwnerClientId) return;
             _playerLocomotion.SetFreezeMovement(true);
         }
-        
+
         private void OnGameEnd(Role obj)
         {
             if (IsOwner)
             {
                 //Disable input 
-                playerInput?.gameObject.SetActive(false);
+                _playerInput?.Hide(null);
             }
         }
-        
     }
 }

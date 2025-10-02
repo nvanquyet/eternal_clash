@@ -1,16 +1,9 @@
-using System;
 using _GAME.Scripts.DesignPattern.Interaction;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace _GAME.Scripts.HideAndSeek.Combat.Base
 {
-    /// <summary>
-    /// Projectile dựa trên AAttackable của base:
-    /// - Server-authoritative: di chuyển & lifetime ở server
-    /// - Collision gây damage qua AAttackable.Server_ProcessCollision (đã có sẵn)
-    /// - Lắng nghe OnAttackPerformed để xử lý pierce/hit hooks
-    /// </summary>
     public abstract class AProjectile : AAttackable
     {
         [Header("Projectile Settings")]
@@ -22,7 +15,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         [Header("Physics")]
         [SerializeField] protected bool useGravity = false;
         [SerializeField] protected Rigidbody rb;
-
+        [SerializeField] private float timePlayEffectsOnDestroy = 0.3f;
         protected Vector3 direction;
 
         // Server-only write
@@ -112,6 +105,11 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         /// </summary>
         public virtual void Initialize(Vector3 startPosition, Vector3 shootDirection)
         { 
+            if (!IsServer)
+            {
+                Debug.LogWarning("[AProjectile] Initialize should only be called on server!");
+                return;
+            }
             direction = shootDirection.normalized;
             transform.SetPositionAndRotation(startPosition, Quaternion.LookRotation(direction));
 
@@ -134,20 +132,18 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
 
         private bool IsHitOwner(Collider other)
         {
-            if(other == null) return false;
-            var netOtherObj = other.GetComponent<NetworkObject>();
-            if (netOtherObj == null)
-            {
-                //Try get parent
-                netOtherObj = other.GetComponentInParent<NetworkObject>();
-                if (netOtherObj == null) return false;
-            }
-            if (netOtherObj.OwnerClientId == this.OwnerClientId)
-            {
-                return true;
-            }
-
-            return false;
+            if (other == null) return false;
+    
+            // ✅ Ưu tiên Rigidbody root
+            GameObject go = other.attachedRigidbody 
+                ? other.attachedRigidbody.gameObject 
+                : other.gameObject;
+    
+            var netOtherObj = go.GetComponent<NetworkObject>() 
+                              ?? go.GetComponentInParent<NetworkObject>();
+    
+            if (netOtherObj == null) return false;
+            return netOtherObj.OwnerClientId == this.OwnerClientId;
         }
         
         
@@ -192,6 +188,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
                 currentPierceCount++;
                 // Cho phép va chạm tiếp theo (base đã set hasCollisionAttacked = true trong frame hit)
                 hasCollisionAttacked = false;
+                SetState(InteractionState.Enable);
             }
         }
 
@@ -202,10 +199,15 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         protected virtual void OnLifetimeExpired()
         {
             OnProjectileExpired();
-            DestroyProjectile();
+            DestroyProjectileImmediate();
         }
 
         protected virtual void DestroyProjectile()
+        {
+            Invoke(nameof(DestroyProjectileImmediate), timePlayEffectsOnDestroy);
+        }
+        
+        protected virtual void DestroyProjectileImmediate()
         {
             if (!IsServer) return;
 

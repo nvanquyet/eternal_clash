@@ -15,7 +15,8 @@ namespace _GAME.Scripts.HideAndSeek
     
     public enum Role
     {
-        None,       // Chưa chọn
+        None,  // Chưa chọn
+        Bot,
         Hider,      // Người trốn
         Seeker      // Người tìm
     }
@@ -74,6 +75,7 @@ namespace _GAME.Scripts.HideAndSeek
         bool HasSkillsAvailable { get; }
         
         void UseSkill(SkillType skillType, Vector3? targetPosition = null);
+        void ApplyPenaltyForKillingBot();
     }
     
     public interface IHider : IGamePlayer

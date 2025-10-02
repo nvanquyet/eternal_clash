@@ -15,6 +15,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
     /// </summary>
     public class SeekerPlayer : RolePlayer
     {
+        [SerializeField] private int maxMissfireAllowed = 3;
         [Header("Input References")]
         [SerializeField] private InputActionReference detectSkillRef;
         [SerializeField] private InputActionReference freezeSkillRef;
@@ -95,6 +96,14 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public override void UseSkill(SkillType skillType, Vector3? targetPosition = null)
         {
             //Todo: Call skill use with validation
+        }
+
+        public override void ApplyPenaltyForKillingBot()
+        {
+            if (IsAlive)
+            {
+                TakeDamage(null, MaxHealth * 1.0f / maxMissfireAllowed);
+            }
         }
 
         #endregion

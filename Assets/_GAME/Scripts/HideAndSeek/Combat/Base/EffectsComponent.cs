@@ -1,4 +1,5 @@
-﻿using Unity.Netcode;
+﻿using _GAME.Scripts.Controller;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -13,8 +14,8 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         private AudioSource attackAudioSource;
 
         [SerializeField] private AudioClip[] attackSounds;
+        [SerializeField] private AudioClip reloadSounds;
         [SerializeField] private AudioClip emptySound;
-        [SerializeField] private float attackVolume = 1f;
         
         public bool IsInitialized { get; private set; }
 
@@ -32,7 +33,8 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         {   
             if (attackEffect != null)
             {
-                attackEffect.Play();
+                if(attackEffect.gameObject.activeSelf) attackEffect.Play();
+                else attackEffect.gameObject.SetActive(true);
             }
         }
 
@@ -40,7 +42,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         {
             if (attackAudioSource != null && emptySound != null)
             {
-                attackAudioSource.PlayOneShot(emptySound, attackVolume);
+                AudioManager.Instance.PlaySfx(attackAudioSource, emptySound);
             }
         }
 
@@ -49,7 +51,15 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             if (attackAudioSource != null && attackSounds.Length > 0)
             {
                 var clip = attackSounds[Random.Range(0, attackSounds.Length)];
-                attackAudioSource.PlayOneShot(clip, attackVolume);
+                AudioManager.Instance.PlaySfx(attackAudioSource, clip);
+            }
+        }
+        
+        public void PlayReloadSound()
+        {
+            if (attackAudioSource != null && reloadSounds != null)
+            {
+                AudioManager.Instance.PlaySfx(attackAudioSource, reloadSounds);
             }
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.UI;
@@ -14,6 +15,9 @@ namespace _GAME.Scripts.HideAndSeek.UI
         [SerializeField] Button btnContinue;
         [SerializeField] TextMeshProUGUI resultText;
 
+        
+        private Coroutine _gameEndCoroutine;
+        
         private void Start()
         {
             GameEvent.OnGameEnded += OnGameEnded;
@@ -26,17 +30,28 @@ namespace _GAME.Scripts.HideAndSeek.UI
         private void OnDestroy()
         {
             GameEvent.OnGameEnded -= OnGameEnded;
+            btnContinue.onClick.RemoveAllListeners();
+            if(_gameEndCoroutine != null) StopCoroutine(_gameEndCoroutine);
+            _gameEndCoroutine = null;
         }
 
         private void OnGameEnded(Role obj)
         {
+            if(_gameEndCoroutine != null) StopCoroutine(_gameEndCoroutine);
+            _gameEndCoroutine = StartCoroutine(IEGameEnd(obj));
+        }
+        
+        
+        private IEnumerator IEGameEnd(Role winner)
+        {
+            yield return new WaitForSeconds(3f);
             Show(null, true);
             var ownerRole = GameManager.Instance.GetPlayerRoleWithId(PlayerIdManager.LocalClientId);
-            if (obj == Role.None)
+            if (winner == Role.None)
             {
                 resultText.text = "Game Ended in a Draw!";
             }
-            else if (obj == ownerRole)
+            else if (winner == ownerRole)
             {
                 resultText.text = "You Win!";
             }
@@ -45,9 +60,10 @@ namespace _GAME.Scripts.HideAndSeek.UI
                 resultText.text = "You Lose!";
             }
 
-            //Auto call continue after 5 seconds
-            Invoke(nameof(OnClickContinue), 5f);
+            yield return new WaitForSeconds(5f);
+            OnClickContinue();
         }
+        
 
         private void OnClickContinue()
         {

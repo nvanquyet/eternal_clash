@@ -76,10 +76,11 @@ MonoBehaviour:
   entityId: 
   isActive: 1
   interactionCollider: {fileID: 0}
-  maxHealth: 100
+  maxHealth: 20
   defenseValue: 0
   isInvulnerable: 0
   playerName: Player
+  maxMissfireAllowed: 3
   detectSkillRef: {fileID: 0}
   freezeSkillRef: {fileID: 0}
   rushSkillRef: {fileID: 0}

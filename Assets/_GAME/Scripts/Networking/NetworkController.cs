@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using _GAME.Scripts.Config;
 using _GAME.Scripts.Controller;
 using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.Networking.Relay;
@@ -625,7 +626,8 @@ namespace _GAME.Scripts.Networking
                 Debug.LogWarning("[NetworkController] Only host can start the game");
                 return;
             }
-
+            //Change lobby to Ingame
+            _ = GameNet.Instance.Lobby.SetLobbyPhaseAsync(SessionPhase.PLAYING);
             Debug.Log("[NetworkController] Starting game...");
             SceneLoadingBroadcaster.Instance?.PreShowAllClients("Switching to gameplay...");
             _ = LoadSceneAsync(SceneDefinitions.GameScene, null, LoadSceneMode.Single);

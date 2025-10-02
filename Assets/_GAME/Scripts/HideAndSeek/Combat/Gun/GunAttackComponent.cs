@@ -13,6 +13,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         [Header("Refs")]
         [SerializeField] private GunInputComponent inputComponent;
         [SerializeField] private GunMagazineComponent magazineComponent;
+        [SerializeField] private GunReloadComponent gunReloadComponent;
         [SerializeField] private EffectsComponent effectsComponent;
         [SerializeField] private WeaponInteraction weaponInteraction;
 
@@ -28,21 +29,21 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         {
             get
             {
-                if (magazineComponent != null && !magazineComponent.HasAmmo) return false;
+                if (magazineComponent != null && !magazineComponent.HasAmmo && gunReloadComponent.IsReloading) return false;
                 return LocalCooldownReady; // note: this is server time replicated → an toàn cho client check “gần đúng”
             }
         }
 
         public override void Initialize()
         {
-            base.Initialize();
-
             if (firePoint == null) firePoint = transform;
-
+            Debug.Log($"[GunAttack] Prepare Subscribe OnAttackPerformed");
             if (inputComponent != null)
             {
+                Debug.Log($"[GunAttack] Subscribe OnAttackPerformed");
                 inputComponent.OnAttackPerformed += OnLocalAttackInput;
             }
+            base.Initialize();
         }
 
         public override void Cleanup()
@@ -128,7 +129,7 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
         {
             var now = NetworkManager.ServerTime.Time;
             if (now < LastFireServerTime.Value + TimeBetweenShots) return false;
-            if (magazineComponent != null && !magazineComponent.HasAmmo) return false;
+            // Bỏ check HasAmmo ở đây, để TryConsumeAmmo tự kiểm tra atomic
             return true;
         }
 
@@ -157,14 +158,14 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Gun
             if (clientSideFXPrediction && IsOwner) return;
 
             effectsComponent?.PlayAttackEffects();
-            effectsComponent?.PlayAttackSound();
+            if(!IsOwner) effectsComponent?.PlayAttackSound();
         }
 
         [ClientRpc]
         private void PlayEmptyClientRpc()
         {
             // Có thể điều kiện hóa: chỉ gửi về owner, nhưng đơn giản phát cho tất cả thấy “click”
-            if (IsOwner) effectsComponent?.PlayEmptySound();
+            if (!IsOwner) effectsComponent?.PlayEmptySound();
         }
 
         // Xác thực: clientId có phải owner của vũ khí này không?

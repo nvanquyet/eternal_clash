@@ -221,7 +221,7 @@ namespace _GAME.Scripts.Player.Locomotion
         
         private float ValidateSpeed(float speed)
         {
-            if (_isFreezeMovement) return 0f;
+            if (IsFreezeMovement) return 0f;
             return speed;
         }
         #endregion

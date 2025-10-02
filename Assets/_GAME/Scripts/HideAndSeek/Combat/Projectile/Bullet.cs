@@ -1,4 +1,6 @@
-﻿using _GAME.Scripts.DesignPattern.Interaction;
+﻿using System;
+using _GAME.Scripts.Controller;
+using _GAME.Scripts.DesignPattern.Interaction;
 using _GAME.Scripts.HideAndSeek.Combat.Base;
 using Unity.Netcode;
 using UnityEngine;
@@ -8,15 +10,23 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Projectile
     public class Bullet : AProjectile
     {
         [Header("Bullet Visual Effects")]
+        [SerializeField] private ParticleSystem mainEffect;
         [SerializeField] private ParticleSystem hitEffect;
         [SerializeField] private ParticleSystem trailEffect;
-        [SerializeField] private GameObject impactDecal;
 
         [Header("Bullet Audio")]
         [SerializeField] private AudioClip hitSound;
         [SerializeField] private AudioClip flybySound;
         [SerializeField] private AudioSource audioSource;
 
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            audioSource = GetComponent<AudioSource>();
+        }
+#endif
+        
+        
         protected override void Awake()
         {
             base.Awake();
@@ -26,16 +36,14 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Projectile
         public override bool Interact(IInteractable target) => false;
 
         public override void OnInteracted(IInteractable initiator) { }
+        
         protected override void OnProjectileSpawned()
         {
             // VFX bay
             if (trailEffect != null) trailEffect.Play();
-
+            if(mainEffect) mainEffect.gameObject.SetActive(true);
             // SFX bay
-            if (audioSource != null && flybySound != null)
-            {
-                audioSource.PlayOneShot(flybySound);
-            }
+            PlayAudio(audioSource, flybySound);
         }
 
         protected override void OnHitTarget(IDefendable target, float damage)
@@ -81,60 +89,39 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Projectile
         [ClientRpc]
         private void OnHitTargetClientRpc(Vector3 hitPosition, Quaternion hitRotation)
         {
-            PlayHitEffects(hitPosition, hitRotation, true);
+            PlayHitEffects();
         }
 
         [ClientRpc]
         private void OnHitObstacleClientRpc(Vector3 hitPosition, Quaternion hitRotation, string obstacleName)
         {
-            PlayHitEffects(hitPosition, hitRotation, false);
+            PlayHitEffects();
         }
 
-        private void PlayHitEffects(Vector3 position, Quaternion rotation, bool isTarget)
+        private void PlayHitEffects()
         {
+            if(mainEffect) mainEffect.gameObject.SetActive(false);
             // Particle va chạm
             if (hitEffect != null)
             {
-                var fx = Instantiate(hitEffect, position, rotation);
-                fx.Play();
-                Destroy(fx.gameObject, 3f);
-            }
-
-            // Decal chỉ với obstacle (không phải entity)
-            if (!isTarget && impactDecal != null)
-            {
-                var decal = Instantiate(impactDecal, position, rotation);
-                Destroy(decal, 10f);
+                if(hitEffect.gameObject.activeSelf) hitEffect.Play();
+                else hitEffect.gameObject.SetActive(true);
             }
 
             // Âm thanh va chạm
-            if (hitSound != null) PlayHitAudio(position);
+            PlayHitAudio();
         }
 
-        private void PlayHitAudio(Vector3 position)
+        private void PlayHitAudio()
         {
-            var go = new GameObject("BulletHitAudio");
-            go.transform.position = position;
-            var src = go.AddComponent<AudioSource>();
-
-            // Copy cấu hình cơ bản
-            if (audioSource != null)
-            {
-                src.volume = audioSource.volume;
-                src.pitch = audioSource.pitch;
-                src.spatialBlend = audioSource.spatialBlend;
-                src.rolloffMode = audioSource.rolloffMode;
-                src.maxDistance = audioSource.maxDistance;
-                src.minDistance = audioSource.minDistance;
-            }
-
-            src.clip = hitSound;
-            src.Play();
-
-            float cleanup = hitSound ? Mathf.Max(0.1f, hitSound.length + 0.5f) : 2f;
-            Destroy(go, cleanup);
+            PlayAudio(audioSource, hitSound);
         }
 
+        private void PlayAudio(AudioSource source, AudioClip clip)
+        {
+            //Call audio manager
+            AudioManager.Instance.PlaySfx(source, clip);
+        }
         #endregion
     }
 }

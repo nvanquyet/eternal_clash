@@ -46,14 +46,15 @@ namespace _GAME.Scripts.UI.Home
                 
                 //Hide Loading
                 LoadingUI.Instance.Complete();
+                
+                AudioManager.Instance.PlayMenuMusic();
             }
             catch (Exception e)
             {
+                //Force quit
+                //Application.Quit();
                 Debug.LogError($"Failed to init Unity Services: {e}");
-            }
-            
-            
-           
+            }    
         }
 
         private void OnClickLogout()

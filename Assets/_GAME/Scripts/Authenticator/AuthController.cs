@@ -30,6 +30,9 @@ namespace _GAME.Scripts.Authenticator
         {
             //Hide loading UI if any
             LoadingUI.Instance.Complete();
+            
+            //PlayMusic
+            AudioManager.Instance.PlayMenuMusic();
         }
 
         private void OnDestroy()

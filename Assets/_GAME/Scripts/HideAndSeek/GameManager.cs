@@ -7,6 +7,7 @@ using _GAME.Scripts.Core;
 using _GAME.Scripts.HideAndSeek.Config;
 using _GAME.Scripts.HideAndSeek.Util;
 using _GAME.Scripts.Networking;
+using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.Player;
 using GAME.Scripts.DesignPattern;
 using UnityEngine;
@@ -24,6 +25,7 @@ namespace _GAME.Scripts.HideAndSeek
         [Header("References")] 
         [SerializeField] private TimeCountDown timeCountDown;
         [SerializeField] private SpawnerController spawnerController;
+        [SerializeField] private List<SpawnerObject> spawnObjets;
 
         // Network Variables
         private NetworkVariable<GameState> _gameState = new(GameState.PreparingGame);
@@ -82,6 +84,7 @@ namespace _GAME.Scripts.HideAndSeek
                 }
 
                 GameEvent.OnPlayerKilled += OnPlayerDeathRequested;
+                GameEvent.OnBotKilled += OnBotKilled;
                 Debug.Log($"[GameManager] Client {NetworkManager.Singleton.LocalClientId} initialized.");
             }
             catch (Exception e)
@@ -104,6 +107,8 @@ namespace _GAME.Scripts.HideAndSeek
                 }
 
                 GameEvent.OnPlayerKilled -= OnPlayerDeathRequested;
+                GameEvent.OnBotKilled -= OnBotKilled;
+
                 ClearAllLocalCaches();
                 _serverPlayers.Clear();
             }
@@ -134,6 +139,8 @@ namespace _GAME.Scripts.HideAndSeek
                 case GameState.Playing:
                     Debug.Log("[GameManager] Game started!");
                     GameEvent.OnGameStarted?.Invoke();
+                    //Play game music
+                    AudioManager.Instance.PlayGamePlayMusic();
                     break;
 
                 case GameState.GameEnded:
@@ -209,6 +216,11 @@ namespace _GAME.Scripts.HideAndSeek
         private IEnumerator IESpawnObjectAndStartPlaying()
         {
             //Spawn Item Object or Spawn Task...
+            foreach (var s in spawnObjets)
+            {
+                s.SpawnObject();
+                yield return null;
+            }
             yield return new WaitForSeconds(3f);
             StartPlayingPhase();
             spawnObjectRoutine = null;
@@ -237,6 +249,17 @@ namespace _GAME.Scripts.HideAndSeek
                 _serverPlayers.TryGetValue(victimId, out var victim))
             {
                 ProcessPlayerDeath(killer, victim);
+            }
+        }
+
+        private void OnBotKilled(ulong killerId)
+        {
+            if (!IsServer) return;
+
+            if (_serverPlayers.TryGetValue(killerId, out var killer))
+            {
+                if(killer.role != Role.Seeker) return;
+                ProcessBotDeath(killer);
             }
         }
 
@@ -373,7 +396,24 @@ namespace _GAME.Scripts.HideAndSeek
                 Debug.LogError($"[GameManager] Server: Error processing player death: {e.Message}");
             }
         }
+        private void ProcessBotDeath(NetworkPlayerData killer)
+        {
+            if (!IsServer) return;
+            try
+            {
+                Debug.Log($"[GameManager] Server: Seeker {killer.clientId} killed a Bot");
 
+                // Give penalty to seeker
+                if (_allPlayersBehaviour.TryGetValue(killer.clientId, out var playerBehavior))
+                {
+                    playerBehavior.ApplyPenaltyForKillingBot();
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[GameManager] Server: Error processing player death: {e.Message}");
+            }
+        }
         /// <summary>
         /// Server: Check if any team has won
         /// </summary>
@@ -582,7 +622,9 @@ namespace _GAME.Scripts.HideAndSeek
         [ClientRpc]
         private void NotifyPlayerKilledClientRpc(ulong killerId, ulong victimId)
         {
-            GameEvent.OnPlayerDeath?.Invoke(victimId);
+            //Get name of victim
+            var lobby = GameNet.Instance.GetPlayerWithClientId(victimId);
+            GameEvent.OnPlayerDeath?.Invoke(lobby.GetPlayerDisplayName(), victimId);
             Debug.Log($"[GameManager] Player {victimId} has caught by Player {killerId}");
         }
 

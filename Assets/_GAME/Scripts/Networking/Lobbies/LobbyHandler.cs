@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using _GAME.Scripts.Config;
 using _GAME.Scripts.Data;
+using _GAME.Scripts.UI;
 using Unity.Services.Authentication;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
@@ -95,6 +96,7 @@ namespace _GAME.Scripts.Networking.Lobbies
             catch (LobbyServiceException e)
             {
                 Debug.LogError($"[LobbyHandler] CreateLobby failed: {e.Reason} - {e.Message}");
+                LoadingUI.Instance.Complete();
                 LobbyEvents.TriggerLobbyCreated(null, false, e.Message);
                 return null;
             }

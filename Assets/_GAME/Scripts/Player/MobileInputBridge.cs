@@ -1,10 +1,11 @@
-﻿using UnityEngine;
+﻿using _GAME.Scripts.UI.Base;
+using UnityEngine;
 using UnityEngine.InputSystem;
 using _GAME.Scripts.Utils;
 
 namespace _GAME.Scripts.Player
 {
-    public class MobileInputBridge : MonoBehaviour
+    public class MobileInputBridge : BaseUI
     {
         [SerializeField] private bool usingJoystick = false;
         [SerializeField] private Joystick joystick;
@@ -97,23 +98,7 @@ namespace _GAME.Scripts.Player
             _acceptInput = true;
             _isOwner = true;
             EnableActions();
-            gameObject.SetActive(true);
-            
-            Debug.Log($"[MobileInputBridge] Instance {GetInstanceID()} set as OWNER");
-        }
-
-        public void SetNonOwner()
-        {
-            _acceptInput = false;
-            _isOwner = false;
-            DisableActions();
-            gameObject.SetActive(false);
-            
-            // Clear states
-            _jumpOneShot = _dashOneShot = false;
-            _runHeld = false;
-            
-            Debug.Log($"[MobileInputBridge] Instance {GetInstanceID()} set as NON-OWNER");
+            Show(null);
         }
 
         public PlayerInputData GetPlayerInput()

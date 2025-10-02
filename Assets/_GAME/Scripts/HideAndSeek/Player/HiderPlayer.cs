@@ -17,16 +17,17 @@ namespace _GAME.Scripts.HideAndSeek.Player
     /// </summary>
     public class HiderPlayer : RolePlayer
     {
-        [Header("Hider Settings")] 
-        [SerializeField] private SoulModeController soulModeCtrl;
+        [Header("Hider Settings")] [SerializeField]
+        private SoulModeController soulModeCtrl;
 
-        [Header("Input References")]
-        [SerializeField] private InputActionReference toggleSoulModeRef;
+        [Header("Input References")] [SerializeField]
+        private InputActionReference toggleSoulModeRef;
 
         // Input Actions
         private InputAction toggleSoulModeAction;
 
         #region IGamePlayer Implementation
+
         public override bool HasSkillsAvailable => Skills.Values.Any(s => s.CanUse) && IsAlive;
 
         #endregion
@@ -76,7 +77,9 @@ namespace _GAME.Scripts.HideAndSeek.Player
             //Todo: Implement skill use with validation
         }
 
-        #endregion
+        public override void ApplyPenaltyForKillingBot() { }
+
+    #endregion
 
         #region Input System
 
@@ -169,7 +172,7 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
         public override void OnDeath(IAttackable killer)
         {
-            ActiveCage(true);
+            //ActiveCage(true);
             base.OnDeath(killer);
         }
 

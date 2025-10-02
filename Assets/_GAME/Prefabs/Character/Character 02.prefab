@@ -1493,7 +1493,7 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.16645266
+  m_Radius: 0.25
   m_Height: 1.8144727
   m_Direction: 1
   m_Center: {x: -0.009624824, y: 0.93038607, z: 0}
@@ -1520,6 +1520,7 @@ MonoBehaviour:
     specialEffectId: 
   showDebugGizmos: 1
   debugColor: {r: 1, g: 0, b: 0, a: 1}
+  _hitboxCollider: {fileID: 0}
 --- !u!114 &6674277020131975406
 MonoBehaviour:
   m_ObjectHideFlags: 0

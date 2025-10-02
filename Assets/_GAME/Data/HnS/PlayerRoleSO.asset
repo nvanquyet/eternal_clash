@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: PlayerRoleSO
   m_EditorClassIdentifier: 
   data:
-  - Role: 1
+  - Role: 2
     Description: 
     Prefab: {fileID: 8308748448608612110, guid: 1a25d9edeada38d4d8df20331620d669, type: 3}
-  - Role: 2
+  - Role: 3
     Description: 
     Prefab: {fileID: 9108325984744129896, guid: c04b2a2e865a06d4e8e6ed5a4911ca25, type: 3}

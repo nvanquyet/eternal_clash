@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using _GAME.Scripts.HideAndSeek;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -569,7 +570,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Server);
 
-        // Cache trước spawn
+        // ✅ FIX: Pre-spawn damage cache
         private float? pendingDamage = null;
         private bool damageInitialized = false;
 
@@ -591,23 +592,30 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+            
+            // ✅ FIX: Initialize damage on server spawn
             if (IsServer && !damageInitialized)
             {
                 networkBaseDamage.Value = pendingDamage ?? baseDamage;
                 damageInitialized = true;
+                pendingDamage = null; // Clear cache
             }
         }
 
-        // Damage management
+        // ✅ FIX: Improved SetBaseDamage with clear error message
+        /// <summary>
+        /// Set damage BEFORE spawning. After spawn, use UpdateBaseDamageServerRpc instead.
+        /// </summary>
         public virtual void SetBaseDamage(float damage)
         {
             if (IsSpawned)
             {
+                Debug.LogError(
+                    $"[AAttackable] {name}: Cannot use SetBaseDamage after spawn! Use UpdateBaseDamageServerRpc() instead.");
                 return;
             }
 
             pendingDamage = damage;
-            Debug.Log($"[AAttackable-SetBaseDamage] {name} Pending damage set: {damage}");
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -615,19 +623,12 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         {
             if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
             networkBaseDamage.Value = Mathf.Max(0f, newDamage);
-            Debug.Log($"[AAttackable-UpdateBaseDamageServerRpc] {name} Updated damage: {networkBaseDamage.Value}");
         }
 
         // Active Attack
         public virtual bool Attack(IDefendable target)
         {
-            Debug.Log($"[AAttackable-Attack] {name} Attacking target, IsServer: {IsServer}, IsOwner: {IsOwner}");
-
-            if (target == null)
-            {
-                Debug.Log($"[AAttackable-Attack] {name} Target is NULL");
-                return false;
-            }
+            if (target == null) return false;
 
             if (IsServer) return Server_AttemptAttack(target);
 
@@ -643,73 +644,33 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         [ServerRpc(RequireOwnership = false)]
         protected virtual void AttackServerRpc(NetworkObjectReference targetRef, ServerRpcParams rpc = default)
         {
-            Debug.Log($"[AAttackable-AttackServerRpc] {name} Received attack RPC");
-
             if (!ValidateRpcSender(rpc.Receive.SenderClientId)) return;
 
-            if (!targetRef.TryGet(out var targetNob))
-            {
-                Debug.Log($"[AAttackable-AttackServerRpc] {name} Failed to get target NetworkObject");
-                return;
-            }
-
-            if (!targetNob.TryGetComponent<IDefendable>(out var target))
-            {
-                Debug.Log($"[AAttackable-AttackServerRpc] {name} Target has no IDefendable");
-                return;
-            }
+            if (!targetRef.TryGet(out var targetNob)) return;
+            if (!targetNob.TryGetComponent<IDefendable>(out var target)) return;
 
             Server_AttemptAttack(target);
         }
 
         private bool Server_AttemptAttack(IDefendable target)
         {
-            Debug.Log($"[AAttackable-Server_AttemptAttack] {name} START");
+            if (!IsServer) return false;
 
-            if (!IsServer)
-            {
-                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} FAILED - Not server");
-                return false;
-            }
-
-            // Thread-safe attack validation
-            if (!CanAttack)
-            {
-                Debug.Log(
-                    $"[AAttackable-Server_AttemptAttack] {name} FAILED - CanAttack: {CanAttack}, IsAttacking");
-                return false;
-            }
-
-            if (target == null || !target.IsAlive)
-            {
-                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} FAILED - Target null or dead");
-                return false;
-            }
-
-            if (!IsInAttackRange(target))
-            {
-                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} FAILED - Out of range");
-                return false;
-            }
+            // ✅ Thread-safe attack validation
+            if (!CanAttack) return false;
+            if (target == null || !target.IsAlive) return false;
+            if (!IsInAttackRange(target)) return false;
 
             var targetMb = target as MonoBehaviour;
-            if (!IsValidTargetGO(targetMb ? targetMb.gameObject : null))
-            {
-                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} FAILED - Invalid target GO");
-                return false;
-            }
+            if (!IsValidTargetGO(targetMb ? targetMb.gameObject : null)) return false;
 
             // Lock attack state
             SetState(InteractionState.Disabled);
-            Debug.Log($"[AAttackable-Server_AttemptAttack] {name} Attack locked, processing...");
 
             try
             {
                 float damage = CalculateDamage(target);
-                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} Calculated damage: {damage}");
-
                 float appliedDamage = target.TakeDamage(this, damage, primaryDamageType);
-                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} Applied damage: {appliedDamage}");
 
                 networkNextAttackServerTime.Value = NetworkManager.Singleton.ServerTime.Time + attackCooldown;
 
@@ -721,25 +682,22 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 };
                 OnAttackFeedbackClientRpc(appliedDamage, p);
 
-                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} SUCCESS - Damage: {appliedDamage}");
                 return appliedDamage > 0f;
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[AAttackable-Server_AttemptAttack] {name} ERROR: {ex.Message}\n{ex.StackTrace}");
+                Debug.LogError($"[AAttackable] {name} Attack error: {ex.Message}");
                 return false;
             }
             finally
             {
                 SetState(InteractionState.Enable);
-                Debug.Log($"[AAttackable-Server_AttemptAttack] {name} Attack unlocked");
             }
         }
 
         [ClientRpc]
         protected virtual void OnAttackFeedbackClientRpc(float actualDamage, ClientRpcParams p = default)
         {
-            Debug.Log($"[AAttackable-OnAttackFeedbackClientRpc] {name} Received feedback: {actualDamage}");
             OnAttackFeedbackLocal(actualDamage);
         }
 
@@ -748,101 +706,48 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
         public virtual float CalculateDamage(IDefendable target) => BaseDamage;
 
-        // Collision Attack (server-authority)
+        // ✅ Collision Attack (server-authority)
         protected virtual void OnTriggerEnter(Collider other)
         {
-            if (!IsServer)
-            {
-                Debug.Log($"[AAttackable-OnTriggerEnter] {name} SKIPPED - Not server");
-                return;
-            }
-            
-            Debug.Log($"[AAttackable-OnTriggerEnter] {name} triggered by: {other.name}");
-
-            if (!enableCollisionAttack || hasCollisionAttacked || !CanAttack)
-            {
-                Debug.Log($"[AAttackable-OnTriggerEnter] {name} SKIPPED - Conditions not met");
-                return;
-            }
-
-
+            if (!IsServer || !enableCollisionAttack || hasCollisionAttacked || !CanAttack) return;
             Server_ProcessCollision(other);
         }
 
         protected virtual void OnCollisionEnter(Collision collision)
         {
-            
-            if (!IsServer)
-            {
-                Debug.Log($"[AAttackable-OnCollisionEnter] {name} SKIPPED - Not server");
-                return;
-            }
-            
-            if (!enableCollisionAttack || hasCollisionAttacked || !CanAttack)
-            {
-                Debug.Log($"[AAttackable-OnCollisionEnter] {name} SKIPPED - Conditions not met");
-                return;
-            }
-
+            if (!IsServer || !enableCollisionAttack || hasCollisionAttacked || !CanAttack) return;
             Server_ProcessCollision(collision.collider);
         }
 
         protected virtual void Server_ProcessCollision(Collider other)
         {
-            if (other == null)
-            {
-                Debug.Log(
-                    $"[AAttackable-Server_ProcessCollision] {name} FAILED - Other null: {other == null}");
-                return;
-            }
+            if (other == null) return;
 
             var go = other.attachedRigidbody ? other.attachedRigidbody.gameObject : other.gameObject;
+            if (go == null || go == this.gameObject) return;
 
-            if (go == null || go == this.gameObject)
+            if (!IsValidTargetGO(go))
             {
-                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} FAILED - GO is null or self");
-                return;
-            }
-
-            bool isValid = IsValidTargetGO(go);
-            Debug.Log($"[AAttackable-Server_ProcessCollision] {name} IsValidTarget: {isValid}");
-
-            if (!isValid)
-            {
-                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Calling OnHitInvalidTarget");
                 OnHitInvalidTarget(other);
                 return;
             }
 
-            bool hasDefendable = go.TryGetComponent<IDefendable>(out var target);
-            Debug.Log($"[AAttackable-Server_ProcessCollision] {name} HasDefendable: {hasDefendable}");
-
-            if (!hasDefendable)
+            if (!go.TryGetComponent<IDefendable>(out var target))
             {
                 OnHitNonDefendableTarget(other);
                 return;
             }
 
-            Debug.Log(
-                $"[AAttackable-Server_ProcessCollision] {name} Target IsAlive: {target.IsAlive}, InRange: {IsInAttackRange(target)}");
+            if (!target.IsAlive) return;
 
-            if (!target.IsAlive) // !IsInAttackRange(target))
-            {
-                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} FAILED - Target dead or out of range");
-                return;
-            }
-
+            // ✅ Mark as attacked FIRST to prevent multi-hit
             hasCollisionAttacked = true;
             SetState(InteractionState.Disabled);
-            Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Collision attack locked, processing damage...");
 
             try
             {
                 float damage = CalculateDamage(target);
-                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Calculated damage: {damage}");
-
                 float actualDamage = target.TakeDamage(this, damage, primaryDamageType);
-                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Actual damage: {actualDamage}");
 
                 networkNextAttackServerTime.Value = NetworkManager.Singleton.ServerTime.Time + attackCooldown;
 
@@ -851,92 +756,69 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
                 if (destroyAfterCollisionAttack)
                 {
-                    Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Calling HandleDestruction");
                     HandleDestruction();
                 }
                 else
                 {
                     SetState(InteractionState.Enable);
-                    Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Re-enabled for next attack");
                 }
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[AAttackable-Server_ProcessCollision] {name} ERROR: {ex.Message}\n{ex.StackTrace}");
+                Debug.LogError($"[AAttackable] {name} Collision attack error: {ex.Message}");
                 SetState(InteractionState.Enable);
-            }
-            finally
-            {
-                Debug.Log($"[AAttackable-Server_ProcessCollision] {name} Collision attack unlocked");
             }
         }
 
         protected virtual bool IsValidTargetGO(GameObject target)
         {
-            Debug.Log($"[AAttackable-IsValidTargetGO] {name} Checking target: {target?.name}");
-
-            if (target == null)
-            {
-                Debug.Log($"[AAttackable-IsValidTargetGO] {name} FAILED - Target is null");
-                return false;
-            }
+            if (target == null) return false;
 
             // Layer check
             int targetLayerMask = 1 << target.layer;
-            bool layerMatch = (targetLayerMask & attackableLayers) != 0;
-            Debug.Log(
-                $"[AAttackable-IsValidTargetGO] {name} Layer check - Target layer: {LayerMask.LayerToName(target.layer)}, Match: {layerMatch}");
-
-            if (!layerMatch)
-            {
-                Debug.Log($"[AAttackable-IsValidTargetGO] {name} FAILED - Layer mismatch");
-                return false;
-            }
+            if ((targetLayerMask & attackableLayers) == 0) return false;
 
             // Tag check
             if (attackableTags != null && attackableTags.Length > 0)
             {
-                bool tagOk = false;
+                bool tagMatched = false;
                 for (int i = 0; i < attackableTags.Length; i++)
                 {
                     if (target.CompareTag(attackableTags[i]))
                     {
-                        tagOk = true;
-                        Debug.Log($"[AAttackable-IsValidTargetGO] {name} Tag matched: {attackableTags[i]}");
+                        tagMatched = true;
                         break;
                     }
                 }
 
-                if (!tagOk)
-                {
-                    Debug.Log(
-                        $"[AAttackable-IsValidTargetGO] {name} FAILED - Tag mismatch. Target tag: {target.tag}, Expected: {string.Join(", ", attackableTags)}");
-                    return false;
-                }
+                if (!tagMatched) return false;
             }
 
-            // Self-attack prevention
+            // ✅ Self-attack prevention
             if (target.TryGetComponent<NetworkObject>(out var nob))
             {
-                bool isSameOwner = nob.OwnerClientId == OwnerClientId;
-                Debug.Log(
-                    $"[AAttackable-IsValidTargetGO] {name} Owner check - Target owner: {nob.OwnerClientId}, My owner: {OwnerClientId}, IsSame: {isSameOwner}");
-
-                if (isSameOwner)
-                {
-                    Debug.Log($"[AAttackable-IsValidTargetGO] {name} FAILED - Same owner (self-attack prevention)");
-                    return false;
-                }
+                if (nob.OwnerClientId == OwnerClientId) return false;
             }
 
-            Debug.Log($"[AAttackable-IsValidTargetGO] {name} SUCCESS - Target is valid");
+            
+            if (target.transform.root.TryGetComponent<IGamePlayer>(out var targetPlayer))
+            {
+                if (target.transform.root.TryGetComponent<IGamePlayer>(out var selfPlayer))
+                {
+                    // Same role = friendly fire
+                    if (targetPlayer.Role == selfPlayer.Role && 
+                        targetPlayer.Role != Role.None)
+                    {
+                        return false; // Block damage giữa cùng team
+                    }
+                }
+            }
             return true;
         }
 
         // Hooks để override
         protected virtual void OnAttackFeedbackLocal(float actualDamage)
         {
-            Debug.Log($"[AAttackable-OnAttackFeedbackLocal] {name} Feedback: {actualDamage}");
         }
 
         protected abstract void OnHitInvalidTarget(Collider other);
@@ -974,21 +856,44 @@ namespace _GAME.Scripts.DesignPattern.Interaction
                 NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Server);
 
-        // Sync death state properly
+        // ✅ Sync death state properly
         protected NetworkVariable<bool> networkIsDead =
             new NetworkVariable<bool>(
                 false,
                 NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Server);
 
+        // ✅ FIX: Pre-spawn health cache
+        private float? pendingMaxHealth = null;
+        private float? pendingCurrentHealth = null;
+        private bool healthInitialized = false;
+
         public virtual float CurrentHealth => networkCurrentHealth.Value;
         public float MaxHealth => maxHealth;
         public float DefenseValue => defenseValue;
-        public virtual bool IsAlive => networkCurrentHealth.Value > 0f && !networkIsDead.Value;
+        
+        // ✅ FIX: Proper IsAlive check using death flag first
+        public virtual bool IsAlive => !networkIsDead.Value && networkCurrentHealth.Value > 0f;
         public bool IsInvulnerable => networkIsInvulnerable.Value;
 
         public event Action<float, float> OnHealthChanged; // (current, max)
         public event Action<IDefendable, IAttackable> OnDied; // (self, killer)
+
+        /// <summary>
+        /// Set health BEFORE spawning. Call this before NetworkObject.Spawn()
+        /// </summary>
+        public void SetInitialHealth(float current, float max)
+        {
+            if (IsSpawned)
+            {
+                Debug.LogError(
+                    $"[ADefendable] {name}: Cannot use SetInitialHealth after spawn! Use Heal() or damage system instead.");
+                return;
+            }
+
+            pendingCurrentHealth = current;
+            pendingMaxHealth = max;
+        }
 
         public override void OnNetworkSpawn()
         {
@@ -998,13 +903,21 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             networkIsInvulnerable.OnValueChanged += OnInvulnerabilityNetworkChanged;
             networkIsDead.OnValueChanged += OnDeathStateNetworkChanged;
 
-            if (IsServer)
+            if (IsServer && !healthInitialized)
             {
-                // Initialize health properly
-                var initHealth = networkCurrentHealth.Value <= 0 ? maxHealth : networkCurrentHealth.Value;
-                networkCurrentHealth.Value = Mathf.Clamp(initHealth, 0f, maxHealth);
+                // ✅ FIX: Proper health initialization with cache support
+                float finalMaxHealth = pendingMaxHealth ?? maxHealth;
+                float finalCurrentHealth = pendingCurrentHealth ?? finalMaxHealth;
+
+                maxHealth = finalMaxHealth;
+                networkCurrentHealth.Value = Mathf.Clamp(finalCurrentHealth, 0f, finalMaxHealth);
                 networkIsInvulnerable.Value = isInvulnerable;
                 networkIsDead.Value = false;
+                healthInitialized = true;
+
+                // Clear cache
+                pendingMaxHealth = null;
+                pendingCurrentHealth = null;
             }
         }
 
@@ -1019,28 +932,33 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             base.OnNetworkDespawn();
         }
 
-        // Server-only damage intake
+        // ✅ FIX: Thread-safe damage intake with proper death handling
         public virtual float TakeDamage(IAttackable attacker, float damage, DamageType damageType = DamageType.Physical)
         {
             if (!IsServer) return 0f;
-            if (!IsAlive) return 0f;
+
+            // ✅ CRITICAL: Check death flag FIRST to prevent multi-death
+            if (networkIsDead.Value) return 0f;
+            
+            // Early exit checks
+            if (networkCurrentHealth.Value <= 0f) return 0f;
             if (IsInvulnerable) return 0f;
 
             float finalDamage = CalculateFinalDamage(damage, damageType);
             float newHealth = Mathf.Max(0f, networkCurrentHealth.Value - finalDamage);
-            networkCurrentHealth.Value = newHealth;
-
-            networkLastHitServerTime.Value = NetworkManager.Singleton.ServerTime.Time;
-
-            if (newHealth > 0f)
+            
+            // ✅ CRITICAL: Check if will die and set flag IMMEDIATELY
+            bool willDie = newHealth <= 0f;
+            
+            if (willDie)
             {
-                OnHitClientRpc(finalDamage);
-            }
-            else if (!networkIsDead.Value)
-            {
+                // ✅ Set death flag FIRST to block subsequent damage
                 networkIsDead.Value = true;
+                networkCurrentHealth.Value = 0f;
+                networkLastHitServerTime.Value = NetworkManager.Singleton.ServerTime.Time;
                 SetState(InteractionState.Disabled);
 
+                // Fire death events
                 OnDied?.Invoke(this, attacker);
 
                 NetworkObject attackerNob = null;
@@ -1049,7 +967,14 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
                 OnDeathClientRpc(new NetworkObjectReference(attackerNob));
                 OnDeath(attacker); // server-side hook
+
+                return finalDamage;
             }
+
+            // ✅ Only update health if not dead
+            networkCurrentHealth.Value = newHealth;
+            networkLastHitServerTime.Value = NetworkManager.Singleton.ServerTime.Time;
+            OnHitClientRpc(finalDamage);
 
             return finalDamage;
         }
@@ -1086,9 +1011,12 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             if (!IsServer) return;
 
             float hp = reviveHealth > 0 ? reviveHealth : maxHealth;
+            
+            // ✅ Clear death flag FIRST
             networkIsDead.Value = false;
             networkCurrentHealth.Value = Mathf.Clamp(hp, 1f, maxHealth);
             SetState(InteractionState.Enable);
+            
             OnRevivedClientRpc(networkCurrentHealth.Value);
         }
 

@@ -383,9 +383,20 @@ namespace _GAME.Scripts.Networking
         }
 
         #endregion
+        
+        
+        public virtual Unity.Services.Lobbies.Models.Player GetPlayerWithClientId(ulong clientId)
+        {
+            foreach (var player in Lobby.CurrentLobby.Players)
+            {
+                if (player.Id == clientId.ToString())
+                {
+                    return player;
+                }
+            }
 
-
-
+            return null;
+        }
 
         public void Clear()
         {

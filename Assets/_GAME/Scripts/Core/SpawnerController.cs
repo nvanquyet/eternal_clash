@@ -18,17 +18,17 @@ namespace _GAME.Scripts.Core
     {
         [Header("Prefabs")] [SerializeField] protected NetworkObject playerPrefab;
 
-        [Header("Spawn Points")] [SerializeField]
-        protected Transform[] spawnPoints;
+        [Header("Spawn Points")] 
+        [SerializeField] protected Transform[] spawnPoints;
 
         [Header("Settings")] [SerializeField] protected float spawnDelay = 0.5f;
         [SerializeField] protected float clientReadyTimeout = 2.5f;
         [SerializeField] protected bool debugMode = false;
 
         // Spawn point management
-        protected readonly List<Transform> available = new();
-        protected readonly List<Transform> usedSpawnPoints = new();
-        protected readonly Dictionary<ulong, Transform> slotByClient = new();
+        // protected readonly List<Transform> available = new();
+        // protected readonly List<Transform> usedSpawnPoints = new();
+        // protected readonly Dictionary<ulong, Transform> slotByClient = new();
 
         // Player tracking
         protected readonly Dictionary<ulong, NetworkObject> spawnedPlayers = new();
@@ -431,15 +431,15 @@ namespace _GAME.Scripts.Core
 
         protected virtual void InitializeSpawnPoints()
         {
-            available.Clear();
-            usedSpawnPoints.Clear();
-            slotByClient.Clear();
+            // available.Clear();
+            // usedSpawnPoints.Clear();
+            // slotByClient.Clear();
 
-            if (spawnPoints != null)
-            {
-                available.AddRange(spawnPoints);
-                if (debugMode) Debug.Log($"[{GetType().Name}] Initialized {available.Count} spawn points");
-            }
+            // if (spawnPoints != null)
+            // {
+            //     available.AddRange(spawnPoints);
+            //     if (debugMode) Debug.Log($"[{GetType().Name}] Initialized {available.Count} spawn points");
+            // }
         }
         
 
@@ -484,15 +484,14 @@ namespace _GAME.Scripts.Core
                     playerInstance.gameObject.AddComponent<IdentitySyncComponent>();
                 }
 
-                playerInstance.SpawnAsPlayerObject(clientId);
                 spawnedPlayers[clientId] = playerInstance;
                 SetClientState(clientId, ClientSpawnState.Spawned);
 
-                if (spawnPoint != null)
-                {
-                    usedSpawnPoints.Add(spawnPoint);
-                    slotByClient[clientId] = spawnPoint;
-                }
+                // if (spawnPoint != null)
+                // {
+                //     usedSpawnPoints.Add(spawnPoint);
+                //     slotByClient[clientId] = spawnPoint;
+                // }
 
                 OnPlayerSpawn?.Invoke(playerInstance);
 
@@ -500,6 +499,9 @@ namespace _GAME.Scripts.Core
                 receiver?.OnSpawnWithChoice(new SpawnChoice { Position = position, Rotation = rotation });
 
                 Debug.Log($"[{GetType().Name}] Successfully spawned player for client {clientId}");
+                
+                
+                playerInstance.SpawnAsPlayerObject(clientId);
             }
             catch (System.Exception e)
             {
@@ -515,17 +517,27 @@ namespace _GAME.Scripts.Core
 
         protected virtual (Vector3 position, Quaternion rotation, Transform spawnPoint) GetSpawnTransform()
         {
-            if (available.Count == 0)
+            // if (available.Count == 0)
+            // {
+            //     Debug.LogWarning($"[{GetType().Name}] No available spawn points, using fallback");
+            //     var fallbackPos = new Vector3(Random.Range(-3f, 3f), 0f, Random.Range(-3f, 3f));
+            //     return (fallbackPos, Quaternion.identity, null);
+            // }
+            //
+            // var index = Random.Range(0, available.Count);
+            // var spawnPoint = available[index];
+            // available.RemoveAt(index);
+            // return (spawnPoint.position, spawnPoint.rotation, spawnPoint);
+            
+            if(spawnPoints == null || spawnPoints.Length <= 0) 
             {
-                Debug.LogWarning($"[{GetType().Name}] No available spawn points, using fallback");
+                Debug.LogWarning($"[{GetType().Name}] No spawn points assigned, using fallback");
                 var fallbackPos = new Vector3(Random.Range(-3f, 3f), 0f, Random.Range(-3f, 3f));
                 return (fallbackPos, Quaternion.identity, null);
             }
-
-            var index = Random.Range(0, available.Count);
-            var spawnPoint = available[index];
-            available.RemoveAt(index);
-            return (spawnPoint.position, spawnPoint.rotation, spawnPoint);
+            
+            var sp = spawnPoints[Random.Range(0, spawnPoints.Length)];
+            return (sp.position, sp.rotation, sp);
         }
 
         protected virtual void CleanupClient(ulong clientId)
@@ -545,7 +557,7 @@ namespace _GAME.Scripts.Core
                 spawnedPlayers.Remove(clientId);
             }
 
-            slotByClient.Remove(clientId);
+            //slotByClient.Remove(clientId);
         }
 
         protected virtual void CleanupAllPlayers()
@@ -561,14 +573,14 @@ namespace _GAME.Scripts.Core
 
         protected virtual void RestoreSpawnPoint(ulong clientId, Vector3 playerLastPos)
         {
-            if (slotByClient.TryGetValue(clientId, out var used))
-            {
-                usedSpawnPoints.Remove(used);
-                if (used != null && !available.Contains(used))
-                {
-                    available.Add(used);
-                }
-            }
+            // if (slotByClient.TryGetValue(clientId, out var used))
+            // {
+            //     usedSpawnPoints.Remove(used);
+            //     if (used != null && !available.Contains(used))
+            //     {
+            //         available.Add(used);
+            //     }
+            // }
         }
 
         #endregion
@@ -594,9 +606,9 @@ namespace _GAME.Scripts.Core
         [ContextMenu("Debug Dump State")]
         protected virtual void DebugDumpState()
         {
-            Debug.Log($"[{GetType().Name}] State Dump:\n" +
-                      $"  Available: {available.Count}, Used: {usedSpawnPoints.Count}, Spawned: {spawnedPlayers.Count}\n" +
-                      $"  Scene Loaded: {_sceneFullyLoaded}, Events Registered: {_eventsRegistered}, Is Server: {IsServer}");
+            // Debug.Log($"[{GetType().Name}] State Dump:\n" +
+            //           $"  Available: {available.Count}, Used: {usedSpawnPoints.Count}, Spawned: {spawnedPlayers.Count}\n" +
+            //           $"  Scene Loaded: {_sceneFullyLoaded}, Events Registered: {_eventsRegistered}, Is Server: {IsServer}");
 
             foreach (var kvp in clientStates)
             {

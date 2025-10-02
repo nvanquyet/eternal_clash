@@ -10,6 +10,7 @@ namespace _GAME.Scripts.UI.Base
         Home,
         MainMenu,
         Lobby,
+        Input,
         GamePlay,
         Settings,
         PauseMenu,
