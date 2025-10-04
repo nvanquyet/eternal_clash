@@ -22,7 +22,7 @@ namespace _GAME.Scripts.Core.Components
         ulong ClientId { get; }
         NetworkObject NetObject { get; }
         Transform Transform { get; }
-        T GetPlayerComponent<T>() where T : IPlayerComponent;
+        T GetComponent<T>() where T : IPlayerComponent;
         void BroadcastEvent<T>(T eventData) where T : struct;
     }
 

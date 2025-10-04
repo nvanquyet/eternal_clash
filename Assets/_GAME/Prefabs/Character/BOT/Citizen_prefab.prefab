@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 7414558475462656339}
   - component: {fileID: 2623592021292483943}
   - component: {fileID: 7822986389759720075}
+  - component: {fileID: 1019467787103262483}
   - component: {fileID: 752375707663362940}
   - component: {fileID: 3643551403611757542}
   m_Layer: 19
@@ -146,6 +147,21 @@ MonoBehaviour:
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
   SlerpPosition: 0
+--- !u!114 &1019467787103262483
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7228942402653441429}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8d0727d5ae3244e3b569694d3912374, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  TransitionStateInfoList: []
+  m_Animator: {fileID: 7664175565847044224}
 --- !u!114 &752375707663362940
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -175,7 +191,6 @@ MonoBehaviour:
   farUpdateInterval: 5
   nearUpdateInterval: 2
   lodDistance: 30
-  targetAnimator: {fileID: 7664175565847044224}
   animationStates:
   - state: 0
     animationString: Idle

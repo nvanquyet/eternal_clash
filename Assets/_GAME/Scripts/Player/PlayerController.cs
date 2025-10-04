@@ -1,14 +1,15 @@
-using _GAME.Scripts.Core.Components;
+using System;
 using _GAME.Scripts.HideAndSeek;
 using _GAME.Scripts.HideAndSeek.Config;
+using _GAME.Scripts.HideAndSeek.Player;
 using _GAME.Scripts.HideAndSeek.Player.Graphics;
 using _GAME.Scripts.Player.Config;
 using _GAME.Scripts.Player.Locomotion;
 using _GAME.Scripts.UI.Base;
+using Mono.CSharp;
 using Unity.Netcode;
 using Unity.Netcode.Components;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace _GAME.Scripts.Player
 {
@@ -26,7 +27,7 @@ namespace _GAME.Scripts.Player
 
         [SerializeField] private PlayerCamera playerCamera;
 
-        [FormerlySerializedAs("roleComponentComponent")] [SerializeField] private RoleComponent roleComponent;
+        [SerializeField] private PlayerRoleSO playerRoleSO;
 
         [Header("Model Switching")] [SerializeField]
         private PlayerModelSwitcher modelSwitcher;
@@ -35,7 +36,6 @@ namespace _GAME.Scripts.Player
 
         public PlayerAnimationSync AnimationSync => animationSync;
         public PlayerCamera PlayerCamera => playerCamera;
-        public RoleComponent RoleComponent => roleComponent;
 
         // Core systems
         private MobileInputBridge _playerInput;
@@ -67,7 +67,7 @@ namespace _GAME.Scripts.Player
                 modelSwitcher.OnAnimatorChanged += OnAnimatorChanged;
             }
 
-            PlayerCamera.ActiveCamera(false);
+            PlayerCamera.DisableAllCams();
         }
 
         private void OnAnimatorChanged(Animator newAnimator)
@@ -83,13 +83,16 @@ namespace _GAME.Scripts.Player
 
         private void Start()
         {
+            GameEvent.OnRoleAssigned += RoleAssigned;
             GameEvent.OnGameEnded += OnGameEnd;
         }
 
 
         public override void OnDestroy()
         {
+            GameEvent.OnRoleAssigned -= RoleAssigned;
             GameEvent.OnGameEnded -= OnGameEnd;
+
             base.OnDestroy();
         }
 
@@ -103,6 +106,7 @@ namespace _GAME.Scripts.Player
             _isNetworkInitialized = true;
             InitializeSystems();
             Debug.Log($"🔵 [OnNetworkSpawn] Registering callback for Player {OwnerClientId}");
+            _networkRole.OnValueChanged += OnNetworkRoleChanged;
             if (IsLocalOwner)
             {
                 SetupOwner();
@@ -121,6 +125,8 @@ namespace _GAME.Scripts.Player
         {
             base.OnNetworkDespawn();
             Debug.Log($"🔴 [OnNetworkDespawn] Player {OwnerClientId} - Unregistering callbacks");
+            // ✅ Fixed: Removed * syntax error
+            _networkRole.OnValueChanged -= OnNetworkRoleChanged;
             if (modelSwitcher != null)
             {
                 modelSwitcher.OnAnimatorChanged -= OnAnimatorChanged;
@@ -140,7 +146,7 @@ namespace _GAME.Scripts.Player
 
         private void SetupOwner()
         {
-            PlayerCamera.ActiveCamera();
+            PlayerCamera.EnableTppCam();
             // Owner có CharacterController để local movement
             if (characterController) characterController.enabled = true;
             if (_playerInput == null) _playerInput = HUD.Instance.GetUI<MobileInputBridge>(UIType.Input);
@@ -149,7 +155,7 @@ namespace _GAME.Scripts.Player
 
         private void SetupNonOwner()
         {
-            PlayerCamera.ActiveCamera(false);
+            PlayerCamera.DisableAllCams();
             // Non-owners tắt CharacterController, để NetworkTransform sync
             if (characterController) characterController.enabled = false;
         }
@@ -203,19 +209,199 @@ namespace _GAME.Scripts.Player
         }
 
         #endregion
-        
+
+        #region Role System - COMPLETELY FIXED
+
+        private readonly NetworkVariable<Role> _networkRole = new NetworkVariable<Role>(
+            Role.None,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server
+        );
+
+        /// <summary>
+        /// Public getter for current role
+        /// </summary>
+        public Role CurrentRole => _networkRole.Value;
+
+        private void RoleAssigned()
+        {
+            if (!IsServer) return;
+            Debug.Log($"🟠 [RoleAssigned] Server assigning role for Player {OwnerClientId}");
+            var role = GameManager.Instance.GetPlayerRoleWithId(this.OwnerClientId);
+            SetRole(role);
+        }
+
+
+        /// <summary>
+        /// Set player role - SERVER ONLY
+        /// This is the MAIN method that should be called by GameManager
+        /// </summary>
+        /// <summary>
+        /// Set player role - SERVER ONLY
+        /// </summary>
+        public void SetRole(Role role)
+        {
+            Debug.Log($"🟡 [SetRole] Called for Player {OwnerClientId} with role {role} - IsServer: {IsServer}");
+
+            if (!IsServer)
+            {
+                Debug.LogWarning(
+                    $"❌ [SetRole] Can only be called on server! Player {OwnerClientId} attempted to set {role}");
+                return;
+            }
+
+            if (_networkRole.Value == role)
+            {
+                Debug.LogWarning($"⚠️ [SetRole] Player {OwnerClientId} already has role {role}");
+                return;
+            }
+
+            Debug.Log($"✅ [SetRole] SERVER - Setting Player {OwnerClientId} role: {_networkRole.Value} -> {role}");
+
+            // This should trigger OnNetworkRoleChanged callback
+            _networkRole.Value = role;
+
+            // Verify the value was set
+            Debug.Log($"✅ [SetRole] SERVER - NetworkVariable value after set: {_networkRole.Value}");
+        }
+
+        /// <summary>
+        /// Network callback - triggered on ALL clients when role changes
+        /// </summary>
+        private void OnNetworkRoleChanged(Role previousRole, Role newRole)
+        {
+            Debug.Log(
+                $"🟢 [OnNetworkRoleChanged] CALLBACK TRIGGERED! Client {NetworkManager.Singleton.LocalClientId} - Player {OwnerClientId}: {previousRole} -> {newRole}");
+            Debug.Log($"🟢 [OnNetworkRoleChanged] IsServer: {IsServer}, IsClient: {IsClient}");
+
+            if (IsServer)
+            {
+                Debug.Log($"🟢 [OnNetworkRoleChanged] Server calling SpawnRoleObject for role {newRole}");
+                SpawnRoleObject(newRole);
+            }
+            else
+            {
+                Debug.Log($"🟢 [OnNetworkRoleChanged] Client - handling role change UI/effects");
+                OnRoleChangedClientSide(previousRole, newRole);
+            }
+        }
+
+        /// <summary>
+        /// Client-side handling of role changes
+        /// </summary>
+        private void OnRoleChangedClientSide(Role previousRole, Role newRole)
+        {
+            Debug.Log($"🔷 [OnRoleChangedClientSide] Player {OwnerClientId} role changed to {newRole}");
+            // Add client-side logic here (UI updates, effects, etc.)
+        }
+
+        // private void SpawnRoleObject(Role newRole)
+        // {
+        //     if (!IsServer) return; // Chỉ server mới spawn object
+        //     var prefab = playerRoleSO?.GetData(newRole).Prefab;
+        //     if (prefab == null) return;
+        //
+        //     var gO = Instantiate(prefab);
+        //
+        //     gO.OnNetworkSpawned += () =>
+        //     {
+        //         Debug.Log($"[PlayerController] Spawned role object for Player {OwnerClientId} as {newRole}");
+        //         gO.transform.SetParent(transform);
+        //         gO.transform.localPosition = Vector3.zero;
+        //         gO.SetRole(newRole);
+        //     };
+        //
+        //     gO.NetworkObject.SpawnWithOwnership(OwnerClientId);
+        // }
+
+        private void SpawnRoleObject(Role newRole)
+        {
+            Debug.Log($"🟣 [SpawnRoleObject] START - Player {OwnerClientId}, Role {newRole}, IsServer: {IsServer}");
+
+            if (!IsServer)
+            {
+                Debug.LogError($"❌ [SpawnRoleObject] Called on client! This should only run on server!");
+                return;
+            }
+
+            if (playerRoleSO == null)
+            {
+                Debug.LogError($"❌ [SpawnRoleObject] PlayerRoleSO is null for Player {OwnerClientId}!");
+                return;
+            }
+
+            var roleData = playerRoleSO.GetData(newRole);
+
+            var prefab = roleData.Prefab;
+            if (prefab == null)
+            {
+                Debug.LogError($"❌ [SpawnRoleObject] No prefab found for role {newRole}!");
+                return;
+            }
+
+            Debug.Log($"🟣 [SpawnRoleObject] Found prefab: {prefab.name} for role {newRole}");
+
+            // Check if prefab has NetworkObject
+            if (prefab.GetComponent<NetworkObject>() == null)
+            {
+                Debug.LogError($"❌ [SpawnRoleObject] Prefab {prefab.name} doesn't have NetworkObject component!");
+                return;
+            }
+
+            Debug.Log($"🟣 [SpawnRoleObject] Instantiating prefab {prefab.name}");
+            var gO = Instantiate(prefab);
+
+            if (gO == null)
+            {
+                Debug.LogError($"❌ [SpawnRoleObject] Failed to instantiate prefab!");
+                return;
+            }
+
+            Debug.Log($"🟣 [SpawnRoleObject] Successfully instantiated {gO.name}");
+            gO.OnNetworkSpawned += () =>
+            {
+                Debug.Log($"[PlayerController] Spawned role object for Player {OwnerClientId} as {newRole}");
+                gO.NetworkObject.TrySetParent(transform, false);
+                gO.transform.localPosition = Vector3.zero;
+                gO.SetRole(newRole);
+            };
+
+            Debug.Log($"🟣 [SpawnRoleObject] About to spawn with ownership - Owner: {OwnerClientId}");
+
+            try
+            {
+                // Spawn with ownership
+                gO.NetworkObject.SpawnWithOwnership(OwnerClientId);
+                Debug.Log(
+                    $"✅ [SpawnRoleObject] Successfully spawned {gO.name} for Player {OwnerClientId} as {newRole}");
+
+                gO.SetRole(newRole);
+                Debug.Log($"✅ [SpawnRoleObject] Set role on spawned object");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"❌ [SpawnRoleObject] Exception during spawn: {e.Message}");
+                Debug.LogError($"❌ [SpawnRoleObject] Stack trace: {e.StackTrace}");
+                if (gO != null)
+                {
+                    Destroy(gO);
+                }
+            }
+        }
+
+        #endregion
 
         public void EnableSoulMode(bool enable)
         {
             if (!IsOwner) return;
             if (enable)
             {
-                playerCamera.ActiveCamera(false);
+                playerCamera.DisableAllCams();
                 _playerInput?.Hide(null);
             }
             else
             {
-                playerCamera.ActiveCamera();
+                playerCamera.EnableTppCam();
                 _playerInput?.Show(null);
             }
         }

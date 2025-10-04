@@ -10,13 +10,32 @@ namespace _GAME.Scripts.Core.Player
     {
         public static bool IsAlive(this IPlayer player)
         {
-            //return player.GetPlayerComponent<HealthComponent>()?.IsAlive ?? false;
-            return false;
+            return player.GetComponent<HealthComponent>()?.IsAlive ?? false;
         }
 
         public static Role GetRole(this IPlayer player)
         {
-            return player.GetPlayerComponent<RoleComponent>()?.CurrentRole ?? Role.None;
+            return player.GetComponent<RoleComponent>()?.CurrentRole ?? Role.None;
+        }
+
+        public static float GetHealth(this IPlayer player)
+        {
+            return player.GetComponent<HealthComponent>()?.CurrentHealth ?? 0f;
+        }
+
+        public static void TakeDamage(this IPlayer player, float amount)
+        {
+            player.GetComponent<HealthComponent>()?.TakeDamage(amount);
+        }
+
+        public static void Heal(this IPlayer player, float amount)
+        {
+            player.GetComponent<HealthComponent>()?.Heal(amount);
+        }
+
+        public static void SetRole(this IPlayer player, Role role)
+        {
+            player.GetComponent<RoleComponent>()?.SetRole(role);
         }
     }
 }

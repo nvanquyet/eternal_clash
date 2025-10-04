@@ -6,50 +6,32 @@
   <component name="ChangeListManager">
     <list default="true" id="c4248c56-3a43-45df-be7f-25ce1da4ddd0" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.EternalClash/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/DefaultNetworkPrefabs.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/DefaultNetworkPrefabs.asset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/UniversalRenderPipelineGlobalSettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/UniversalRenderPipelineGlobalSettings.asset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/WeaponPack/Settings/Build Profiles/New Windows Profile 1.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/WeaponPack/Settings/Build Profiles/New Windows Profile 1.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/High_PipelineAsset.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Settings/High_PipelineAsset.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Low_PipelineAsset.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Settings/Low_PipelineAsset.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/Settings/Medium_PipelineAsset.asset" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/Settings/Medium_PipelineAsset.asset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/BOT/Citizen_prefab.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/BOT/Citizen_prefab.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/Player.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Character/Core/Player.prefab" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/CombatComponent.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/CombatComponent.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/CombatSystem.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/CombatSystem.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/DefenseComponent.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/DefenseComponent.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/HitBox.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/HitBox.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/HitBoxManager.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/HitBoxManager.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/Interface.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/Interface.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Components/HealthComponent.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Components/HealthComponent.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Components/IPlayerComponent.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Components/IPlayerComponent.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Components/InputComponent.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Components/InputComponent.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Components/RoleComponent.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Components/RoleComponent.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/GameBootstrap.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/GameBootstrap.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Player/ModularPlayer.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Player/ModularPlayer.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Player/PlayerExtensions.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Player/PlayerExtensions.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Services/CombatService.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Services/CombatService.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Services/IServices.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Services/IServices.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Services/PlayerRegistry.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Services/PlayerRegistry.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Services/RoleService.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Services/RoleService.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/StateMachine.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/StateMachine/GameStateMachine.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/StateMachine/GameStateMachine.cs.meta" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/AI/Citizen_AIScript.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/AI/Citizen_AIScript.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/Projectile/Bullet 1.prefab" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Prefabs/Object/Gun/Projectile/Bullet 1.prefab" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/GamePlayScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/GamePlayScene.unity" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scenes/LoadingScene.unity" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scenes/LoadingScene.unity" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/HitBoxManager.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/Combat/HitBoxManager.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/GameMode.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/GameMode.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/SpawnerController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Core/SpawnerController.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/AInteractable.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/AInteractable.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/IInteractable.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/DesignPattern/Interaction/IInteractable.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/AProjectile.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Combat/Base/AProjectile.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Config/GameSettingsConfig.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Config/GameSettingsConfig.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/GameEvent.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/GameEvent.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/GameManager.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/GameManager.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Hitbox/ModularHitBox.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Hitbox/ModularHitBox.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Rig/PlayerRigCtrl.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Rig/PlayerRigCtrl.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/SeekerPlayer.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/SeekerPlayer.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/UI/GameResultUI.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/UI/GameResultUI.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/MobileInputBridge.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/MobileInputBridge.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerAnimationSync.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerAnimationSync.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerCamera.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerCamera.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerController.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/Player/PlayerController.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/Base/BaseUI.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/Base/BaseUI.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/Base/HUD.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Assets/_GAME/Scripts/UI/Base/HUD.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/QualitySettings.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/QualitySettings.asset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectSettings/TagManager.asset" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectSettings/TagManager.asset" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -261,7 +243,7 @@
       <workItem from="1759429224095" duration="13119000" />
       <workItem from="1759475616952" duration="3509000" />
       <workItem from="1759516114960" duration="3266000" />
-      <workItem from="1759521358114" duration="7397000" />
+      <workItem from="1759521358114" duration="3788000" />
     </task>
     <servers />
   </component>
@@ -282,6 +264,19 @@
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
+        <line-breakpoint enabled="true" type="DotNet Breakpoints">
+          <url>file://$PROJECT_DIR$/Assets/_GAME/Scripts/HideAndSeek/Player/Graphics/PlayerModelSwitcher.cs</url>
+          <line>301</line>
+          <properties documentPath="W:\Unity\EternalClash\Assets\_GAME\Scripts\HideAndSeek\Player\Graphics\PlayerModelSwitcher.cs" containingFunctionPresentation="Method 'DestroyCurrentModel'">
+            <startOffsets>
+              <option value="11099" />
+            </startOffsets>
+            <endOffsets>
+              <option value="11138" />
+            </endOffsets>
+          </properties>
+          <option name="timeStamp" value="14" />
+        </line-breakpoint>
         <line-breakpoint enabled="true" type="DotNet Breakpoints">
           <url>file://$PROJECT_DIR$/Assets/_GAME/Scripts/UI/WaitingRoom/WaitingSpawnController.cs</url>
           <line>311</line>

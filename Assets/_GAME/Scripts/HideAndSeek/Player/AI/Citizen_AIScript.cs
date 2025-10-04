@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -96,21 +97,18 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         private float lodDistance = 30f;
 
         [Header("=== ANIMATIONS ===")] [SerializeField]
-        private Animator targetAnimator; // ✅ Kéo reference Animator vào đây
+        private AnimationState[] animationStates;
 
-        [SerializeField] private AnimationState[] animationStates;
-
-        private Animator TargetAnimator => targetAnimator ? targetAnimator : (targetAnimator = GetComponentInChildren<Animator>()); // ✅ Kéo reference Animator vào đây
-
-
-        [Header("=== DEBUG ===")] 
-        [SerializeField] private bool logChanges = false;
+        [Header("=== DEBUG ===")] [SerializeField]
+        private bool logChanges = false;
 
         #endregion
 
         #region Private Variables
 
+        private Animator animator;
         private NavMeshAgent navMeshAgent;
+        private NetworkAnimator networkAnimator;
         private Vector3 homePosition;
 
         private CitizenState currentState;
@@ -137,7 +135,9 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         private static List<Citizen_AIScript> allCitizens = new List<Citizen_AIScript>();
         public static List<Citizen_AIScript> AllCitizens => allCitizens;
 
+
         private Dictionary<CitizenState, AnimationState> _dictStateAnimation;
+
         private Dictionary<CitizenState, AnimationState> DictStateAnimation
         {
             get
@@ -156,6 +156,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                         }
                     }
 
+                    // Fallback: tạo default states nếu không có
                     foreach (CitizenState stateEnum in System.Enum.GetValues(typeof(CitizenState)))
                     {
                         if (!_dictStateAnimation.ContainsKey(stateEnum))
@@ -168,6 +169,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                         }
                     }
                 }
+
                 return _dictStateAnimation;
             }
         }
@@ -200,20 +202,24 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         {
             base.OnNetworkSpawn();
             if(logChanges) Debug.Log($"[{citizenName}] OnNetworkSpawn: IsServer={IsServer}, IsClient={IsClient}");
-            
             if (IsServer)
             {
+                // Server controls AI
                 isServerControlled = true;
+
+                // Stagger initial update
                 currentUpdateInterval = Random.Range(nearUpdateInterval, farUpdateInterval);
                 nextAIUpdateTime = Time.time + Random.Range(0f, 2f);
             }
             else
             {
+                // Client: disable AI logic, only visual
                 isServerControlled = false;
                 if (navMeshAgent) navMeshAgent.enabled = false;
-                enabled = true;
+                enabled = true; // Keep enabled for network sync
             }
 
+            // Subscribe to state changes
             networkState.OnValueChanged += OnNetworkStateChanged;
         }
 
@@ -228,6 +234,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         {
             if (!IsServer)
             {
+                // Client updates visual based on server state
                 currentState = (CitizenState)newState;
                 UpdateClientVisuals();
             }
@@ -240,18 +247,19 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         private void Awake()
         {
             if(logChanges) Debug.Log($"[{citizenName}] Awake: pos={transform.position}");
-            
+            animator = GetComponentInChildren<Animator>();
             navMeshAgent = GetComponent<NavMeshAgent>();
+            networkAnimator = GetComponent<NetworkAnimator>();
             homePosition = transform.position;
 
-            if (!TargetAnimator || !navMeshAgent)
+            if (!animator || !navMeshAgent)
             {
                 if(logChanges) Debug.LogError($"[{citizenName}] Missing components!");
                 enabled = false;
                 return;
             }
 
-            TargetAnimator.applyRootMotion = false;
+            animator.applyRootMotion = false;
             if (navMeshAgent)
             {
                 navMeshAgent.stoppingDistance = 0.5f;
@@ -282,7 +290,8 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         {
             if (!IsServer)
             {
-                return; // Client chỉ nhận RPC, không cần update logic
+                UpdateClientVisuals();
+                return;
             }
 
             if (!isInitialized || currentState == CitizenState.Dead)
@@ -290,26 +299,32 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                 return;
             }
 
+            // LOD check
             if (Time.time >= playerDistanceCheckTime)
             {
                 UpdatePlayerDistance();
                 playerDistanceCheckTime = Time.time + PLAYER_DISTANCE_CHECK_INTERVAL;
             }
 
+            // ✅ FIXED: Check destination - Loại bỏ điều kiện velocity
             if (navMeshAgent.enabled && !navMeshAgent.isStopped)
             {
+                // Chờ path được tính xong
                 if (!navMeshAgent.pathPending)
                 {
                     if (navMeshAgent.hasPath)
                     {
+                        // Kiểm tra remainingDistance hợp lệ
                         if (!float.IsPositiveInfinity(navMeshAgent.remainingDistance))
                         {
+                            // ✅ CHỈ CHECK DISTANCE, KHÔNG CHECK VELOCITY
                             if (navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance + 0.2f)
                             {
                                 OnReachedDestination();
                             }
                         }
                     }
+                    // Path failed
                     else if (navMeshAgent.pathStatus == NavMeshPathStatus.PathInvalid)
                     {
                         if(logChanges) Debug.LogWarning($"[{citizenName}] Path invalid, returning to idle");
@@ -318,6 +333,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                 }
             }
 
+            // State timer
             if (stateTimer > 0f)
             {
                 stateTimer -= Time.deltaTime;
@@ -327,6 +343,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                 }
             }
 
+            // AI update
             if (Time.time >= nextAIUpdateTime)
             {
                 DecideNextAction();
@@ -341,8 +358,10 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         private IEnumerator InitializeWithDelay()
         {
             if(logChanges) Debug.Log($"[{citizenName}] Init start: isOnNavMesh={navMeshAgent.isOnNavMesh}");
+            // Đảm bảo NavMeshAgent đã sẵn sàng
             yield return new WaitForEndOfFrame();
 
+            // Kiểm tra NavMesh
             if (!navMeshAgent.isOnNavMesh)
             {
                 if(logChanges) Debug.LogWarning($"[{citizenName}] Not on NavMesh!");
@@ -359,10 +378,12 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
             }
 
             if(logChanges) Debug.Log($"[{citizenName}] Init done. Home={homePosition}");
-            yield return new WaitForSeconds(Random.Range(0.1f, 0.5f));
+            yield return new WaitForSeconds(Random.Range(0.1f, 0.5f)); // Giảm delay
 
             isInitialized = true;
             SetState(CitizenState.Idle);
+
+            // Force trigger first action
             nextAIUpdateTime = Time.time + 0.5f;
 
             if (logChanges)
@@ -375,6 +396,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
 
         private void UpdatePlayerDistance()
         {
+            // Find nearest player (assuming players have specific tag/layer)
             GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
 
             if (players.Length == 0)
@@ -399,23 +421,26 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
 
             nearestPlayer = nearest;
 
+            // Adjust update interval based on distance
             if (nearestDist < lodDistance)
             {
-                currentUpdateInterval = nearUpdateInterval;
+                currentUpdateInterval = nearUpdateInterval; // Near player: update often
             }
             else
             {
-                currentUpdateInterval = farUpdateInterval;
+                currentUpdateInterval = farUpdateInterval; // Far from player: update slow
             }
         }
 
         private List<PointOfInterest> GetCachedPOIs()
         {
+            // Refresh cache if expired
             if (Time.time - poiCacheTime > POI_CACHE_DURATION)
             {
                 RefreshPOICache();
                 poiCacheTime = Time.time;
             }
+
             return cachedPOIs;
         }
 
@@ -423,12 +448,15 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         {
             cachedPOIs.Clear();
 
+            // From manager
             if (PointManager != null)
             {
+                //var available = PointManager.GetAvailablePOIs(transform.position, activityZone);
                 var available = PointManager.GetAvailablePOIs(homePosition, activityZone);
                 cachedPOIs.AddRange(available);
             }
 
+            // From private list
             foreach (var poi in privatePoints)
             {
                 if (poi.IsAvailable)
@@ -451,6 +479,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
             if (currentState == CitizenState.Dead)
                 return;
 
+            // Don't interrupt certain states
             if (stateTimer > 0f &&
                 (currentState == CitizenState.Talking ||
                  currentState == CitizenState.Watering ||
@@ -464,9 +493,11 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                 ReleasePOI();
             }
 
+            // Use cached POIs
             List<PointOfInterest> availablePOIs = GetCachedPOIs();
             float randomValue = Random.Range(0f, 100f);
 
+            // 1. POI-based decision
             if (availablePOIs.Count > 0 && randomValue < personality.curiosity)
             {
                 PointOfInterest bestPOI = SelectBestPOI(availablePOIs);
@@ -477,6 +508,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                 }
             }
 
+            // 2. Social interaction
             if (randomValue < personality.sociability)
             {
                 Citizen_AIScript nearby = FindNearbyCitizen();
@@ -492,12 +524,14 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                 }
             }
 
+            // 3. Walk around
             if (randomValue < personality.activeness)
             {
                 WalkToRandomLocation();
                 return;
             }
 
+            // 4. Default idle
             SetState(CitizenState.Idle);
         }
 
@@ -515,6 +549,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                 float distanceFactor = 1f - (distance / activityZone);
                 float score = poi.attractionWeight * distanceFactor;
 
+                // Personality modifiers
                 if (poi.type == PointType.SocialSpot)
                     score *= (personality.sociability / 50f);
                 else if (poi.type == PointType.Bench)
@@ -593,7 +628,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
 
         private Vector3 GetRandomPositionInZone()
         {
-            for (int i = 0; i < 30; i++)
+            for (int i = 0; i < 30; i++) // Tăng số lần thử
             {
                 Vector2 randomCircle = Random.insideUnitCircle * activityZone;
                 Vector3 targetPos = homePosition + new Vector3(randomCircle.x, 0, randomCircle.y);
@@ -601,6 +636,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                 NavMeshHit hit;
                 if (NavMesh.SamplePosition(targetPos, out hit, 5f, NavMesh.AllAreas))
                 {
+                    // Check if path exists
                     NavMeshPath path = new NavMeshPath();
                     if (navMeshAgent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete)
                     {
@@ -618,6 +654,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
             if (currentPOI != null)
             {
                 currentPOI.currentOccupants = Mathf.Max(0, currentPOI.currentOccupants - 1);
+                //Set previousPOI for potential future use
                 previousPOI = currentPOI;
                 currentPOI = null;
             }
@@ -633,9 +670,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
 
             if (currentState == CitizenState.Dead && newState != CitizenState.Dead)
                 return;
-            
             if(logChanges) Debug.Log($"[{citizenName}] State change: {currentState} -> {newState}");
-            
             CitizenState previousState = currentState;
             currentState = newState;
 
@@ -643,6 +678,8 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
             {
                 OnExitState(previousState);
                 OnEnterState(newState);
+
+                // Sync to clients
                 networkState.Value = (int)newState;
 
                 if (logChanges)
@@ -657,12 +694,14 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
             switch (state)
             {
                 case CitizenState.Idle:
+                    // ✅ Đảm bảo dừng hoàn toàn
                     if (navMeshAgent.enabled)
                     {
                         navMeshAgent.isStopped = true;
                         navMeshAgent.ResetPath();
                     }
-                    PlayAnimationNetwork(state);
+
+                    SafePlayAnimation(CitizenState.Idle);
                     stateTimer = Random.Range(personality.restTimeMin, personality.restTimeMax);
                     break;
 
@@ -674,15 +713,18 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                         SetState(CitizenState.Idle);
                         return;
                     }
-                    PlayAnimationNetwork(CitizenState.Walking);
+
+                    SafePlayAnimation(CitizenState.Walking);
                     break;
 
                 case CitizenState.Talking:
+                    // ✅ Dừng ngay
                     if (navMeshAgent.enabled)
                     {
                         navMeshAgent.isStopped = true;
                         navMeshAgent.ResetPath();
                     }
+
                     if (conversationPartner != null)
                     {
                         Vector3 direction = conversationPartner.transform.position - transform.position;
@@ -690,7 +732,8 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                         if (direction.sqrMagnitude > 0.01f)
                             transform.rotation = Quaternion.LookRotation(direction);
                     }
-                    PlayAnimationNetwork(state);
+
+                    SafePlayAnimation(CitizenState.Talking);
                     stateTimer = Random.Range(personality.interactionTimeMin, personality.interactionTimeMax);
                     break;
 
@@ -700,7 +743,8 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                         navMeshAgent.isStopped = true;
                         navMeshAgent.ResetPath();
                     }
-                    PlayAnimationNetwork(state);
+
+                    SafePlayAnimation(CitizenState.Waving);
                     stateTimer = Random.Range(2f, 4f);
                     break;
 
@@ -712,7 +756,8 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                         navMeshAgent.isStopped = true;
                         navMeshAgent.ResetPath();
                     }
-                    PlayAnimationNetwork(state);
+
+                    SafePlayAnimation(state);
                     stateTimer = state == CitizenState.Sitting
                         ? Random.Range(10f, 20f)
                         : Random.Range(personality.interactionTimeMin, personality.interactionTimeMax);
@@ -724,12 +769,14 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
                         navMeshAgent.isStopped = true;
                         navMeshAgent.enabled = false;
                     }
+
                     ReleasePOI();
-                    PlayAnimationNetwork(state);
+                    SafePlayAnimation(CitizenState.Dead);
                     enabled = false;
                     break;
             }
         }
+
 
         private void OnExitState(CitizenState state)
         {
@@ -741,13 +788,15 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
         {
             if(logChanges) Debug.Log($"[{citizenName}] Reached destination at {transform.position}, currentPOI={currentPOI?.type}");
 
+            // ✅ DỪNG NAVMESH NGAY LẬP TỨC
             if (navMeshAgent.enabled)
             {
                 navMeshAgent.isStopped = true;
-                navMeshAgent.ResetPath();
-                navMeshAgent.velocity = Vector3.zero;
+                navMeshAgent.ResetPath(); // Clear path để không còn remainingDistance
+                navMeshAgent.velocity = Vector3.zero; // Force stop
             }
 
+            // Look at currentPOI if any
             if (currentPOI != null)
             {
                 transform.DOLookAt(currentPOI.location.position, 0.2f);
@@ -792,72 +841,54 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
 
         private void UpdateClientVisuals()
         {
-            // Client tự động nhận animation qua ClientRpc
-            // NetworkTransform xử lý position
+            if (IsServer) return;
+
+            // Client just plays appropriate animations based on synced state
+            // NetworkTransform handles position smoothly
+            // NetworkAnimator handles animation parameters
         }
 
         #endregion
 
-        #region Animation Network Sync
+        #region Animation
 
-        /// <summary>
-        /// ✅ Phát animation trên Server và sync sang tất cả Clients qua ClientRpc
-        /// </summary>
-        private void PlayAnimationNetwork(CitizenState state)
+        private void PlayRandomAnimation(AnimationState[] states)
         {
-            if (!DictStateAnimation.ContainsKey(state))
+            if (states == null || states.Length == 0) return;
+            var state = states[Random.Range(0, states.Length)];
+            PlayRandomAnimation(state);
+        }
+
+        private void PlayRandomAnimation(AnimationState state)
+        {
+            if (state == null) return;
+            if (!string.IsNullOrEmpty(state.animationString))
+                animator.Play(state.animationString);
+        }
+
+        private void SafePlayAnimation(CitizenState state)
+        {
+            if (DictStateAnimation.ContainsKey(state))
+            {
+                PlayRandomAnimation(DictStateAnimation[state]);
+            }
+            else
             {
                 if (logChanges)
                     Debug.LogWarning($"[{citizenName}] No animation for state {state}");
-                return;
-            }
-
-            string animName = DictStateAnimation[state].animationString;
-            
-            if (string.IsNullOrEmpty(animName))
-                return;
-
-            // Server plays locally
-            if (TargetAnimator != null)
-            {
-                TargetAnimator.Play(animName);
-            }
-
-            // Sync to all clients
-            PlayAnimationClientRpc(animName);
-        }
-
-        /// <summary>
-        /// ✅ ClientRpc - Tất cả clients nhận và phát animation
-        /// </summary>
-        [ClientRpc]
-        private void PlayAnimationClientRpc(string animationName)
-        {
-            if (IsServer) return; // Server đã play rồi
-            
-            if (TargetAnimator != null && !string.IsNullOrEmpty(animationName))
-            {
-                TargetAnimator.Play(animationName);
-                
-                if (logChanges)
-                    Debug.Log($"[{citizenName}] Client playing animation: {animationName}");
             }
         }
-
-        #endregion
-
-        #region NavMesh
 
         private bool SetNavMeshDestination(Vector3 destination)
         {
             if(logChanges) Debug.Log($"[{citizenName}] Try set destination: {destination}");
-            
             if (!navMeshAgent.enabled || !navMeshAgent.isOnNavMesh)
             {
                 if(logChanges) Debug.LogError($"[{citizenName}] NavMeshAgent not ready!");
                 return false;
             }
 
+            // Check if destination is on NavMesh
             NavMeshHit hit;
             if (!NavMesh.SamplePosition(destination, out hit, 2f, NavMesh.AllAreas))
             {
@@ -893,6 +924,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
             }
         }
 
+        // Backward compatible
         public void Kill()
         {
             if (IsServer)
@@ -905,11 +937,11 @@ namespace _GAME.Scripts.HideAndSeek.Player.AI
             }
         }
 
+
         public void ClearAll()
         {
             //Todo: Stop everything and reset to initial state
         }
-
         #endregion
     }
 }
