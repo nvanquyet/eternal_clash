@@ -3,13 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace _GAME.Scripts.Player
 {
     public class PlayerCamera : NetworkBehaviour
     {
-        [SerializeField] private GameObject tppCam;
-        [SerializeField] private GameObject fppCam;
+        [SerializeField] private GameObject mainPlayerCam;
         [SerializeField] private Transform aimPoint;
         
         public Transform AimPoint => aimPoint;
@@ -19,16 +19,9 @@ namespace _GAME.Scripts.Player
         
         
         private bool IsLocalOwner => IsOwner && IsClient;
-        private Transform CameraTransform
-        {
-            get
-            {
-                var activeCamera = tppCam.activeSelf ? tppCam : fppCam;
-                return activeCamera.transform;
-            }
-        }
-        
-        
+        private Transform CameraTransform => mainPlayerCam.transform;
+
+
         private Coroutine _syncCoroutine;
         private readonly float _delayTime = 0.1f;
         
@@ -96,22 +89,12 @@ namespace _GAME.Scripts.Player
             return transform.right;
         }
         
-        
-        public void EnableTppCam()
+        public void ActiveCamera(bool isActive = true)
         {
-            tppCam.SetActive(true);
-            fppCam.SetActive(false);
+            if (mainPlayerCam != null)
+            {
+                mainPlayerCam.SetActive(isActive);
+            }
         }
-        public void EnableFppCam()
-        {
-            tppCam.SetActive(false);
-            fppCam.SetActive(true);
-        }
-        public void DisableAllCams()
-        {
-            tppCam.SetActive(false);
-            fppCam.SetActive(false);
-        }
-        
     }
 }

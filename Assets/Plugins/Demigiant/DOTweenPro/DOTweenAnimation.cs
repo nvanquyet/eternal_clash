@@ -56,8 +56,6 @@ namespace DG.Tweening
             TextMeshPro,
             TextMeshProUGUI
         }
-        
-        public enum ShakeRandomnessMode { Full, Harmonic }
 
         #region EVENTS - EDITOR-ONLY
 
@@ -457,20 +455,20 @@ namespace DG.Tweening
             case AnimationType.ShakePosition:
                 switch (targetType) {
                 case TargetType.Transform:
-                    tween = ((Transform)target).DOShakePosition(duration, endValueV3, optionalInt0, optionalFloat0, optionalBool0, optionalBool1);
+                    tween = ((Transform)target).DOShakePosition(duration, endValueV3, optionalInt0, optionalFloat0, optionalBool0, optionalBool1, optionalShakeRandomnessMode);
                     break;
 #if true // UI_MARKER
                 case TargetType.RectTransform:
-                    tween = ((RectTransform)target).DOShakeAnchorPos(duration, endValueV3, optionalInt0, optionalFloat0, optionalBool0, optionalBool1);
+                    tween = ((RectTransform)target).DOShakeAnchorPos(duration, endValueV3, optionalInt0, optionalFloat0, optionalBool0, optionalBool1, optionalShakeRandomnessMode);
                     break;
 #endif
                 }
                 break;
             case AnimationType.ShakeScale:
-                tween = tweenGO.transform.DOShakeScale(duration, endValueV3, optionalInt0, optionalFloat0, optionalBool1);
+                tween = tweenGO.transform.DOShakeScale(duration, endValueV3, optionalInt0, optionalFloat0, optionalBool1, optionalShakeRandomnessMode);
                 break;
             case AnimationType.ShakeRotation:
-                tween = tweenGO.transform.DOShakeRotation(duration, endValueV3, optionalInt0, optionalFloat0, optionalBool1);
+                tween = tweenGO.transform.DOShakeRotation(duration, endValueV3, optionalInt0, optionalFloat0, optionalBool1, optionalShakeRandomnessMode);
                 break;
             case AnimationType.CameraAspect:
                 tween = ((Camera)target).DOAspect(endValueFloat, duration);

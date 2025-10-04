@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using _GAME.Scripts.Core.Player;
 using _GAME.Scripts.DesignPattern.Interaction;
 using _GAME.Scripts.HideAndSeek;
+using _GAME.Scripts.Player;
 
 namespace _GAME.Scripts.Core.Services
 {
@@ -12,11 +13,11 @@ namespace _GAME.Scripts.Core.Services
     /// </summary>
     public interface IPlayerRegistry
     {
-        void RegisterPlayer(ModularPlayer player);
+        void RegisterPlayer(PlayerController player);
         void UnregisterPlayer(ulong clientId);
-        ModularPlayer GetPlayer(ulong clientId);
-        IEnumerable<ModularPlayer> GetAllPlayers();
-        IEnumerable<ModularPlayer> GetPlayersByRole(Role role);
+        PlayerController GetPlayer(ulong clientId);
+        IEnumerable<PlayerController> GetAllPlayers();
+        IEnumerable<PlayerController> GetPlayersByRole(Role role);
         int GetPlayerCount();
     }
 

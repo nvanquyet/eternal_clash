@@ -1,7 +1,5 @@
-﻿// ==================== FIXED PlayerModelSwitcher ====================
-using System.Collections;
+﻿// ==================== OPTIMIZED PlayerModelSwitcher ====================
 using System.Collections.Generic;
-using _GAME.Scripts.HideAndSeek.Player.Rig;
 using _GAME.Scripts.Player;
 using _GAME.Scripts.Utils;
 using Unity.Netcode;
@@ -18,77 +16,69 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
         [SerializeField] private InputActionReference switchModelAction;
         [SerializeField] private GameMode currentGameMode = GameMode.PersonVsPerson;
 
-        [Header("Performance Settings")] [SerializeField]
-        private float switchCooldown = 0.5f;
+        [Header("Performance")] 
+        [SerializeField] private float switchCooldown = 0.5f;
+        [SerializeField] private float reEquipDelay = 0.2f;
 
-        [Header("Model Container")] [SerializeField]
-        private Transform modelContainer;
+        [Header("Model Container")] 
+        [SerializeField] private Transform modelContainer;
 
-        [Header("Debug Settings")] [SerializeField]
-        private bool enableDebugLogging = true;
+        [Header("Debug")] 
+        [SerializeField] private bool enableDebugLogging;
 
-        // Network Variables - Server writes, Everyone reads
-        private NetworkVariable<int> currentModelIndex = new NetworkVariable<int>(0, 
-            NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        // Network state
+        private NetworkVariable<int> currentModelIndex = new(0, 
+            NetworkVariableReadPermission.Everyone, 
+            NetworkVariableWritePermission.Server);
 
-        // Current State
-        private GameObject currentModel;
-        private List<ModelConfigData> availableModels = new List<ModelConfigData>();
-
-        // Components
-        private PlayerController playerController;
-        private PlayerEquipment playerEquipment;
-
-        // Performance tracking
-        private float lastSwitchTime;
-
-        // Events
-        public System.Action<Animator> OnAnimatorChanged;
-        public System.Action<GameObject, ModelConfigData> OnModelChanged;
+        // Cached components (lazy-loaded)
+        private PlayerController _playerController;
+        private PlayerEquipment _playerEquipment;
         private InputAction _switchModelAction;
 
-        // Properties
+        // Current state
+        private GameObject currentModel;
+        private List<ModelConfigData> availableModels = new();
+        private float lastSwitchTime;
+        private bool _isInitialized;
+
+        // Public state
         public Animator CurrentAnimator { get; private set; }
         public ModelConfigData CurrentModelData { get; private set; }
         public bool CanSwitch => (Time.time - lastSwitchTime) > switchCooldown;
 
+        // Events
+        public System.Action<Animator> OnAnimatorChanged;
+        public System.Action<GameObject, ModelConfigData> OnModelChanged;
 
-        public PlayerEquipment PlayerEquipment
-        {
-            get
-            {
-                if(playerEquipment == null)
-                    playerEquipment = GetComponentInChildren<PlayerEquipment>();
-                return playerEquipment;
-            }
-        }
+        // Properties with lazy initialization
+        private PlayerController PlayerController => 
+            _playerController ? _playerController : (_playerController = GetComponent<PlayerController>());
+
+        private PlayerEquipment PlayerEquipment => 
+            _playerEquipment ? _playerEquipment : (_playerEquipment = GetComponentInChildren<PlayerEquipment>());
 
         #region Initialization
 
         private void Awake()
         {
-            InitializeComponents();
-        }
-
-        private void InitializeComponents()
-        {
-            playerController = GetComponent<PlayerController>();
-            SetupModelContainer();
-
-            if (modelConfig == null)
+            if (!modelConfig)
             {
-                Debug.LogError($"ModelConfigSO is not assigned on {gameObject.name}!");
+                Debug.LogError($"[ModelSwitcher] ModelConfigSO missing on {gameObject.name}!");
+                enabled = false;
+                return;
             }
+
+            EnsureModelContainer();
         }
 
-        private void SetupModelContainer()
+        private void EnsureModelContainer()
         {
-            if (modelContainer == null)
+            if (!modelContainer)
             {
-                GameObject containerObj = new GameObject("ModelContainer");
+                var containerObj = new GameObject("ModelContainer");
                 containerObj.transform.SetParent(transform);
-                containerObj.transform.localPosition = Vector3.zero;
-                containerObj.transform.localRotation = Quaternion.identity;
+                containerObj.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
                 modelContainer = containerObj.transform;
             }
         }
@@ -99,77 +89,56 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
 
         public override void OnNetworkSpawn()
         {
-            if (enableDebugLogging)
-                Debug.Log($"PlayerModelSwitcher OnNetworkSpawn - IsOwner: {IsOwner}, IsServer: {IsServer}, ClientId: {OwnerClientId}");
+            Log($"OnNetworkSpawn - Owner:{IsOwner}, Server:{IsServer}, Client:{OwnerClientId}");
 
-            // Initialize available models for everyone
-            RefreshAvailableModels();
+            // Initialize available models ONCE
+            if (!_isInitialized)
+            {
+                RefreshAvailableModels();
+                _isInitialized = true;
+            }
 
-            // Subscribe to network variable changes for ALL clients (including host/server)
+            // Listen to model changes
             currentModelIndex.OnValueChanged += OnModelIndexChanged;
 
             if (IsOwner)
             {
-                StartCoroutine(InitializeOwnerModel());
+                SetupInputAction();
                 
-                // Setup input action
-                if (switchModelAction != null)
+                // Request initial model if needed
+                if (availableModels.Count > 0)
                 {
-                    _switchModelAction = InputActionFactory.CreateUniqueAction(switchModelAction, GetInstanceID());
-                    _switchModelAction.Enable();
-                    _switchModelAction.performed += OnSwitchModelPerformed;
+                    SwitchToModelServerRpc(0);
                 }
             }
-            
-            // Initialize model for current network value (for all clients including server/host)
-            StartCoroutine(InitializeModelFromNetwork());
-        }
 
-        private IEnumerator InitializeOwnerModel()
-        {
-            yield return null; // Wait one frame for proper initialization
-            
-            if (enableDebugLogging)
-                Debug.Log($"Owner initializing first model. Available models: {availableModels.Count}");
-            
-            if (availableModels.Count > 0)
-            {
-                // Owner requests server to switch model
-                SwitchToModelServerRpc(0);
-            }
-        }
-
-        private IEnumerator InitializeModelFromNetwork()
-        {
-            yield return null; // Wait for network sync
-            
-            if (enableDebugLogging)
-                Debug.Log($"Initializing model from network value: {currentModelIndex.Value}");
-            
-            // Update model for current network value (this applies to ALL clients including server/host)
+            // Apply current network state (for late joiners)
             if (currentModelIndex.Value >= 0 && currentModelIndex.Value < availableModels.Count)
             {
                 UpdateModel(currentModelIndex.Value);
             }
         }
 
+        private void SetupInputAction()
+        {
+            if (!switchModelAction) return;
+
+            _switchModelAction = InputActionFactory.CreateUniqueAction(switchModelAction, GetInstanceID());
+            _switchModelAction.Enable();
+            _switchModelAction.performed += OnSwitchModelInput;
+        }
+
         public override void OnNetworkDespawn()
         {
-            if (enableDebugLogging)
-                Debug.Log($"PlayerModelSwitcher OnNetworkDespawn - ClientId: {OwnerClientId}");
+            Log($"OnNetworkDespawn - Client:{OwnerClientId}");
 
-            if (currentModelIndex != null)
-            {
-                currentModelIndex.OnValueChanged -= OnModelIndexChanged;
-            }
+            currentModelIndex.OnValueChanged -= OnModelIndexChanged;
 
-            if (IsOwner && _switchModelAction != null)
+            if (_switchModelAction != null)
             {
-                _switchModelAction.performed -= OnSwitchModelPerformed;
+                _switchModelAction.performed -= OnSwitchModelInput;
                 _switchModelAction.Disable();
             }
-            
-            base.OnNetworkDespawn();
         }
 
         #endregion
@@ -178,43 +147,21 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
 
         private void RefreshAvailableModels()
         {
-            if (modelConfig == null) 
-            {
-                Debug.LogError("ModelConfig is null, cannot refresh available models");
-                return;
-            }
+            if (!modelConfig || !PlayerController) return;
 
-            Role currentRole = playerController?.CurrentRole ?? Role.None;
+            Role currentRole = PlayerController.RoleComponent.CurrentRole;
             availableModels = modelConfig.GetModelsForGameMode(currentGameMode, currentRole);
 
-            if (enableDebugLogging)
-                Debug.Log($"Refreshed available models for {currentGameMode} - {currentRole}: {availableModels.Count} models found");
+            Log($"Available models for {currentGameMode}-{currentRole}: {availableModels.Count}");
         }
 
-        private void OnSwitchModelPerformed(InputAction.CallbackContext obj)
+        private void OnSwitchModelInput(InputAction.CallbackContext ctx)
         {
-            if (enableDebugLogging)
-                Debug.Log($"Switch model input performed - CanSwitch: {CanSwitch}, IsOwner: {IsOwner}");
-            
-            if (!IsOwner || !CanSwitch) return;
-            SwitchToNextModel();
-        }
-        
-        private void SwitchToNextModel()
-        {
-            if (availableModels.Count <= 1) 
-            {
-                if (enableDebugLogging)
-                    Debug.Log($"Cannot switch model - available models: {availableModels.Count}");
-                return;
-            }
+            if (!IsOwner || !CanSwitch || availableModels.Count <= 1) return;
 
             int nextIndex = (currentModelIndex.Value + 1) % availableModels.Count;
-            
-            if (enableDebugLogging)
-                Debug.Log($"Client requesting switch from model {currentModelIndex.Value} to {nextIndex}");
-            
-            // Send to server to update NetworkVariable
+            Log($"Requesting switch: {currentModelIndex.Value} -> {nextIndex}");
+
             SwitchToModelServerRpc(nextIndex);
             lastSwitchTime = Time.time;
         }
@@ -222,199 +169,133 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
         [ServerRpc(RequireOwnership = true)]
         private void SwitchToModelServerRpc(int modelIndex)
         {
-            if (enableDebugLogging)
-                Debug.Log($"Server: SwitchToModelServerRpc called with index {modelIndex}. Available models: {availableModels.Count}");
+            Log($"Server: SwitchToModelServerRpc({modelIndex})");
 
-            // Ensure server has up-to-date available models
-            RefreshAvailableModels();
-            
-            if (modelIndex >= 0 && modelIndex < availableModels.Count)
+            // Validate index
+            if (modelIndex < 0 || modelIndex >= availableModels.Count)
             {
-                int oldValue = currentModelIndex.Value;
-                
-                // FIX: Server updates NetworkVariable - this will trigger OnModelIndexChanged for ALL clients
-                currentModelIndex.Value = modelIndex;
-                
-                if (enableDebugLogging)
-                    Debug.Log($"Server: Model index updated from {oldValue} to {currentModelIndex.Value} for client {OwnerClientId}");
+                Debug.LogError($"[ModelSwitcher] Invalid index {modelIndex}! Available: {availableModels.Count}");
+                return;
             }
-            else
-            {
-                Debug.LogError($"Server: Invalid model index {modelIndex}! Available models: {availableModels.Count}");
-            }
+
+            // Update NetworkVariable (triggers OnModelIndexChanged on all clients)
+            currentModelIndex.Value = modelIndex;
         }
 
-        private void OnModelIndexChanged(int previousValue, int newValue)
+        private void OnModelIndexChanged(int oldValue, int newValue)
         {
-            if (enableDebugLogging)
-                Debug.Log($"OnModelIndexChanged: {previousValue} -> {newValue} for client {OwnerClientId}, IsServer: {IsServer}, IsHost: {IsHost}");
-            
-            // This will be called on ALL clients (including server/host) when NetworkVariable changes
+            Log($"ModelIndex changed: {oldValue} -> {newValue} (Server:{IsServer}, Host:{IsHost})");
             UpdateModel(newValue);
         }
 
         private void UpdateModel(int modelIndex)
         {
-            if (enableDebugLogging)
-                Debug.Log($"UpdateModel called with index {modelIndex}. Available models: {availableModels.Count}, IsServer: {IsServer}, IsHost: {IsHost}");
-
-            // Ensure we have fresh available models
-            RefreshAvailableModels();
-
             if (modelIndex < 0 || modelIndex >= availableModels.Count)
             {
-                Debug.LogError($"Invalid model index {modelIndex}! Available models: {availableModels.Count}");
+                Debug.LogError($"[ModelSwitcher] Invalid index {modelIndex}! Available: {availableModels.Count}");
                 return;
             }
 
             ModelConfigData selectedModel = availableModels[modelIndex];
             CurrentModelData = selectedModel;
 
-            if (enableDebugLogging)
-                Debug.Log($"Updating to model: {selectedModel.modelName} on {(IsServer ? "Server" : "Client")} for player {OwnerClientId}");
+            Log($"Updating to: {selectedModel.modelName}");
 
-            if(PlayerEquipment != null) PlayerEquipment.RefeshEquipableItemsForModel();
-            
-            // Destroy current model
+            // Refresh equipment bindings
+            PlayerEquipment?.RefeshEquipableItemsForModel();
+
+            // Swap model
             DestroyCurrentModel();
-
-            // Create new model
             CreateNewModel(selectedModel);
 
-            if (enableDebugLogging)
-                Debug.Log($"Player {OwnerClientId} successfully switched to model: {selectedModel.modelName}");
+            Log($"Model switched successfully: {selectedModel.modelName}");
         }
-        
-        
+
         private void DestroyCurrentModel()
         {
-            if (currentModel != null)
-            {
-                if (enableDebugLogging)
-                    Debug.Log($"Destroying current model: {currentModel.name}");
+            if (!currentModel) return;
 
-                if (currentModel.TryGetComponent<NetworkObject>(out var netObj) && netObj.IsSpawned)
-                {
-                    netObj.Despawn(true);
-                }
-                else
-                {
-                    Destroy(currentModel.gameObject, 0.1f);
-                }
-                
-                currentModel = null;
-                CurrentAnimator = null;
+            Log($"Destroying: {currentModel.name}");
+
+            if (currentModel.TryGetComponent<NetworkObject>(out var netObj) && netObj.IsSpawned)
+            {
+                netObj.Despawn(true);
             }
+            else
+            {
+                Destroy(currentModel, 0.1f);
+            }
+
+            currentModel = null;
+            CurrentAnimator = null;
         }
 
         private void CreateNewModel(ModelConfigData modelData)
         {
-            if (modelData.modelPrefab == null)
+            if (!modelData.modelPrefab)
             {
-                Debug.LogError($"Model prefab is null for {modelData.modelName}");
+                Debug.LogError($"[ModelSwitcher] Null prefab for {modelData.modelName}");
                 return;
             }
 
-            if (enableDebugLogging)
-                Debug.Log($"Creating new model: {modelData.modelName}");
+            Log($"Creating: {modelData.modelName}");
 
-            // Instantiate new model
+            // Instantiate
             currentModel = Instantiate(modelData.modelPrefab, modelContainer);
-            
-            // Handle NetworkObject spawning if needed
-            if (currentModel.TryGetComponent<NetworkObject>(out var netObj) && !netObj.IsSpawned)
+            currentModel.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+            // Spawn NetworkObject if needed
+            if (currentModel.TryGetComponent<NetworkObject>(out var netObj) && !netObj.IsSpawned && IsServer)
             {
-                if (IsServer)
-                {
-                    netObj.SpawnWithOwnership(OwnerClientId);
-                }
+                netObj.SpawnWithOwnership(OwnerClientId);
             }
-            
-            // Set transform
-            currentModel.transform.SetParent(modelContainer ?? this.transform);
-            currentModel.transform.localPosition = Vector3.zero;
-            currentModel.transform.localRotation = Quaternion.identity;
-            
+
             // Setup animator
-            SetupModelAnimator(modelData);
-            
-            //Setup player rig
-            Invoke(nameof(ReEquip), 0.2f);
+            SetupAnimator(modelData);
 
-            // Disable colliders
-            //DisableModelColliders();
+            // Re-equip weapon after short delay
+            if (PlayerEquipment) Invoke(nameof(ReEquipWeapon), reEquipDelay);
 
-            // Notify systems
-            NotifyModelChanged();
+            // Notify listeners
+            OnAnimatorChanged?.Invoke(CurrentAnimator);
+            OnModelChanged?.Invoke(currentModel, CurrentModelData);
         }
 
-        private void ReEquip()
+        private void SetupAnimator(ModelConfigData modelData)
         {
-            if(PlayerEquipment) PlayerEquipment.ReEquipWeapon();
-        }
-
-        private void SetupModelAnimator(ModelConfigData modelData)
-        {
-            Animator modelAnimator = currentModel.GetComponent<Animator>();
-
-            if (modelAnimator == null)
+            var animator = currentModel.GetComponent<Animator>();
+            if (!animator)
             {
-                Debug.LogError($"Model {modelData.modelName} doesn't have Animator component!");
+                Debug.LogError($"[ModelSwitcher] No Animator on {modelData.modelName}!");
                 return;
             }
 
-            if (modelData.overrideController != null)
-            {
-                modelAnimator.runtimeAnimatorController = modelData.overrideController;
-            }
+            // Apply overrides
+            if (modelData.overrideController) animator.runtimeAnimatorController = modelData.overrideController;
+            if (modelData.avatar) animator.avatar = modelData.avatar;
 
-            if (modelData.avatar != null)
+            CurrentAnimator = animator;
+
+            // Sync with animation system
+            if (animationSync)
             {
-                modelAnimator.avatar = modelData.avatar;
-            }
-            
-            CurrentAnimator = modelAnimator;
-            
-            // Update animation sync component
-            if (animationSync != null)
-            {
-                animationSync.SetAnimator(modelAnimator);
-                
-                if (enableDebugLogging)
-                    Debug.Log($"Animator set on AnimationSync for model: {modelData.modelName}");
+                animationSync.SetAnimator(animator);
+                Log($"Animator synced: {modelData.modelName}");
             }
             else
             {
-                Debug.LogError($"PlayerAnimationSync is not assigned on {gameObject.name}!");
+                Debug.LogError($"[ModelSwitcher] PlayerAnimationSync missing on {gameObject.name}!");
             }
         }
 
-        private void DisableModelColliders()
+        private void ReEquipWeapon()
         {
-            Collider[] colliders = currentModel.GetComponentsInChildren<Collider>();
-            foreach (Collider col in colliders)
-            {
-                col.enabled = false;
-            }
-
-            Rigidbody[] rigidbodies = currentModel.GetComponentsInChildren<Rigidbody>();
-            foreach (Rigidbody rb in rigidbodies)
-            {
-                rb.isKinematic = true;
-            }
-        }
-
-        private void NotifyModelChanged()
-        {
-            OnAnimatorChanged?.Invoke(CurrentAnimator);
-            OnModelChanged?.Invoke(currentModel, CurrentModelData);
+            PlayerEquipment?.ReEquipWeapon();
         }
 
         #endregion
 
         #region Public API
-
-        public PlayerAnimationSync GetAnimationSync() => animationSync;
 
         public void SetGameMode(GameMode newMode)
         {
@@ -436,11 +317,23 @@ namespace _GAME.Scripts.HideAndSeek.Player.Graphics
                 SwitchToModelServerRpc(0);
             }
         }
-        
-        // Other public methods...
+
+        public PlayerAnimationSync GetAnimationSync() => animationSync;
         public string GetCurrentModelName() => CurrentModelData?.modelName ?? "None";
         public bool CanSwitchModel() => availableModels.Count > 1 && CanSwitch;
         public int GetAvailableModelCount() => availableModels.Count;
+
+        #endregion
+
+        #region Debug Helpers
+
+        private void Log(string message)
+        {
+            if (enableDebugLogging)
+            {
+                Debug.Log($"[ModelSwitcher] {message}");
+            }
+        }
 
         #endregion
     }
