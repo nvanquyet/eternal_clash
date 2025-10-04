@@ -11,6 +11,7 @@ namespace _GAME.Scripts.UI.Base
         [Tooltip("Phần tử đầu tiên có thể coi là Main UI nếu muốn khởi tạo mặc định")]
         [SerializeField] private BaseUI[] uiElements;
 
+        [SerializeField] private bool usingStack = true;
         private readonly Dictionary<UIType, BaseUI> uiDictionary = new Dictionary<UIType, BaseUI>();
         private readonly Stack<BaseUI> uiStack = new Stack<BaseUI>();
 
@@ -30,6 +31,11 @@ namespace _GAME.Scripts.UI.Base
 
         private void Start()
         {
+            if (!usingStack)
+            {
+                Debug.LogWarning("[HUD] Chức năng stack UI đang tắt. Vui lòng sử dụng các phương thức Show/Hide trực tiếp trên BaseUI.");
+                return;
+            }
             // Tuỳ nhu cầu: nếu muốn show sẵn main UI (phần tử đầu) thì bật đoạn dưới
             if (uiElements != null && uiElements.Length > 0 && uiElements[0] != null)
             {

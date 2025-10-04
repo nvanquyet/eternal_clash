@@ -7,7 +7,7 @@ namespace _GAME.Scripts.Player
 {
     public class MobileInputBridge : BaseUI
     {
-        [SerializeField] private bool usingJoystick = false;
+        //[SerializeField] private bool usingJoystick = false;
         [SerializeField] private Joystick joystick;
         [SerializeField] private GameObject gamePadMovement;
 
@@ -31,15 +31,20 @@ namespace _GAME.Scripts.Player
         
         // Flag để đảm bảo chỉ owner mới process input actions
         private bool _isOwner = false;
-        
-        
+
+        private bool UsingJoyStick()
+        {
+            //if android or ios return true
+            //else return false
+            return (Application.platform == RuntimePlatform.Android || Application.platform == RuntimePlatform.IPhonePlayer);
+        }
 
         // ======== Lifecycle ========
         private void Awake()
         {
             // UI mặc định
-            if (joystick) joystick.gameObject.SetActive(usingJoystick);
-            if (gamePadMovement) gamePadMovement.SetActive(!usingJoystick);
+            if (joystick) joystick.gameObject.SetActive(UsingJoyStick());
+            if (gamePadMovement) gamePadMovement.SetActive(!UsingJoyStick());
 
             // Tạo unique actions cho instance này - sử dụng factory
             CreateUniqueActions();
@@ -129,7 +134,7 @@ namespace _GAME.Scripts.Player
                 return Vector2.zero;
 
             // Ưu tiên joystick nếu đang sử dụng
-            if (usingJoystick && joystick != null)
+            if (UsingJoyStick() && joystick != null)
             {
                 return new Vector2(joystick.Horizontal, joystick.Vertical);
             }
@@ -142,14 +147,6 @@ namespace _GAME.Scripts.Player
             return Vector2.zero;
         }
         
-        
-        public void UseJoystick(bool use)
-        {
-            usingJoystick = use;
-            if (joystick) joystick.gameObject.SetActive(use);
-            if (gamePadMovement) gamePadMovement.SetActive(!use);
-        }
-
         // ======== Helpers ========
         private void EnableActions() 
         {

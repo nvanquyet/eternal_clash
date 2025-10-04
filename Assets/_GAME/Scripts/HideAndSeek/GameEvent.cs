@@ -14,6 +14,7 @@ namespace _GAME.Scripts.HideAndSeek
         public static Action<ulong, ulong> OnPlayerKilled; // killer, victim
         public static Action<ulong> OnBotKilled; // id killer
         public static Action<string, ulong> OnPlayerDeath; //name and  client ID
+        public static Action<string, ulong> OnPlayerRevive; //name and  client ID
 
         //Game Loop Events
         

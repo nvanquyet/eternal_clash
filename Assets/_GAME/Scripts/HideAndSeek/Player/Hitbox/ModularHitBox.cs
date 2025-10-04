@@ -127,6 +127,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
             var processedDamage = ProcessHitBoxDamage(damage, damageType);
 
             // Forward lên root để sync HP qua NetVar + bắn ClientRpc FX
+            Debug.LogWarning($"[ModularHitBox] {name}: {RootModule.gameObject.name} took {processedDamage} damage (raw: {damage}, type: {damageType}) from {attacker?.EntityId}");
             var actualDamage = RootModule.TakeDamage(attacker, processedDamage, damageType);
 
             // Notify per-hitbox (ví dụ headshot popup...)
@@ -139,7 +140,6 @@ namespace _GAME.Scripts.HideAndSeek.Player.HitBox
                 hitBoxInfo.specialEffectId
             );
             OnHitBoxDamaged?.Invoke(this, info);
-
             return actualDamage;
         }
 

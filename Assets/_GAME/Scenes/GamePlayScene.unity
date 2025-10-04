@@ -248,6 +248,7 @@ MonoBehaviour:
   - {fileID: 1496646485}
   - {fileID: 1909030128}
   - {fileID: 1143876727}
+  usingStack: 0
 --- !u!1 &67649182
 GameObject:
   m_ObjectHideFlags: 0
@@ -1921,6 +1922,10 @@ PrefabInstance:
       propertyPath: canvasGroup
       value: 
       objectReference: {fileID: 4264985008926329569}
+    - target: {fileID: 5506763013664022331, guid: 111c56a5d372ebc49a7224b5d41d2e54, type: 3}
+      propertyPath: usingJoystick
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5808002290542482846, guid: 111c56a5d372ebc49a7224b5d41d2e54, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0

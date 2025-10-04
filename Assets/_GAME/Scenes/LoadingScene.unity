@@ -2950,6 +2950,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2828935496178282829, guid: c01f222863811604399fdd2dd02614c6, type: 3}
+      propertyPath: m_SortingOrder
+      value: 600
+      objectReference: {fileID: 0}
     - target: {fileID: 5652311928991170581, guid: c01f222863811604399fdd2dd02614c6, type: 3}
       propertyPath: m_Name
       value: PopUp Noti

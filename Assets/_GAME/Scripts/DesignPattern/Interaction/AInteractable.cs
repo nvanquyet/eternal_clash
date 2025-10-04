@@ -544,7 +544,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         [Header("Attack Settings")] [SerializeField]
         private float baseDamage = 10f;
 
-        [SerializeField] protected float attackRange = 2f;
+        //[SerializeField] protected float attackRange = 2f;
         [SerializeField] protected float attackCooldown = 1f;
         [SerializeField] protected DamageType primaryDamageType = DamageType.Physical;
 
@@ -575,7 +575,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         private bool damageInitialized = false;
 
         public float BaseDamage => networkBaseDamage.Value;
-        public float AttackRange => attackRange;
+        //public float AttackRange => attackRange;
         public float AttackCooldown => attackCooldown;
         public float NextAttackTime => (float)networkNextAttackServerTime.Value;
         public DamageType PrimaryDamageType => primaryDamageType;
@@ -659,7 +659,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             // ✅ Thread-safe attack validation
             if (!CanAttack) return false;
             if (target == null || !target.IsAlive) return false;
-            if (!IsInAttackRange(target)) return false;
+            //if (!IsInAttackRange(target)) return false;
 
             var targetMb = target as MonoBehaviour;
             if (!IsValidTargetGO(targetMb ? targetMb.gameObject : null)) return false;
@@ -701,8 +701,8 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             OnAttackFeedbackLocal(actualDamage);
         }
 
-        public virtual bool IsInAttackRange(IDefendable target) =>
-            target != null && Vector3.Distance(Position, target.Position) <= attackRange;
+        // public virtual bool IsInAttackRange(IDefendable target) =>
+        //     target != null && Vector3.Distance(Position, target.Position) <= attackRange;
 
         public virtual float CalculateDamage(IDefendable target) => BaseDamage;
 
@@ -728,16 +728,18 @@ namespace _GAME.Scripts.DesignPattern.Interaction
 
             if (!IsValidTargetGO(go))
             {
-                OnHitInvalidTarget(other);
+                //OnHitInvalidTarget(other);
+                Debug.Log($"[AAttackable] {name} Collision detected with {go.name} is Invalid Target");
                 return;
             }
 
             if (!go.TryGetComponent<IDefendable>(out var target))
             {
+                Debug.Log($"[AAttackable] {name} Collision detected with {go.name} is non IDefendable");
                 OnHitNonDefendableTarget(other);
                 return;
             }
-
+            Debug.Log($"[AAttackable] {name} Collision detected with {go.name} isAlive={target.IsAlive}");
             if (!target.IsAlive) return;
 
             // ✅ Mark as attacked FIRST to prevent multi-hit
@@ -773,7 +775,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         protected virtual bool IsValidTargetGO(GameObject target)
         {
             if (target == null) return false;
-
+            Debug.Log($"[AAttackable] {name} Validating target {target.name} Layer={target.layer.ToString()} Tags= {target.tag}");
             // Layer check
             int targetLayerMask = 1 << target.layer;
             if ((targetLayerMask & attackableLayers) == 0) return false;
@@ -797,7 +799,7 @@ namespace _GAME.Scripts.DesignPattern.Interaction
             // ✅ Self-attack prevention
             if (target.TryGetComponent<NetworkObject>(out var nob))
             {
-                if (nob.OwnerClientId == OwnerClientId) return false;
+                if(nob.OwnerClientId == OwnerClientId) return false;
             }
 
             
@@ -820,8 +822,8 @@ namespace _GAME.Scripts.DesignPattern.Interaction
         protected virtual void OnAttackFeedbackLocal(float actualDamage)
         {
         }
-
-        protected abstract void OnHitInvalidTarget(Collider other);
+        
+        //protected abstract void OnHitInvalidTarget(Collider other);
         protected abstract void OnHitNonDefendableTarget(Collider other);
         protected abstract void HandleDestruction();
     }

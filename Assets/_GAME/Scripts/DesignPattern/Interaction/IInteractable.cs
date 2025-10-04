@@ -43,14 +43,14 @@ namespace _GAME.Scripts.DesignPattern.Interaction
     public interface IAttackable : IInteractable
     {
         float BaseDamage { get; }
-        float AttackRange { get; }
+        //float AttackRange { get; }
         float AttackCooldown { get; }
         bool CanAttack { get; }
         float NextAttackTime { get; }
         DamageType PrimaryDamageType { get; }
         
         bool Attack(IDefendable target);
-        bool IsInAttackRange(IDefendable target);
+        //bool IsInAttackRange(IDefendable target);
         float CalculateDamage(IDefendable target);
         
         event Action<IAttackable, IDefendable, float> OnAttackPerformed; // (attacker, target, damage)

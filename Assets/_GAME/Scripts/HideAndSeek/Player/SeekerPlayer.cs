@@ -35,18 +35,6 @@ namespace _GAME.Scripts.HideAndSeek.Player
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-
-            // Subscribe to network variable changes
-          
-
-            // Initialize server-side values
-            if (IsServer)
-            {
-                // Initialize seeker health from game settings
-                var seekerHealth = GameManager?.Settings?.seekerHealth ?? 100f;
-                networkCurrentHealth.Value = seekerHealth;
-            }
-
             LogNetworkState("SeekerPlayer spawned");
         }
 

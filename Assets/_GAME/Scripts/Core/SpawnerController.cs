@@ -501,7 +501,7 @@ namespace _GAME.Scripts.Core
                 Debug.Log($"[{GetType().Name}] Successfully spawned player for client {clientId}");
                 
                 
-                playerInstance.SpawnAsPlayerObject(clientId);
+                playerInstance.SpawnAsPlayerObject(clientId, true);
             }
             catch (System.Exception e)
             {

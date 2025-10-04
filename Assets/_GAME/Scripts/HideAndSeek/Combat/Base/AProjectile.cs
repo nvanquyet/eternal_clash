@@ -138,21 +138,70 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
             GameObject go = other.attachedRigidbody 
                 ? other.attachedRigidbody.gameObject 
                 : other.gameObject;
-    
+            
+            if (go == null) return false;
             var netOtherObj = go.GetComponent<NetworkObject>() 
                               ?? go.GetComponentInParent<NetworkObject>();
     
             if (netOtherObj == null) return false;
+            
+            if(netOtherObj.CompareTag("Bot")) return false;
+            
             return netOtherObj.OwnerClientId == this.OwnerClientId;
         }
-        
-        
-        // Khi base gặp vật cản/đối tượng không hợp lệ:
-        protected override void OnHitInvalidTarget(Collider other)
+
+
+        protected override bool IsValidTargetGO(GameObject target)
         {
-            OnHitObstacle(other);
-            DestroyProjectile();
+            if (target == null) return false;
+
+            // Layer check
+            int targetLayerMask = 1 << target.layer;
+            if ((targetLayerMask & attackableLayers) == 0) return false;
+
+            // Tag check
+            if (attackableTags != null && attackableTags.Length > 0)
+            {
+                bool tagMatched = false;
+                for (int i = 0; i < attackableTags.Length; i++)
+                {
+                    if (target.CompareTag(attackableTags[i]))
+                    {
+                        tagMatched = true;
+                        break;
+                    }
+                }
+
+                if (!tagMatched) return false;
+            }
+
+            // ✅ Self-attack prevention
+            if (target.TryGetComponent<NetworkObject>(out var nob))
+            {
+                Debug.Log($"[AProjectile] Target NO found. Tag: {nob.tag} Compare bot {nob.CompareTag("Bot")}, OwnerClientId: {nob.OwnerClientId}, Self OwnerClientId: {OwnerClientId}");
+                if(!nob.CompareTag("Bot") && nob.OwnerClientId == OwnerClientId) return false;
+            }
+            
+            if (target.transform.root.TryGetComponent<IGamePlayer>(out var targetPlayer))
+            {
+                var owner = GameManager.Instance.GetPlayerRoleWithId(this.OwnerClientId);
+                // Same role = friendly fire
+                if (targetPlayer.Role == owner && 
+                    targetPlayer.Role != Role.None)
+                {
+                    return false; // Block damage giữa cùng team
+                }
+            }
+            return true;
+        
         }
+
+        // Khi base gặp vật cản/đối tượng không hợp lệ:
+        // protected override void OnHitInvalidTarget(Collider other)
+        // {
+        //     OnHitObstacle(other);
+        //     DestroyProjectile();
+        // }
 
         protected override void OnHitNonDefendableTarget(Collider other)
         {

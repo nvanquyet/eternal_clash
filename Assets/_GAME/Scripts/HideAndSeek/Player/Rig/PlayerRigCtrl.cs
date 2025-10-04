@@ -72,6 +72,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
         {
             base.OnNetworkSpawn();
             currentRigState.OnValueChanged += OnRigStateChanged;
+            GameEvent.OnPlayerDeath += OnPlayerDeath;
             ApplyRigState(currentRigState.Value);
         }
 
@@ -79,7 +80,17 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
         {
             base.OnNetworkDespawn();
             currentRigState.OnValueChanged -= OnRigStateChanged;
+            GameEvent.OnPlayerDeath -= OnPlayerDeath;
         }
+
+        private void OnPlayerDeath(string n, ulong pId)
+        {
+            if(!IsServer) return;
+            if (pId != OwnerClientId) return;
+            currentRigState.Value = RigState.None;
+            PlayerRig?.DisableRig();
+        }
+        
 
         private void OnRigStateChanged(RigState oldState, RigState newState)
         {

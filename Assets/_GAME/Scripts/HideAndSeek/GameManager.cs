@@ -405,7 +405,7 @@ namespace _GAME.Scripts.HideAndSeek
 
                 // Give penalty to seeker
                 if (_allPlayersBehaviour.TryGetValue(killer.clientId, out var playerBehavior))
-                {
+                { 
                     playerBehavior.ApplyPenaltyForKillingBot();
                 }
             }
@@ -642,12 +642,10 @@ namespace _GAME.Scripts.HideAndSeek
                 Debug.LogWarning("[GameManager] RegisterPlayer can only be called on server.");
                 return false;
             }
-
-            if (player == null || _allPlayersBehaviour.ContainsKey(player.ClientId))
-            {
-                return false;
-            }
-
+            if (player == null || player.Role is Role.None or Role.Bot) return false;
+            
+            if (_allPlayersBehaviour.ContainsKey(player.ClientId)) return false;
+            
             try
             {
                 _allPlayersBehaviour[player.ClientId] = player;

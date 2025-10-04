@@ -9,8 +9,8 @@
     public enum GameState
     {
         Waiting = 0,
-        Starting = 1,
-        InProgress = 2,
-        Ended = 3
+        PreparingGame = 1,
+        Playing = 2,
+        GameEnded = 3
     }
 }

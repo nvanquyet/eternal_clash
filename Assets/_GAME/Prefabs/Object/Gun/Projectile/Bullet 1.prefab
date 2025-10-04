@@ -58,8 +58,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.11, y: 0.08, z: 0.5}
-  m_Center: {x: 0, y: 0, z: -0.25}
+  m_Size: {x: 0.11, y: 0.08, z: 2}
+  m_Center: {x: 0, y: 0, z: -1}
 --- !u!54 &4115351996149255554
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -129,19 +129,18 @@ MonoBehaviour:
   isActive: 1
   interactionCollider: {fileID: 2544796225012738917}
   baseDamage: 10
-  attackRange: 2
   attackCooldown: 1
   primaryDamageType: 0
   enableCollisionAttack: 1
   attackableLayers:
     serializedVersion: 2
-    m_Bits: 521217
+    m_Bits: 286721
   attackableTags:
   - HitboxPart
   - Defendable
   - Environment
   destroyAfterCollisionAttack: 1
-  speed: 20
+  speed: 10
   lifetime: 5
   pierceTargets: 0
   maxPierceCount: 3

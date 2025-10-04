@@ -37,6 +37,8 @@ namespace _GAME.Scripts.HideAndSeek.UI
 
         private void OnGameEnded(Role obj)
         {
+            gameObject.SetActive(true);
+            Canvas.alpha = 0;
             if(_gameEndCoroutine != null) StopCoroutine(_gameEndCoroutine);
             _gameEndCoroutine = StartCoroutine(IEGameEnd(obj));
         }
@@ -45,7 +47,7 @@ namespace _GAME.Scripts.HideAndSeek.UI
         private IEnumerator IEGameEnd(Role winner)
         {
             yield return new WaitForSeconds(3f);
-            Show(null, true);
+            Show(null);
             var ownerRole = GameManager.Instance.GetPlayerRoleWithId(PlayerIdManager.LocalClientId);
             if (winner == Role.None)
             {

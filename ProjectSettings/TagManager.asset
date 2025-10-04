@@ -14,6 +14,7 @@ TagManager:
   - HiderInteractor
   - SeekerInteractor
   - PlayerInteractor
+  - Bot
   layers:
   - Default
   - TransparentFX

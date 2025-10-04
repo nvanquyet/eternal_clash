@@ -24,6 +24,7 @@ namespace _GAME.Scripts.UI.Base
         [SerializeField] private UIType uiType;
         
         public UIType UIType => uiType;
+        public CanvasGroup Canvas => canvasGroup;
         
 #if UNITY_EDITOR
         protected virtual void OnValidate()

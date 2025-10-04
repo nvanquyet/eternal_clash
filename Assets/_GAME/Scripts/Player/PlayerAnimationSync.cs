@@ -1,4 +1,5 @@
 // ==================== FIXED PlayerAnimationSync ====================
+
 using System.Collections.Generic;
 using _GAME.Scripts.HideAndSeek;
 using Unity.Netcode;
@@ -12,6 +13,7 @@ namespace _GAME.Scripts.Player
         [SerializeField] private Animator currentAnimator;
         [SerializeField] private string deathAnimationName = "Death";
         [SerializeField] private string reviveAnimationName = "Revive";
+
         public Animator CurrentAnimator
         {
             get
@@ -19,21 +21,25 @@ namespace _GAME.Scripts.Player
                 if (currentAnimator == null) currentAnimator = GetComponentInChildren<Animator>();
                 return currentAnimator;
             }
-            set
+            private set
             {
-                if(value != null) currentAnimator = value;
+                if (value != null) currentAnimator = value;
             }
-    }
-        
+        }
+
         // Server is the authority for network variables
         private readonly NetworkVariable<float> networkXVelocity =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<float> networkZVelocity =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<float> networkYVelocity =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<bool> networkIsGrounded =
             new(true, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<bool> networkIsMoving =
             new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -43,8 +49,11 @@ namespace _GAME.Scripts.Player
 
         private void Awake()
         {
-            Cache("xVelocity"); Cache("zVelocity"); Cache("yVelocity");
-            Cache("isGrounded"); Cache("isMoving");
+            Cache("xVelocity");
+            Cache("zVelocity");
+            Cache("yVelocity");
+            Cache("isGrounded");
+            Cache("isMoving");
         }
 
         public override void OnNetworkSpawn()
@@ -53,15 +62,28 @@ namespace _GAME.Scripts.Player
             ApplyAll();
 
             GameEvent.OnPlayerDeath += OnPlayerDeath;
+            GameEvent.OnPlayerRevive += OnPlayerRevive;
 
             // FIX: Only NON-OWNERS listen to network variable changes
             // Owner uses local prediction and doesn't need to listen to network changes
             if (!IsOwner)
             {
-                networkXVelocity.OnValueChanged += (_, v) => { if (CurrentAnimator) CurrentAnimator.SetFloat(_hash["xVelocity"], v); };
-                networkZVelocity.OnValueChanged += (_, v) => { if (CurrentAnimator) CurrentAnimator.SetFloat(_hash["zVelocity"], v); };
-                networkYVelocity.OnValueChanged += (_, v) => { if (CurrentAnimator) CurrentAnimator.SetFloat(_hash["yVelocity"], v); };
-                networkIsGrounded.OnValueChanged += (_, v) => { if (CurrentAnimator) CurrentAnimator.SetBool(_hash["isGrounded"], v); };
+                networkXVelocity.OnValueChanged += (_, v) =>
+                {
+                    if (CurrentAnimator) CurrentAnimator.SetFloat(_hash["xVelocity"], v);
+                };
+                networkZVelocity.OnValueChanged += (_, v) =>
+                {
+                    if (CurrentAnimator) CurrentAnimator.SetFloat(_hash["zVelocity"], v);
+                };
+                networkYVelocity.OnValueChanged += (_, v) =>
+                {
+                    if (CurrentAnimator) CurrentAnimator.SetFloat(_hash["yVelocity"], v);
+                };
+                networkIsGrounded.OnValueChanged += (_, v) =>
+                {
+                    if (CurrentAnimator) CurrentAnimator.SetBool(_hash["isGrounded"], v);
+                };
                 //networkIsMoving.OnValueChanged += (_, v) => { if (currentAnimator) currentAnimator.SetBool(_hash["isMoving"], v); };
             }
         }
@@ -77,13 +99,19 @@ namespace _GAME.Scripts.Player
                 networkIsGrounded.OnValueChanged -= OnNetworkVariableChangedBool;
                 networkIsMoving.OnValueChanged -= OnNetworkVariableChangedBool;
             }
-            
-            GameEvent.OnPlayerDeath += OnPlayerDeath;
+
+            GameEvent.OnPlayerDeath -= OnPlayerDeath;
+            GameEvent.OnPlayerRevive -= OnPlayerRevive;
         }
 
         // Helper methods for unsubscribing
-        private void OnNetworkVariableChanged(float prev, float curr) { }
-        private void OnNetworkVariableChangedBool(bool prev, bool curr) { }
+        private void OnNetworkVariableChanged(float prev, float curr)
+        {
+        }
+
+        private void OnNetworkVariableChangedBool(bool prev, bool curr)
+        {
+        }
 
         public void SetAnimator(Animator animator)
         {
@@ -111,7 +139,12 @@ namespace _GAME.Scripts.Player
             {
                 bool ok = false;
                 foreach (var p in CurrentAnimator.parameters)
-                    if (p.nameHash == kv.Value) { ok = true; break; }
+                    if (p.nameHash == kv.Value)
+                    {
+                        ok = true;
+                        break;
+                    }
+
                 if (!ok) Debug.LogWarning($"[AnimSync] Animator missing param: {kv.Key} on {gameObject.name}");
             }
         }
@@ -126,7 +159,7 @@ namespace _GAME.Scripts.Player
 
             // 1) IMMEDIATE LOCAL UPDATE for owner (client-side prediction)
             //bool isMovingLocal = Mathf.Abs(xVel) > 0.1f || Mathf.Abs(zVel) > 0.1f;
-            
+
             if (CurrentAnimator)
             {
                 CurrentAnimator.SetFloat(_hash["xVelocity"], xVel);
@@ -163,14 +196,16 @@ namespace _GAME.Scripts.Player
         public void TriggerAnimation(string triggerName)
         {
             if (!IsOwner) return;
-            
+
             // Owner triggers immediately for responsiveness
             if (CurrentAnimator)
             {
-                int hash = _hash.TryGetValue(triggerName, out var v) ? v : (_hash[triggerName] = Animator.StringToHash(triggerName));
+                int hash = _hash.TryGetValue(triggerName, out var v)
+                    ? v
+                    : (_hash[triggerName] = Animator.StringToHash(triggerName));
                 CurrentAnimator.SetTrigger(hash);
             }
-            
+
             // Send to server for other clients
             TriggerAnimationServerRpc(triggerName);
         }
@@ -192,7 +227,9 @@ namespace _GAME.Scripts.Player
         private void TriggerAnimationClientRpc(string triggerName, ClientRpcParams clientRpcParams = default)
         {
             if (!CurrentAnimator) return;
-            int hash = _hash.TryGetValue(triggerName, out var v) ? v : (_hash[triggerName] = Animator.StringToHash(triggerName));
+            int hash = _hash.TryGetValue(triggerName, out var v)
+                ? v
+                : (_hash[triggerName] = Animator.StringToHash(triggerName));
             CurrentAnimator.SetTrigger(hash);
         }
 
@@ -203,7 +240,7 @@ namespace _GAME.Scripts.Player
         {
             var allClients = NetworkManager.Singleton.ConnectedClientsIds;
             var nonOwnerClients = new List<ulong>();
-            
+
             foreach (var clientId in allClients)
             {
                 if (clientId != OwnerClientId)
@@ -211,32 +248,36 @@ namespace _GAME.Scripts.Player
                     nonOwnerClients.Add(clientId);
                 }
             }
-            
-            var result = new Unity.Collections.NativeArray<ulong>(nonOwnerClients.Count, Unity.Collections.Allocator.Temp);
+
+            var result =
+                new Unity.Collections.NativeArray<ulong>(nonOwnerClients.Count, Unity.Collections.Allocator.Temp);
             for (int i = 0; i < nonOwnerClients.Count; i++)
             {
                 result[i] = nonOwnerClients[i];
             }
-            
+
             return result;
         }
-        
-        
+
+
         private void OnPlayerDeath(string namePlayer, ulong idPlayer)
         {
+            Debug.Log(
+                $"[AnimSync] OnPlayerDeath: {namePlayer} ({idPlayer}), Local: {IsOwner}, Owner: {OwnerClientId}  Animator Valid {CurrentAnimator}");
             if (this.OwnerClientId == idPlayer && CurrentAnimator)
             {
+                Debug.Log($"[AnimSync] Play death animation for {namePlayer}");
                 //Play animation death
                 CurrentAnimator.Play(deathAnimationName);
             }
         }
-        
-        private void OnPlayerRevive(string namePlayer,ulong idPlayer)
+
+        private void OnPlayerRevive(string namePlayer, ulong idPlayer)
         {
             if (this.OwnerClientId == idPlayer && CurrentAnimator)
             {
                 //Play animation death
-                CurrentAnimator.Play(deathAnimationName);
+                CurrentAnimator.Play(reviveAnimationName);
             }
         }
     }
