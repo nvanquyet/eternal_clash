@@ -155,10 +155,10 @@ namespace _GAME.Scripts.UI
             _runCo = StartCoroutine(Co_CompleteThenHide(onHidden));
         }
 
-        public void RunTimed(float seconds, Action onComplete = null, string tipAtStart = null, bool autoHide = true)
+        public void RunTimed(float seconds, Action onComplete = null, string tipAtStart = null, bool autoHide = true, float delay = 0f)
         {
             if (_runCo != null) StopCoroutine(_runCo);
-            _runCo = StartCoroutine(Co_RunTimed(seconds, onComplete, tipAtStart, autoHide));
+            _runCo = StartCoroutine(Co_RunTimed(seconds, onComplete, tipAtStart, autoHide,delay));
         }
 
         // =================== PRIVATE ===================
@@ -276,8 +276,10 @@ namespace _GAME.Scripts.UI
         }
 
 
-        private IEnumerator Co_RunTimed(float seconds, Action onComplete, string tipAtStart, bool autoHide = true)
+        private IEnumerator Co_RunTimed(float seconds, Action onComplete, string tipAtStart, bool autoHide = true, float delay = 0f)
         {
+            if (delay > 0f)
+                yield return new WaitForSecondsRealtime( delay);
             seconds = Mathf.Max(0f, seconds);
 
             Show(string.IsNullOrEmpty(tipAtStart) ? PickRandomTip() : tipAtStart);

@@ -11,9 +11,14 @@ namespace _GAME.Scripts.Controller
 
         [Header("Background Music")]
         [SerializeField] private AudioSource musicSource;
+        [SerializeField] private AudioSource uiElementSource;
         [SerializeField] private AudioClip[] menuMusicClips;
         [SerializeField] private AudioClip[] gamePlayMusicClips;
         [SerializeField] private AudioClip[] intenseMusicClips;
+        
+        [Header("UI Sound Effects")]
+        [SerializeField] private AudioClip uiClickSound;
+        [SerializeField] private AudioClip uiSwitchSound;
     
         [Header("Settings")]
         [SerializeField] private float musicVolume = 0.5f;
@@ -270,6 +275,44 @@ namespace _GAME.Scripts.Controller
 
         #endregion
 
+        #region UI Effect
+
+        public enum UIButtonType
+        {
+            Button,
+            Switch
+        }
+
+        public void PlayUIElementSound(UIButtonType type = UIButtonType.Button)
+        {
+            switch (type)
+            {
+                case UIButtonType.Button:
+                    PlayUIClickSound();
+                    break;
+                case UIButtonType.Switch:
+                    PlayUISwitchSound();
+                    break;
+                default:
+                    PlayUIClickSound();
+                    break;
+            }
+        }
+        private void PlayUIClickSound()
+        {
+            if (!_sfxEnabled || uiElementSource == null || uiClickSound == null) return;
+            uiElementSource.PlayOneShot(uiClickSound, sfxVolume);
+        }
+        
+        private void PlayUISwitchSound()
+        {
+            if (!_sfxEnabled || uiElementSource == null || uiSwitchSound == null) return;
+            uiElementSource.PlayOneShot(uiSwitchSound, sfxVolume);
+        }
+
+        #endregion
+        
+        
         #region Getters
 
         public bool IsMusicEnabled() => _musicEnabled;

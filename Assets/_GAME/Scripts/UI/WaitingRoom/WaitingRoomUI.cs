@@ -1,8 +1,10 @@
 using System;
 using _GAME.Scripts.Controller;
+using _GAME.Scripts.Data;
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.UI.Base;
+using Michsky.MUIP;
 using TMPro;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
@@ -13,12 +15,15 @@ namespace _GAME.Scripts.UI.WaitingRoom
     public class WaitingRoomUI : BaseUI
     {
         [Header("Waiting Room UI Elements")]
-        [SerializeField] private Button btnStartGame;
         [SerializeField] private Button btnLeaveRoom;
-        [SerializeField] private Button btnRoomInformation;
+        [SerializeField] private Button  btnSetting;
         [SerializeField] private TextMeshProUGUI lobbyCodeText;
-        [SerializeField] private Button btnReady;
+        [SerializeField] private TextMeshProUGUI playerUsernameText;
+        [SerializeField] private TextMeshProUGUI playerUserIdText;
         
+        [SerializeField] private ButtonManager  btnReady;
+        [SerializeField] private ButtonManager btnStartGame;
+
         [Header("Toggle")]
         [SerializeField] private ToggleShowExtension allPlayerToggle;
         [SerializeField] private ToggleShowExtension lobbySettingsToggle;
@@ -69,8 +74,31 @@ namespace _GAME.Scripts.UI.WaitingRoom
             {
                 LoadingUI.Instance.Complete();
             });
+            
+            InitializeUserInformation();
         }
-        
+
+        private void InitializeUserInformation()
+        {
+            if (playerUsernameText != null)
+            {
+                playerUsernameText.text = LocalData.UserName;
+            }
+            else
+            {
+                Debug.LogError("[WaitingRoomUI] playerUsernameText is not assigned in WaitingRoomUI.");
+            }
+
+            if (playerUserIdText != null)
+            {
+                playerUserIdText.text = PlayerIdManager.PlayerId;
+            }
+            else
+            {
+                Debug.LogError("[WaitingRoomUI] playerUserIdText is not assigned in WaitingRoomUI.");
+            }
+        }
+
         private async void OnPlayerLeft(Unity.Services.Lobbies.Models.Player p, Lobby lobby, string message)
         {
             try
@@ -98,7 +126,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             btnStartGame.onClick.AddListener(OnClickStartGame);
             btnLeaveRoom.onClick.AddListener(OnClickLeaveRoom);
-            btnRoomInformation.onClick.AddListener(OnClickRoomInformation);
+            btnSetting.onClick.AddListener(OnClickSetting);
             btnReady.onClick.AddListener(OnClickReady);
             
             //Register event lobby Update
@@ -111,7 +139,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             btnStartGame.onClick.RemoveListener(OnClickStartGame);
             btnLeaveRoom.onClick.RemoveListener(OnClickLeaveRoom);
-            btnRoomInformation.onClick.RemoveListener(OnClickRoomInformation);
+            btnSetting.onClick.RemoveListener(OnClickSetting);
             btnReady.onClick.RemoveListener(OnClickReady);
             
             LobbyEvents.OnPlayerUpdated -= OnPlayerUpdated;
@@ -136,8 +164,8 @@ namespace _GAME.Scripts.UI.WaitingRoom
             // Update the ready button state
             if (btnReady != null)
             {
-                btnReady.GetComponentInChildren<TextMeshProUGUI>().text = isReady ? "Unready" : "Ready";
-                btnReady.interactable = true; // Enable the button
+                btnReady.SetText(isReady ? "Unready" : "Ready");
+                btnReady.Interactable(true); // Enable the button
             }
             else
             {
@@ -150,7 +178,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
             //Dísable the button while processing
             if (btnReady != null)
             {
-                btnReady.interactable = false; // Disable the button to prevent multiple clicks
+                btnReady.Interactable(false); // Disable the button to prevent multiple clicks
             }
             _ = GameNet.Instance.SetPlayerReadyAsync(!isReady);
         }
@@ -171,10 +199,10 @@ namespace _GAME.Scripts.UI.WaitingRoom
             lobbySetting.Initialized(lobby);
         }
 
-        private void OnClickRoomInformation()
+        private void OnClickSetting()
         {
             //Todo: Open Room Information UI
-            HUD.Instance.Show(UIType.Lobby);
+            SettingsPopup.Instance.Show();
         }
 
         private void OnClickLeaveRoom()

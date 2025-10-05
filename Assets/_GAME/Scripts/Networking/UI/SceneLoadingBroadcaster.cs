@@ -7,7 +7,7 @@ namespace _GAME.Scripts.Networking
 {
     /// Server lắng scene events và phát ClientRpc → gọi UI local trên mỗi client
     [DisallowMultipleComponent]
-    public class SceneLoadingBroadcaster : NetworkBehaviour
+    public class SceneLoadingBroadcaster : MonoBehaviour
     {
         public static SceneLoadingBroadcaster Instance { get; private set; }
 
@@ -58,7 +58,7 @@ namespace _GAME.Scripts.Networking
 
         private void SubscribeServerSceneEvents()
         {
-            if (!IsServer) return;
+            if (!GameNet.Instance.Network.IsHost) return;
             var nsm = NetworkManager.Singleton?.SceneManager;
             if (nsm == null) { StartCoroutine(RetrySub()); return; }
 
@@ -71,7 +71,7 @@ namespace _GAME.Scripts.Networking
 
         private void UnsubscribeServerSceneEvents()
         {
-            if (!IsServer) return;
+            if (!GameNet.Instance.Network.IsHost) return;
             var nsm = NetworkManager.Singleton?.SceneManager;
             if (nsm != null) nsm.OnSceneEvent -= OnServerSceneEvent;
         }
@@ -135,7 +135,7 @@ namespace _GAME.Scripts.Networking
         // API để host gọi “pre-show” trước khi LoadScene (tuỳ chọn)
         public void PreShowAllClients(string tip = "Loading...")
         {
-            if (!IsServer || !IsSpawned) return;
+            if (!GameNet.Instance.Network.IsHost) return;
             ShowLoadingClientRpc("Loading...", tip);
         }
 

@@ -26,7 +26,7 @@ namespace _GAME.Scripts.Config
         public int[] maxPlayersPerLobby = { 4, 6, 8, 10 };
         
         public string defaultNameLobby = "Lobby";
-        public LobbyConstants.MaxPlayerLobby defaultMaxPlayer = LobbyConstants.MaxPlayerLobby.Four;
+        public int DefaultMaxPlayer => (maxPlayersPerLobby != null && maxPlayersPerLobby.Length > 0) ? maxPlayersPerLobby[0] : 4;
         public string defaultPassword = "12345678";
     }
 }

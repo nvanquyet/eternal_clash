@@ -9,6 +9,7 @@ using _GAME.Scripts.HideAndSeek.Util;
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
 using _GAME.Scripts.Player;
+using _GAME.Scripts.UI;
 using GAME.Scripts.DesignPattern;
 using UnityEngine;
 using Unity.Netcode;
@@ -231,6 +232,8 @@ namespace _GAME.Scripts.HideAndSeek
         /// </summary>
         private void OnServerPlayersSpawned()
         {
+            //Loading UI hide
+            LoadingUI.Instance.Complete();
             if (!IsServer) return;
             Debug.Log("[GameManager] Server: All players spawned, starting game preparation.");
             

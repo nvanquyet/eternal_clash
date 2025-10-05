@@ -1,5 +1,6 @@
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
+using Michsky.MUIP;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,7 +11,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
     {
         [SerializeField] private TextMeshProUGUI playerNameText;
         [SerializeField] private Toggle readyToggle;
-        [SerializeField] private Button kickButton;
+        [SerializeField] private ButtonManager  kickButton;
 
         private Unity.Services.Lobbies.Models.Player player;
         
@@ -19,7 +20,6 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             playerNameText ??= GetComponentInChildren<TMPro.TextMeshProUGUI>();
             readyToggle ??= GetComponentInChildren<Toggle>();
-            kickButton ??= GetComponentInChildren<Button>();
         }
 #endif
 
@@ -45,7 +45,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 return;
             }
             //Disable the kick button to prevent multiple clicks
-            kickButton.interactable = false;
+            kickButton.Interactable(false);
             GameNet.Instance.KickPlayerAsync(player.Id);
         }
 

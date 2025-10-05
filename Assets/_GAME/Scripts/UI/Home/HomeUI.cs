@@ -15,7 +15,18 @@ namespace _GAME.Scripts.UI.Home
 {
     public class HomeUI : BaseUI
     {
-        [SerializeField] private Button btnBtnHost, btnJoin;
+        [Header("Backgrounds")]
+        [SerializeField] private Sprite[] backgrounds;
+        [SerializeField] private Image backgroundImage;
+
+        [Header("Information")] 
+        [SerializeField] private TextMeshProUGUI txtPlayerName;
+        [SerializeField]private TextMeshProUGUI txtPlayerId;
+        
+        [Header("Buttons")]
+        [SerializeField] private Button btnSetting;
+        [SerializeField] private Button btnBtnHost;
+        [SerializeField] private Button btnJoin;
         [SerializeField] private TMP_InputField lobbyCodeInputField;
         [SerializeField] private LobbyPasswordConfirmation lobbyPasswordConfirmation;
         
@@ -25,12 +36,15 @@ namespace _GAME.Scripts.UI.Home
         
         protected void Awake()
         {
+            btnSetting.onClick.AddListener(OnClickSetting);
             btnBtnHost.onClick.AddListener(OnHostButtonClicked);
             btnLogout.onClick.AddListener(OnClickLogout);
             btnJoin.onClick.AddListener(OnJoinButtonClicked);
         }
-        
-        
+
+       
+
+
         //Sign in anonymously with UnityAuthenticator
         private async void Start()
         {
@@ -44,9 +58,13 @@ namespace _GAME.Scripts.UI.Home
                 if (!AuthenticationService.Instance.IsSignedIn)
                     await AuthenticationService.Instance.SignInAnonymouslyAsync();
                 
+                //Set random background
+                InitializeBackground();
+                
+                InitializeInformation();
+                
                 //Hide Loading
                 LoadingUI.Instance.Complete();
-                
                 AudioManager.Instance.PlayMenuMusic();
             }
             catch (Exception e)
@@ -55,6 +73,24 @@ namespace _GAME.Scripts.UI.Home
                 //Application.Quit();
                 Debug.LogError($"Failed to init Unity Services: {e}");
             }    
+        }
+
+        private void InitializeInformation()
+        {
+            if(txtPlayerName) txtPlayerName.text = string.IsNullOrEmpty(LocalData.UserName) ? "Guest" : LocalData.UserName;
+            if(txtPlayerId) txtPlayerId.text = string.IsNullOrEmpty(LocalData.UserId) ? "Unknown ID" : LocalData.UserId;
+        }
+
+        private void InitializeBackground()
+        {
+            if(backgroundImage == null || backgrounds == null || backgrounds.Length == 0) return;
+            int index = UnityEngine.Random.Range(0, backgrounds.Length);
+            backgroundImage.sprite = backgrounds[index];
+        }
+        
+        private void OnClickSetting()
+        {
+            SettingsPopup.Instance.Show();
         }
 
         private void OnClickLogout()
@@ -156,6 +192,7 @@ namespace _GAME.Scripts.UI.Home
         private void OnDestroy()
         {
             btnBtnHost.onClick.RemoveListener(OnHostButtonClicked);
+            btnSetting.onClick.RemoveListener(OnClickSetting);
             btnLogout.onClick.RemoveListener(OnClickLogout);
             btnJoin.onClick.RemoveListener(OnJoinButtonClicked);
         }

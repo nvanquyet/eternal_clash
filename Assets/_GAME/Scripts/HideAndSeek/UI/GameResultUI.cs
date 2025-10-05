@@ -13,6 +13,7 @@ namespace _GAME.Scripts.HideAndSeek.UI
     public class GameResultUI : BaseUI
     {
         [SerializeField] Button btnContinue;
+        [SerializeField] Button btnHome;
         [SerializeField] TextMeshProUGUI resultText;
 
         
@@ -21,16 +22,18 @@ namespace _GAME.Scripts.HideAndSeek.UI
         private void Start()
         {
             GameEvent.OnGameEnded += OnGameEnded;
-            btnContinue.onClick.RemoveAllListeners();
             btnContinue.onClick.AddListener(OnClickContinue);
+            btnHome.onClick.AddListener(OnClickHome);
             //Disable at start
             gameObject.SetActive(false);
         }
 
+
         private void OnDestroy()
         {
             GameEvent.OnGameEnded -= OnGameEnded;
-            btnContinue.onClick.RemoveAllListeners();
+            btnContinue.onClick.RemoveListener(OnClickContinue);
+            btnHome.onClick.RemoveListener(OnClickHome);
             if(_gameEndCoroutine != null) StopCoroutine(_gameEndCoroutine);
             _gameEndCoroutine = null;
         }
@@ -63,15 +66,50 @@ namespace _GAME.Scripts.HideAndSeek.UI
             }
 
             yield return new WaitForSeconds(5f);
-            OnClickContinue();
+            if(GameNet.Instance.Network.IsHost) OnReturnLobby();
         }
         
 
         private void OnClickContinue()
         {
+            //Waiting Host click continue
+            if(GameNet.Instance.Network.IsHost) OnReturnLobby();
+            else
+            {
+                //Disable button
+                btnContinue.interactable = false;
+            }
+        }
+        
+        
+        private  async void OnClickHome()
+        {
+            try
+            {
+                LoadingUI.Instance.RunTimed(1, GameManager.Instance.Clear, "Finish Game, Return home scene", false);
+                //Clear network
+                if (GameNet.Instance.Network.IsHost)
+                {
+                    //Remove lobby
+                    await GameNet.Instance.Lobby.RemoveLobbyAsync();
+                }
+                else
+                {
+                    await GameNet.Instance.Lobby.LeaveLobbyAsync();
+                }
+                await GameNet.Instance.Network.StopAsync();
+                SceneController.Instance.LoadSceneAsync(SceneHelper.ToSceneName(SceneDefinitions.Home));
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[GameResultUI] Error returning home: {e.Message}");
+            }
+        }
+        
+        private void OnReturnLobby()
+        {
             //Load to home screen
-            LoadingUI.Instance.RunTimed(1, GameManager.Instance.Clear, "Finish Game, Return home scene", false);
-            SceneController.Instance.LoadSceneAsync(SceneHelper.ToSceneName(SceneDefinitions.Home));
+            _ = GameNet.Instance.Network.LoadSceneAsync(SceneDefinitions.WaitingRoom);
         }
     }
 }

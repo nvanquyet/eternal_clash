@@ -24,6 +24,7 @@ namespace _GAME.Scripts.Player
     {
         [SerializeField] private PlayerMovementConfig playerConfig;
         [SerializeField] private CharacterController characterController;
+        [SerializeField] private MobileInputBridge playerInput;
 
         [SerializeField] private PlayerCamera playerCamera;
 
@@ -38,9 +39,17 @@ namespace _GAME.Scripts.Player
         public PlayerCamera PlayerCamera => playerCamera;
 
         // Core systems
-        private MobileInputBridge _playerInput;
         private PlayerLocomotion _playerLocomotion;
         private PlayerLocomotionAnimator _animationController;
+
+        public MobileInputBridge PlayerInput
+        {
+            get
+            {
+                if (!playerInput) playerInput = GetComponentInChildren<MobileInputBridge>();
+                return playerInput;
+            }
+        }
         
         private bool _isNetworkInitialized = false;
 
@@ -149,8 +158,7 @@ namespace _GAME.Scripts.Player
             PlayerCamera.EnableTppCam();
             // Owner có CharacterController để local movement
             if (characterController) characterController.enabled = true;
-            if (_playerInput == null) _playerInput = HUD.Instance.GetUI<MobileInputBridge>(UIType.Input);
-            _playerInput?.SetOwner();
+            PlayerInput.SetOwner();
         }
 
         private void SetupNonOwner()
@@ -197,7 +205,7 @@ namespace _GAME.Scripts.Player
 
         private PlayerInputData GatherInput()
         {
-            if (_playerInput == null)
+            if (PlayerInput == null)
                 return new PlayerInputData()
                 {
                     moveInput = Vector2.zero,
@@ -205,7 +213,7 @@ namespace _GAME.Scripts.Player
                     sprintHeld = false,
                     dashPressed = false
                 };
-            return _playerInput.GetPlayerInput();
+            return PlayerInput.GetPlayerInput();
         }
 
         #endregion
@@ -397,12 +405,12 @@ namespace _GAME.Scripts.Player
             if (enable)
             {
                 playerCamera.DisableAllCams();
-                _playerInput?.Hide(null);
+                PlayerInput?.Hide(null);
             }
             else
             {
                 playerCamera.EnableTppCam();
-                _playerInput?.Show(null);
+                PlayerInput?.Show(null);
             }
         }
 
@@ -418,7 +426,7 @@ namespace _GAME.Scripts.Player
             if (IsOwner)
             {
                 //Disable input 
-                _playerInput?.Hide(null);
+                PlayerInput?.Hide(null);
             }
         }
     }

@@ -104,7 +104,7 @@ namespace _GAME.Scripts.Authenticator
             if (sinceLast < MIN_LOGIN_RETRY_INTERVAL)
             {
                 var wait = Mathf.CeilToInt(MIN_LOGIN_RETRY_INTERVAL - (float)sinceLast);
-                var msg = $"Vui lòng chờ {wait} giây trước khi thử lại.";
+                var msg = $"Please wait {wait} seconds before retrying.";
                 OnLoginFailed?.Invoke(msg);
                 return (false, msg);
             }
@@ -115,7 +115,7 @@ namespace _GAME.Scripts.Authenticator
                 if (sinceLast < backoff)
                 {
                     var remain = Mathf.CeilToInt(backoff - (float)sinceLast);
-                    var msg = $"Quá nhiều lần thử. Vui lòng chờ {remain} giây.";
+                    var msg = $"Too many attempts. Please wait {remain} seconds.";
                     OnLoginFailed?.Invoke(msg);
                     return (false, msg);
                 }
@@ -123,7 +123,7 @@ namespace _GAME.Scripts.Authenticator
 
             if (isCurrentlyLoggingIn)
             {
-                const string msg = "Đang trong quá trình đăng nhập, vui lòng chờ...";
+                const string msg = "Already logging in, please wait...";
                 OnLoginFailed?.Invoke(msg);
                 return (false, msg);
             }
@@ -147,14 +147,14 @@ namespace _GAME.Scripts.Authenticator
                 isLoggedIn = true;
                 loginAttemptCount = 0;
 
-                OnLoginSuccess?.Invoke("Đăng nhập thành công!");
-                return (true, "Đăng nhập thành công!");
+                OnLoginSuccess?.Invoke("Login successful!");
+                return (true, "Login successful!");
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[PlayFabAuth] Login exception: {ex.Message}");
                 loginAttemptCount++;
-                const string msg = "Đã xảy ra lỗi trong quá trình đăng nhập. Vui lòng thử lại.";
+                const string msg = "Has occurred an error during login. Please try again.";
                 OnLoginFailed?.Invoke(msg);
                 return (false, msg);
             }
@@ -671,7 +671,7 @@ namespace _GAME.Scripts.Authenticator
             };
 
             PlayFabClientAPI.RegisterPlayFabUser(req,
-                _ => tcs.TrySetResult((true, "Đăng ký thành công!")),
+                _ => tcs.TrySetResult((true, "Registration successful! You can now log in.")),
                 e => tcs.TrySetResult((false, GetRegisterErrorMessage(e)))
             );
 
@@ -681,13 +681,13 @@ namespace _GAME.Scripts.Authenticator
         public async Task<(bool success, string message)> ForgotPasswordAsync(string email)
         {
             if (string.IsNullOrWhiteSpace(email) || !EmailRegex.IsMatch(email))
-                return (false, "Email không hợp lệ.");
+                return (false, "Invalid email address.");
 
             var tcs = new TaskCompletionSource<(bool, string)>();
             var req = new SendAccountRecoveryEmailRequest { Email = email, TitleId = PlayFabSettings.TitleId };
 
             PlayFabClientAPI.SendAccountRecoveryEmail(req,
-                _ => tcs.TrySetResult((true, "Vui lòng kiểm tra email để khôi phục tài khoản.")),
+                _ => tcs.TrySetResult((true, "Password recovery email sent! Please check your inbox.")),
                 e => tcs.TrySetResult((false, e.ErrorMessage))
             );
 
@@ -793,7 +793,7 @@ namespace _GAME.Scripts.Authenticator
         {
             if (string.IsNullOrWhiteSpace(userOrEmail) || string.IsNullOrWhiteSpace(password))
             {
-                error = "Vui lòng nhập đầy đủ thông tin đăng nhập.";
+                error = "Please enter both username/email and password.";
                 return false;
             }
 
@@ -807,25 +807,25 @@ namespace _GAME.Scripts.Authenticator
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email) ||
                 string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(confirm))
             {
-                error = "Vui lòng nhập đầy đủ thông tin đăng ký.";
+                error = "Please fill in all fields.";
                 return false;
             }
 
             if (!EmailRegex.IsMatch(email))
             {
-                error = "Email không hợp lệ.";
+                error = "Invalid email address.";
                 return false;
             }
 
             if (password != confirm)
             {
-                error = "Mật khẩu và xác nhận mật khẩu không khớp.";
+                error = "Passwords do not match.";
                 return false;
             }
 
             if (password.Length < 6)
             {
-                error = "Mật khẩu phải có ít nhất 6 ký tự.";
+                error = "Password must be at least 6 characters long.";
                 return false;
             }
 
@@ -835,24 +835,24 @@ namespace _GAME.Scripts.Authenticator
 
         private string GetLoginErrorMessage(PlayFabError error) => error.Error switch
         {
-            PlayFabErrorCode.InvalidUsernameOrPassword => "Tên người dùng hoặc mật khẩu không đúng.",
-            PlayFabErrorCode.AccountNotFound => "Tài khoản không tồn tại.",
-            PlayFabErrorCode.AccountBanned => "Tài khoản đã bị khóa.",
-            PlayFabErrorCode.InvalidParams => "Thông tin đăng nhập không hợp lệ.",
-            PlayFabErrorCode.ServiceUnavailable => "Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.",
-            PlayFabErrorCode.ConnectionError => "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.",
-            _ => $"Lỗi đăng nhập: {error.ErrorMessage}"
+            PlayFabErrorCode.InvalidUsernameOrPassword => "Username/email or password is incorrect.",
+            PlayFabErrorCode.AccountNotFound => "Account does not exist.",
+            PlayFabErrorCode.AccountBanned => "Account has been banned.",
+            PlayFabErrorCode.InvalidParams => "Invalid login parameters.",
+            PlayFabErrorCode.ServiceUnavailable => "Service is temporarily unavailable. Please try again later.",
+            PlayFabErrorCode.ConnectionError => "Unable to connect to server. Please check your network connection.",
+            _ => $"Login error: {error.ErrorMessage}"
         };
 
         private string GetRegisterErrorMessage(PlayFabError error) => error.Error switch
         {
-            PlayFabErrorCode.UsernameNotAvailable => "Tên người dùng đã được sử dụng.",
-            PlayFabErrorCode.EmailAddressNotAvailable => "Email đã được sử dụng.",
-            PlayFabErrorCode.InvalidParams => "Thông tin đăng ký không hợp lệ.",
-            PlayFabErrorCode.ProfaneDisplayName => "Tên người dùng chứa từ ngữ không phù hợp.",
-            PlayFabErrorCode.ServiceUnavailable => "Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.",
-            PlayFabErrorCode.ConnectionError => "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.",
-            _ => $"Lỗi đăng ký: {error.ErrorMessage}"
+            PlayFabErrorCode.UsernameNotAvailable => "Username is already taken.",
+            PlayFabErrorCode.EmailAddressNotAvailable => "Email is already registered.",
+            PlayFabErrorCode.InvalidParams => "Invalid registration parameters.",
+            PlayFabErrorCode.ProfaneDisplayName => "Username contains inappropriate language.",
+            PlayFabErrorCode.ServiceUnavailable => "Service is temporarily unavailable. Please try again later.",
+            PlayFabErrorCode.ConnectionError => "Unable to connect to server. Please check your network connection.",
+            _ => $"Login error: {error.ErrorMessage}"
         };
 
         #endregion

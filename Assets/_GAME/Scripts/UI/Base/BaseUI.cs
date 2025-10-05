@@ -14,7 +14,8 @@ namespace _GAME.Scripts.UI.Base
         GamePlay,
         Settings,
         PauseMenu,
-        GameOver
+        GameOver,
+        Health,
     }
     
     [RequireComponent(typeof(CanvasGroup))]

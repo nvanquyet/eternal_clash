@@ -1,9 +1,10 @@
 ﻿using System;
 using _GAME.Scripts.Config;
+using _GAME.Scripts.HideAndSeek;
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.Networking.Lobbies;
+using Michsky.MUIP;
 using TMPro;
-using Unity.Netcode;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
 
@@ -13,38 +14,39 @@ namespace _GAME.Scripts.UI.WaitingRoom
     {
         [SerializeField] private TMP_InputField lobbyNameInputField;
         [SerializeField] private TMP_InputField passwordInputField;
-        [SerializeField] private TMP_Dropdown maxPlayersDropdown;
+        [SerializeField] private CustomDropdown dropdownMaxPlayers;
 
         private void Start()
         {
             // Initialize the dropdown with max players options
             InitDropDown();
+            
             if (GameNet.Instance.Network.IsHost)
             {
                 lobbyNameInputField.interactable = true;
                 passwordInputField.interactable = true;
-                maxPlayersDropdown.interactable = true;
+                dropdownMaxPlayers.Interactable(true);
+                
                 lobbyNameInputField.onEndEdit.AddListener(OnLobbyNameChanged);
                 passwordInputField.onEndEdit.AddListener(OnLobbyPasswordChanged);
-                maxPlayersDropdown.onValueChanged.AddListener(OnMaxPlayersChanged);
+                dropdownMaxPlayers.onValueChanged.AddListener(OnMaxPlayersChanged);
             }
             else
             {
-                //Disable the input fields and dropdown for non-host players
+                // Disable the input fields and dropdown for non-host players
                 lobbyNameInputField.interactable = false;
                 passwordInputField.interactable = false;
-                maxPlayersDropdown.interactable = false;
+                dropdownMaxPlayers.Interactable(false);
             }
         }
-        
-        
+
         private void OnDestroy()
         {
             if (GameNet.Instance.Network.IsHost)
             {
                 lobbyNameInputField.onEndEdit.RemoveListener(OnLobbyNameChanged);
                 passwordInputField.onEndEdit.RemoveListener(OnLobbyPasswordChanged);
-                maxPlayersDropdown.onValueChanged.RemoveListener(OnMaxPlayersChanged);
+                dropdownMaxPlayers.onValueChanged.RemoveListener(OnMaxPlayersChanged);
             }
         }
 
@@ -56,8 +58,10 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 Debug.LogError("[LobbySetting] Lobby is not initialized in LobbySetting.");
                 return;
             }
+            
             lobbyNameInputField.text = lobby.Name;
             passwordInputField.text = lobby.GetLobbyPassword();
+            
             var maxPlayers = lobby.MaxPlayers;
             // Set the dropdown value based on the current max players
             if (maxPlayers > 0)
@@ -65,7 +69,7 @@ namespace _GAME.Scripts.UI.WaitingRoom
                 int index = System.Array.IndexOf(GameConfig.Instance.maxPlayersPerLobby, maxPlayers);
                 if (index >= 0)
                 {
-                    maxPlayersDropdown.value = index;
+                    dropdownMaxPlayers.ChangeDropdownInfo(index);
                 }
                 else
                 {
@@ -80,21 +84,34 @@ namespace _GAME.Scripts.UI.WaitingRoom
 
         private void InitDropDown()
         {
-            if (maxPlayersDropdown == null)
+            if (dropdownMaxPlayers == null)
             {
                 Debug.LogError("[LobbySetting] Max Players Dropdown is not assigned in LobbySetting.");
                 return;
             }
 
             // Clear existing options
-            maxPlayersDropdown.ClearOptions();
+            dropdownMaxPlayers.items.Clear();
 
-            // Add options for max players
+            // Get options array from GameConfig
             var options = GameConfig.Instance.maxPlayersPerLobby;
-            foreach(var o in options)
+            
+            // Add options for max players using CreateNewItem
+            foreach (var t in options)
             {
-                maxPlayersDropdown.options.Add(new TMP_Dropdown.OptionData(o.ToString()));
+                // Use false in loop to avoid rebuilding UI multiple times
+                // sprite icon can be null if you don't need icons
+                dropdownMaxPlayers.CreateNewItem(t.ToString(), null, false);
             }
+            
+            // Initialize the dropdown after adding all items
+            dropdownMaxPlayers.SetupDropdown();
+            
+            // Optionally set the default selected index (first item)
+            if (options.Length > 0)
+            {
+                dropdownMaxPlayers.ChangeDropdownInfo(0);
+            } 
         }
 
         private async void OnMaxPlayersChanged(int arg0)
@@ -117,12 +134,12 @@ namespace _GAME.Scripts.UI.WaitingRoom
         {
             try
             {
-                //Check if the password is empty or null
+                // Check if the password is empty or null
                 if (string.IsNullOrEmpty(arg0) || string.IsNullOrWhiteSpace(arg0) || arg0.Length < 8)
                 {
-                    Debug.LogWarning("[LobbySetting] Password is empty or null, setting to null.");
-                    arg0 = "12345678"; // Set to null if empty
-                    PopupNotification.Instance.ShowPopup(false, "Password must be at least 8 characters long.\n Using default password", "Warning");
+                    Debug.LogWarning("[LobbySetting] Password is empty or null, setting to default.");
+                    arg0 = "12345678"; // Set to default if empty
+                    PopupNotification.Instance.ShowPopup(false, "Password must be at least 8 characters long.\nUsing default password", "Warning");
                 }
                 
                 await GameNet.Instance.UpdateLobbyPasswordAsync(arg0);

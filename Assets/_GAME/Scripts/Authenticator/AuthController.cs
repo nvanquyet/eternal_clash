@@ -44,7 +44,7 @@ namespace _GAME.Scripts.Authenticator
         {
             if (isProcessingAuth)
             {
-                PopupNotification.Instance.ShowPopup(false, "Đang xử lý yêu cầu, vui lòng chờ...");
+                PopupNotification.Instance.ShowPopup(false, "Processing request, please wait...");
                 return;
             }
 
@@ -57,7 +57,7 @@ namespace _GAME.Scripts.Authenticator
                 // Show loading với timeout phù hợp với loginProcessTimeoutSeconds
                 LoadingUI.Instance.RunTimed(35, () => {
                     Debug.Log($"[AuthController] Login process completed");
-                }, "Đang đăng nhập...", false);
+                }, "Login processing ...", false);
 
                 var (success, message) = await AuthManager.LoginAsync(user, pass);
                 
@@ -81,17 +81,18 @@ namespace _GAME.Scripts.Authenticator
                 }
                 else
                 {
+                    LoadingUI.Instance.Complete();
                     PopupNotification.Instance.ShowPopup(false, message);
                 }
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[AuthController] Login exception: {ex.Message}");
-                PopupNotification.Instance.ShowPopup(false, "Đã xảy ra lỗi không mong muốn. Vui lòng thử lại.");
+                LoadingUI.Instance.Complete();
+                PopupNotification.Instance.ShowPopup(false, "Has occurred an unexpected error. Please try again.");
             }
             finally
             {
-                LoadingUI.Instance.Complete();
                 isProcessingAuth = false;
             }
         }
@@ -100,7 +101,7 @@ namespace _GAME.Scripts.Authenticator
         {
             if (isProcessingAuth)
             {
-                PopupNotification.Instance.ShowPopup(false, "Đang xử lý yêu cầu, vui lòng chờ...");
+                PopupNotification.Instance.ShowPopup(false, "Processing request, please wait...");
                 return;
             }
 
@@ -112,7 +113,7 @@ namespace _GAME.Scripts.Authenticator
                 
                 LoadingUI.Instance.RunTimed(15, () => {
                     Debug.Log($"[AuthController] Register process completed");
-                }, "Đang đăng ký...", false);
+                }, "Register processing ...", false);
 
                 var (success, message) = await AuthManager.RegisterAsync(username, email, pass, confirm);
                 
@@ -122,7 +123,7 @@ namespace _GAME.Scripts.Authenticator
             catch (Exception ex)
             {
                 Debug.LogError($"[AuthController] Register exception: {ex.Message}");
-                PopupNotification.Instance.ShowPopup(false, "Đã xảy ra lỗi không mong muốn. Vui lòng thử lại.");
+                PopupNotification.Instance.ShowPopup(false, "Has occurred an unexpected error. Please try again.");
             }
             finally
             {
@@ -135,7 +136,7 @@ namespace _GAME.Scripts.Authenticator
         {
             if (isProcessingAuth)
             {
-                PopupNotification.Instance.ShowPopup(false, "Đang xử lý yêu cầu, vui lòng chờ...");
+                PopupNotification.Instance.ShowPopup(false, "Processing request, please wait...");
                 return;
             }
 
@@ -147,7 +148,7 @@ namespace _GAME.Scripts.Authenticator
                 
                 LoadingUI.Instance.RunTimed(10, () => {
                     Debug.Log($"[AuthController] Forgot password process completed");
-                }, "Đang gửi email khôi phục...", false);
+                }, "Forgot password processing ...", false);
 
                 var (success, message) = await AuthManager.ForgotPasswordAsync(email);
                 
@@ -157,7 +158,7 @@ namespace _GAME.Scripts.Authenticator
             catch (Exception ex)
             {
                 Debug.LogError($"[AuthController] Forgot password exception: {ex.Message}");
-                PopupNotification.Instance.ShowPopup(false, "Đã xảy ra lỗi không mong muốn. Vui lòng thử lại.");
+                PopupNotification.Instance.ShowPopup(false, "Has occurred an unexpected error. Please try again.");
             }
             finally
             {

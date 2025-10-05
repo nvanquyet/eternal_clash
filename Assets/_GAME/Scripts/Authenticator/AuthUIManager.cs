@@ -2,42 +2,39 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System;
+using _GAME.Scripts.Data;
 using _GAME.Scripts.UI;
+using Michsky.MUIP;
 
 namespace _GAME.Scripts.Authenticator
 {
     public class AuthUIManager : MonoBehaviour
     {
-        [Header("Input Fields")] 
-        public TMP_InputField emailInput;
+        [Header("Login Input Fields")] 
         public TMP_InputField usernameOrEmailInput;
         public TMP_InputField passwordInput;
-        public TMP_InputField confirmPasswordInput;
-        
-        [Header("Panel Fields")] 
-        public GameObject emailFieldPanel;
-        public GameObject confirmPasswordFieldPanel;
-        public ScrollRect scrollRect;
-        
-        [Header("Text Fields")] 
-        public TextMeshProUGUI titleText;
-        public TextMeshProUGUI switchLabelText;
-        public TextMeshProUGUI mainButtonText;
-        public TextMeshProUGUI switchButtonText;
+
+        [Header("Register Input Fields")]
+        public TMP_InputField emailRegisterInput;
+        public TMP_InputField usernameRegisterInput;
+        public TMP_InputField passwordRegisterInput;
+        public TMP_InputField confirmRegisterPasswordInput;
+        [Header("Forgot Password Fields")]
+        public TMP_InputField emailForgotInput;
         
         [Header("Button Fields")]
-        public Button mainButton;
+        public Button loginButton;
+        public Button registerButton;
         public Button forgotPasswordButton;
-        public Button switchButton;
         
-        [Header("Toggles")]
-        public Toggle showPasswordToggle;
-        public Toggle showConfirmPasswordToggle;
-
-        private bool isRegister = true;
+        [Header("Switch Fields")]
+        [SerializeField] private SwitchManager stayLoggedInSwitch;
+        [SerializeField] private SwitchManager termsSwitch;
+        
         
         Action<string, string> OnLoginRequested = null;
         Action<string, string, string, string> OnRegisterRequested = null;
+        private Action<string> OnForgotPasswordRequested = null;
         
         public void Initialized(Action<string, string> OnLoginRequested,
             Action<string, string, string, string> OnRegisterRequested,
@@ -45,92 +42,71 @@ namespace _GAME.Scripts.Authenticator
         {
             this.OnLoginRequested = OnLoginRequested;
             this.OnRegisterRequested = OnRegisterRequested;
+            this.OnForgotPasswordRequested = OnForgotPasswordRequested;
+            loginButton.onClick.AddListener(OnClickLogin);
+            registerButton.onClick.AddListener(OnClickRegister);
+            forgotPasswordButton.onClick.AddListener(OnClickResetPassword);
             
-            forgotPasswordButton.onClick.AddListener(() =>
-                OnForgotPasswordRequested?.Invoke(usernameOrEmailInput.text.Trim()));
-            
-            switchButton.onClick.AddListener(SwitchPanel);
-            
-            SetUpToggles();
-            SwitchPanel();
         }
 
-        private void SetUpToggles()
+      
+        private void OnDestroy()
         {
-            showPasswordToggle?.onValueChanged.AddListener(isOn =>
-            {
-                passwordInput.contentType = isOn ? TMP_InputField.ContentType.Standard : TMP_InputField.ContentType.Password;
-                passwordInput.ForceLabelUpdate();
-            });
-            showConfirmPasswordToggle?.onValueChanged.AddListener(isOn =>
-            {
-                confirmPasswordInput.contentType = isOn ? TMP_InputField.ContentType.Standard : TMP_InputField.ContentType.Password;
-                confirmPasswordInput.ForceLabelUpdate();
-            });
+            loginButton.onClick.RemoveListener(OnClickLogin);
+            registerButton.onClick.RemoveListener(OnClickRegister);
+            forgotPasswordButton.onClick.RemoveListener(OnClickResetPassword);
+
         }
 
-        private void SwitchPanel()
+        private void OnClickRegister()
         {
-            isRegister = !isRegister;
-            if (isRegister)
+            //Validate inputs
+            if (string.IsNullOrEmpty(emailRegisterInput.text) ||
+                string.IsNullOrEmpty(usernameRegisterInput.text) ||
+                string.IsNullOrEmpty(passwordRegisterInput.text) ||
+                string.IsNullOrEmpty(confirmRegisterPasswordInput.text))
             {
-                mainButtonText.text = "Register";
-                titleText.text = "Register";
-                switchButtonText.text = "Login";
-                switchLabelText.text = "Already have an account?";
-                
-                emailFieldPanel.gameObject.SetActive(true);
-                confirmPasswordFieldPanel.gameObject.SetActive(true);
-                
-                mainButton.onClick.RemoveAllListeners();
-                mainButton.onClick.AddListener(() =>
-                {
-                    if (string.IsNullOrEmpty(usernameOrEmailInput.text) || 
-                        string.IsNullOrEmpty(passwordInput.text) || 
-                        string.IsNullOrEmpty(confirmPasswordInput.text) || 
-                        string.IsNullOrEmpty(emailInput.text))
-                    {
-                        PopupNotification.Instance.ShowPopup(false, "Please fill all fields.");
-                        return;
-                    }
-                    
-                    if (passwordInput.text != confirmPasswordInput.text)
-                    {
-                        PopupNotification.Instance.ShowPopup(false, "Passwords do not match.");
-                        return;
-                    }
-                    
-                    OnRegisterRequested?.Invoke(usernameOrEmailInput.text.Trim(), emailInput.text.Trim(), passwordInput.text.Trim(), confirmPasswordInput.text.Trim());
-                });
+                PopupNotification.Instance.ShowPopup(false, "Please fill in all fields.");
+                return;
             }
-            else
+            if (!termsSwitch.isOn)
             {
-                mainButtonText.text = "Login";
-                titleText.text = "Login";
-                switchButtonText.text = "Register";
-                switchLabelText.text = "Don't have an account?";
-                
-                emailFieldPanel.gameObject.SetActive(false);
-                confirmPasswordFieldPanel.gameObject.SetActive(false);
-                
-                mainButton.onClick.RemoveAllListeners();
-                mainButton.onClick.AddListener(() =>
-                {
-                    if (string.IsNullOrEmpty(usernameOrEmailInput.text) || string.IsNullOrEmpty(passwordInput.text))
-                    {
-                        PopupNotification.Instance.ShowPopup(false, "Please fill all fields.");
-                        return;
-                    }
-                    
-                    OnLoginRequested?.Invoke(usernameOrEmailInput.text.Trim(), passwordInput.text.Trim());
-                });
+                PopupNotification.Instance.ShowPopup(false, "Please agree to the terms and conditions.");
+                return;
             }
-            
-            // Reset input fields
-            passwordInput.text = string.Empty;
-            confirmPasswordInput.text = string.Empty;
-            emailInput.text = string.Empty;
-            scrollRect.verticalNormalizedPosition = 1f; // Reset scroll position to top
+            if (passwordRegisterInput.text != confirmRegisterPasswordInput.text)
+            {
+                PopupNotification.Instance.ShowPopup(false, "Confirm password does not match.");
+                return;
+            }
+            OnRegisterRequested?.Invoke(emailRegisterInput.text, usernameRegisterInput.text,
+                passwordRegisterInput.text, confirmRegisterPasswordInput.text);
         }
+
+        private void OnClickLogin()
+        {
+            //Validate inputs
+            if (string.IsNullOrEmpty(usernameOrEmailInput.text) ||
+                string.IsNullOrEmpty(passwordInput.text))
+            {
+                PopupNotification.Instance.ShowPopup(false, "Please fill in all fields.");
+                return;
+            }
+            //Check if remeber me
+            LocalData.StayLoggedIn = stayLoggedInSwitch.isOn;
+            OnLoginRequested?.Invoke(usernameOrEmailInput.text, passwordInput.text);
+        }
+        
+        private void OnClickResetPassword()
+        {
+           //Validate inputs
+            if (string.IsNullOrEmpty(emailForgotInput.text))
+            {
+                PopupNotification.Instance.ShowPopup(false, "Please fill in all fields.");
+                return;
+            }
+            OnForgotPasswordRequested?.Invoke(emailForgotInput.text);
+        }
+
     }
 }

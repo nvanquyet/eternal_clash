@@ -1,6 +1,7 @@
+using System;
 using _GAME.Scripts.HideAndSeek.Combat.Base;
-using _GAME.Scripts.HideAndSeek.Player.Graphics;
 using _GAME.Scripts.HideAndSeek.Player.Rig;
+using _GAME.Scripts.Player;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -8,24 +9,27 @@ namespace _GAME.Scripts.HideAndSeek.Player
 {
     public class PlayerEquipment : NetworkBehaviour
     {
-        private PlayerRigCtrl playerRigCtrl;
+        private PlayerRigCtrl _playerRigCtrl;
         private PlayerRigCtrl PlayerRigCtrl
         {
             get
             {
-                if (playerRigCtrl != null) return playerRigCtrl;
+                if (_playerRigCtrl != null) return _playerRigCtrl;
 
                 // Fallbacks an toàn hơn
-                playerRigCtrl = transform.parent?.GetComponentInChildren<PlayerRigCtrl>()
+                _playerRigCtrl = transform.parent?.GetComponentInChildren<PlayerRigCtrl>()
                                 ?? transform.GetComponentInParent<PlayerRigCtrl>()
                                 ?? transform.root.GetComponentInChildren<PlayerRigCtrl>(true);
 
-                if (playerRigCtrl == null)
+                if (_playerRigCtrl == null)
                     Debug.LogWarning("[PlayerEquipment] PlayerRigCtrl not found via fallbacks.");
 
-                return playerRigCtrl;
+                return _playerRigCtrl;
             }
         }
+        
+        public event Action<WeaponInteraction> OnWeaponEquipped;
+        public event Action<WeaponInteraction> OnWeaponUnequipped;
         
         private NetworkVariable<NetworkBehaviourReference> currentWeaponRef =
             new NetworkVariable<NetworkBehaviourReference>(
@@ -52,16 +56,24 @@ namespace _GAME.Scripts.HideAndSeek.Player
         {
             // Local visual chạy ở mọi máy
             if (prevRef.TryGet(out WeaponInteraction prevWeapon))
+            {
                 UnEquipWeapon(prevWeapon);
+                OnWeaponUnequipped?.Invoke(prevWeapon); 
+            }
+
+
 
             if (newRef.TryGet(out WeaponInteraction newWeapon))
+            {
                 EquipWeapon(newWeapon);
+                OnWeaponEquipped?.Invoke(newWeapon);
+            }
         }
         
         private void EquipWeapon(WeaponInteraction weapon)
-        {
+        { 
             if (weapon == null) return;
-
+            
             // ✅ Server: ownership + parenting
             if (IsServer)
             {

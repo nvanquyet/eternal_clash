@@ -99,8 +99,7 @@ namespace _GAME.Scripts.Networking.UI
         {
             var nm = NetworkManager.Singleton;
             if (nm != null && nm.IsServer &&
-                SceneLoadingBroadcaster.Instance != null &&
-                SceneLoadingBroadcaster.Instance.IsSpawned)
+                SceneLoadingBroadcaster.Instance != null)
             {
                 SceneLoadingBroadcaster.Instance.PreShowAllClients(tip ?? GetRandomLoadingTip());
             }

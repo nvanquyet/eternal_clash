@@ -1,18 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
-using _GAME.Scripts.HideAndSeek;
-using _GAME.Scripts.HideAndSeek.Config;
-using _GAME.Scripts.Core;
-using _GAME.Scripts.HideAndSeek.UI;
 using _GAME.Scripts.Networking;
 using _GAME.Scripts.UI.Base;
-using Unity.Netcode;
-using Unity.VisualScripting;
+using TMPro;
+using UnityEngine;
 
-namespace _GAME.Scripts.UI
+namespace _GAME.Scripts.HideAndSeek.UI
 {
     /// <summary>
     /// Hiển thị trạng thái game: số lượng Seeker/Hider và kill feed notifications
@@ -166,12 +159,7 @@ namespace _GAME.Scripts.UI
             Color messageColor;
             
             // Generate message based on kill type
-            if (killerId == 0)
-            {
-                message = $"{victimName} disconnected";
-                messageColor = disconnectColor;
-            }
-            else if (victimRole == Role.Hider && killerRole == Role.Seeker)
+            if (victimRole == Role.Hider && killerRole == Role.Seeker)
             {
                 message = $"{victimName} was caught!";
                 messageColor = seekerColor;
@@ -228,7 +216,7 @@ namespace _GAME.Scripts.UI
             
             item.Initialize(message, color);
             activeKillFeeds.Enqueue(item);
-            
+            item.gameObject.SetActive(true);
             // Start fade routine
             StartCoroutine(KillFeedLifecycleRoutine(item));
         }

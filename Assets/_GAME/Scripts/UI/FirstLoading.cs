@@ -10,16 +10,17 @@ using UnityEngine;
 namespace _GAME.Scripts.UI
 {
     public class FirstLoading : MonoBehaviour
-    {      
+    {
+        [SerializeField] private float timeOpening = 0.3f;
         // Start is called once before the first execution of Update after the MonoBehaviour is created
         void Start()
         {
             //Show Loading UI
-            LoadingUI.Instance.RunTimed(1, () =>
+            LoadingUI.Instance.RunTimed(2, () =>
             {
                 //After loading time is over, initialize services and personal information
                 Debug.Log("[FirstCtrl] Fake loading done!");
-            }, "Loading...", false);
+            }, "Loading...", false, timeOpening);
             //Initialize services, settings, etc.
             //InitializeServices();
 
@@ -57,6 +58,9 @@ namespace _GAME.Scripts.UI
 
         private async Task<bool> UserIsLoggedIn()
         {
+            //Check remeber me
+            if (!LocalData.StayLoggedIn)
+                return false;
             var authManager = GameNet.Instance.Auth;
             var isLogin = await authManager.LoginAsync(LocalData.UserName, LocalData.UserPassword);
             return isLogin.success;

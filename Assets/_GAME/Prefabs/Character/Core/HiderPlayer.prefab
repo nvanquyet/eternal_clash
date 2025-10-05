@@ -534,6 +534,7 @@ GameObject:
   - component: {fileID: 3521857557568248964}
   - component: {fileID: 8308748448608612110}
   - component: {fileID: 6069962895480496417}
+  - component: {fileID: 6686551463782416878}
   m_Layer: 0
   m_Name: HiderPlayer
   m_TagString: HitboxRoot
@@ -617,6 +618,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 33b64ff8968296e46bf09a1bfbe96b57, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &6686551463782416878
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2482482573150921200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc3512839f93035439dbc85390b1ebae, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
@@ -2955,6 +2969,11 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 4610301644798556209}
   m_SourcePrefab: {fileID: 100100000, guid: c01f222863811604399fdd2dd02614c6, type: 3}
+--- !u!225 &1281869865698470096 stripped
+CanvasGroup:
+  m_CorrespondingSourceObject: {fileID: 2410275252821068343, guid: c01f222863811604399fdd2dd02614c6, type: 3}
+  m_PrefabInstance: {fileID: 3510865196948955879}
+  m_PrefabAsset: {fileID: 0}
 --- !u!224 &6009491618070527937 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 7196498779483888934, guid: c01f222863811604399fdd2dd02614c6, type: 3}
@@ -2977,7 +2996,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 241c863e34b34937b298c8167ce74ae4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  usingJoystick: 0
+  canvasGroup: {fileID: 1281869865698470096}
+  uiType: 0
   joystick: {fileID: 0}
   gamePadMovement: {fileID: 0}
   moveActionRef: {fileID: -3603104949884539813, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
@@ -2985,6 +3005,9 @@ MonoBehaviour:
   jumpActionRef: {fileID: 6488460581803216282, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
   runActionRef: {fileID: 870802175319260168, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
   dashActionRef: {fileID: 6172983637750094955, guid: 1daebee69ee809940bb08a13de5dfd3b, type: 3}
+  mobileShootButton: {fileID: 0}
+  mobileReloadButton: {fileID: 0}
+  mobileAmoDisplay: {fileID: 0}
 --- !u!1001 &7127372128365458569
 PrefabInstance:
   m_ObjectHideFlags: 0

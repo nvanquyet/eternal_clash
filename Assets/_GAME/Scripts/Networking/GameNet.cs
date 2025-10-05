@@ -92,7 +92,7 @@ namespace _GAME.Scripts.Networking
 
                 var op = await Lobby.CreateLobbyAsync(
                     GameConfig.Instance.defaultNameLobby,
-                    (int)GameConfig.Instance.defaultMaxPlayer,
+                    GameConfig.Instance.DefaultMaxPlayer,
                     createLobbyOption);
                 if (op.IsSuccess)
                 {

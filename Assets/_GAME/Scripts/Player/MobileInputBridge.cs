@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using _GAME.Scripts.Utils;
+using TMPro;
 
 namespace _GAME.Scripts.Player
 {
@@ -18,7 +19,12 @@ namespace _GAME.Scripts.Player
         [SerializeField] private InputActionReference runActionRef;
         [SerializeField] private InputActionReference dashActionRef;
 
-        // Cloned per-instance actions
+        [Header("Custom")]
+        [SerializeField] private GameObject mobileShootButton;
+        [SerializeField] private GameObject mobileReloadButton;
+        [SerializeField] private TextMeshProUGUI mobileAmoDisplay;
+        
+         // Cloned per-instance actions
         private InputAction _move, _look, _jump, _run, _dash;
 
         // One-shot & holds
@@ -104,6 +110,9 @@ namespace _GAME.Scripts.Player
             _isOwner = true;
             EnableActions();
             Show(null);
+            
+            //De Active Shoot Button
+            ActiveShootButton(false);
         }
 
         public PlayerInputData GetPlayerInput()
@@ -192,5 +201,29 @@ namespace _GAME.Scripts.Player
             if (_isOwner && _acceptInput)
                 _runHeld = false;
         }
+        
+        public void ShowAmmo(int currentAmmo, int maxAmmo)
+        {
+            if (mobileAmoDisplay != null)
+            {
+                mobileAmoDisplay.text = $"{currentAmmo}/{maxAmmo}";
+            }
+        }
+        
+        public void ActiveShootButton(bool isActive, int maxAmmo = 0)
+        {
+            if (mobileShootButton != null)
+            {
+                mobileShootButton.SetActive(isActive);
+            }
+            
+            if (mobileReloadButton != null)
+            {
+                mobileReloadButton.SetActive(isActive);
+            }
+
+            if(isActive) ShowAmmo(0, maxAmmo);
+        }
+        
     }
 }

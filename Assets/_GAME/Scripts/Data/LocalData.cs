@@ -21,5 +21,11 @@ namespace _GAME.Scripts.Data
             get => PlayerPrefs.GetString("UserPassword", string.Empty);
             set => PlayerPrefs.SetString("UserPassword", value);
         }
+
+        public static bool StayLoggedIn
+        {
+            get => PlayerPrefs.GetInt("StayLoggedIn", 0) == 1;
+            set => PlayerPrefs.SetInt("StayLoggedIn", value ? 1 : 0);
+        }
     }
 }
