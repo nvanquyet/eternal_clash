@@ -10,8 +10,6 @@ namespace _GAME.Scripts.Player
     {
         //[SerializeField] private bool usingJoystick = false;
         [SerializeField] private Joystick joystick;
-        [SerializeField] private GameObject gamePadMovement;
-
         [Header("Input Actions (References from asset)")]
         [SerializeField] private InputActionReference moveActionRef;
         [SerializeField] private InputActionReference lookActionRef;
@@ -50,7 +48,6 @@ namespace _GAME.Scripts.Player
         {
             // UI mặc định
             if (joystick) joystick.gameObject.SetActive(UsingJoyStick());
-            if (gamePadMovement) gamePadMovement.SetActive(!UsingJoyStick());
 
             // Tạo unique actions cho instance này - sử dụng factory
             CreateUniqueActions();

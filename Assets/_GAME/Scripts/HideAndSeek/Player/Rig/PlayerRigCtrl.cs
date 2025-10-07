@@ -153,6 +153,15 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
                 EnableAimingRig(false);
             }
         }
+        
+        public void DisableAiming()
+        {
+            if (IsOwner && currentRigState.Value == RigState.Aiming)
+            {
+                // Local prediction revert
+                EnableAimingRig(false);
+            }
+        }
 
         // Public API — chỉ owner gọi
         public void DropWeapon()
@@ -181,7 +190,7 @@ namespace _GAME.Scripts.HideAndSeek.Player.Rig
                 currentRigState.Value = RigState.Aiming;
 
                 // Cho phép aim ngắn rồi tự tắt (tùy gameplay)
-                Invoke(nameof(DisableAimingFromServer), 0.12f);
+                //Invoke(nameof(DisableAimingFromServer), 0.12f);
             }
             else if (!isEnable && currentRigState.Value == RigState.Aiming)
             {

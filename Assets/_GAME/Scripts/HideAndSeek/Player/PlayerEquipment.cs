@@ -28,6 +28,23 @@ namespace _GAME.Scripts.HideAndSeek.Player
             }
         }
         
+        private PlayerController _playerController;
+        private PlayerController PlayerCtrl
+        {
+            get
+            {
+                if (_playerController != null) return _playerController;
+
+                // Fallbacks an toàn hơn
+                _playerController = transform.GetComponentInParent<PlayerController>() ?? transform.root.GetComponentInChildren<PlayerController>(true);
+
+                if (_playerController == null)
+                    Debug.LogWarning("[PlayerEquipment] PlayerController not found via fallbacks.");
+
+                return _playerController;
+            }
+        }
+        
         public event Action<WeaponInteraction> OnWeaponEquipped;
         public event Action<WeaponInteraction> OnWeaponUnequipped;
         
@@ -94,8 +111,8 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
             if (IsOwner && weapon.AttackComponent != null)
             {
-                weapon.AttackComponent.OnPreFire -= OnPreFireLocal;
                 weapon.AttackComponent.OnPreFire += OnPreFireLocal;
+                weapon.AttackComponent.OnFire += OnFireLocal;
             }
             
             // Chủ động “đánh thức” phía owner (RPC chỉ tới owner)
@@ -118,12 +135,23 @@ namespace _GAME.Scripts.HideAndSeek.Player
             }
         }
 
-        private void OnPreFireLocal()
+        private void OnPreFireLocal(bool hasEnableCameraAim)
         {
             if (PlayerRigCtrl != null)
                 PlayerRigCtrl.EnableAimingRig(true);
+            
+            if(hasEnableCameraAim) PlayerCtrl.StartAiming();
         }
-
+        
+        private void OnFireLocal()
+        {
+            if (PlayerRigCtrl != null)
+            {
+                PlayerRigCtrl.DisableAiming();
+            }
+            PlayerCtrl.StopAiming();
+        }
+ 
         private void UnEquipWeapon(WeaponInteraction weapon)
         {
             if (weapon == null) return;
@@ -136,7 +164,10 @@ namespace _GAME.Scripts.HideAndSeek.Player
 
             // ✅ Local (owner): gỡ hook
             if (IsOwner && weapon.AttackComponent != null)
+            {
                 weapon.AttackComponent.OnPreFire -= OnPreFireLocal;
+                weapon.AttackComponent.OnFire -= OnFireLocal;
+            }
         }
 
         // API client

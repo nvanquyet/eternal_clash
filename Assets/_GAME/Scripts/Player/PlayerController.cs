@@ -25,15 +25,16 @@ namespace _GAME.Scripts.Player
         [SerializeField] private PlayerMovementConfig playerConfig;
         [SerializeField] private CharacterController characterController;
         [SerializeField] private MobileInputBridge playerInput;
-
         [SerializeField] private PlayerCamera playerCamera;
-
         [SerializeField] private PlayerRoleSO playerRoleSO;
 
-        [Header("Model Switching")] [SerializeField]
-        private PlayerModelSwitcher modelSwitcher;
-
+        [Header("Model Switching")] 
+        [SerializeField] private PlayerModelSwitcher modelSwitcher;
         [SerializeField] private PlayerAnimationSync animationSync;
+
+        [Header("Aiming Settings")]
+        [SerializeField] private float aimRotationSpeed = 10f;
+        [SerializeField] private float aimRotationThreshold = 0.1f;
 
         public PlayerAnimationSync AnimationSync => animationSync;
         public PlayerCamera PlayerCamera => playerCamera;
@@ -41,6 +42,10 @@ namespace _GAME.Scripts.Player
         // Core systems
         private PlayerLocomotion _playerLocomotion;
         private PlayerLocomotionAnimator _animationController;
+
+        // Aiming state
+        private bool _isAiming = false;
+        private Quaternion _targetAimRotation;
 
         public MobileInputBridge PlayerInput
         {
@@ -52,10 +57,7 @@ namespace _GAME.Scripts.Player
         }
         
         private bool _isNetworkInitialized = false;
-
-        // Input handling
         private PlayerInputData _lastInputData = PlayerInputData.Empty;
-
         private bool IsLocalOwner => IsOwner && IsClient;
 
         #region Unity Lifecycle
@@ -64,7 +66,6 @@ namespace _GAME.Scripts.Player
         {
             InitializeComponents();
         }
-
 
         private void InitializeComponents()
         {
@@ -76,14 +77,12 @@ namespace _GAME.Scripts.Player
                 modelSwitcher.OnAnimatorChanged += OnAnimatorChanged;
             }
 
-            PlayerCamera.DisableAllCams();
+            PlayerCamera.DisableCams();
         }
 
         private void OnAnimatorChanged(Animator newAnimator)
         {
             animationSync.SetAnimator(newAnimator);
-
-            // Reinitialize systems với animator mới
             if (_animationController != null)
             {
                 _animationController.UpdateAnimator(newAnimator);
@@ -96,12 +95,10 @@ namespace _GAME.Scripts.Player
             GameEvent.OnGameEnded += OnGameEnd;
         }
 
-
         public override void OnDestroy()
         {
             GameEvent.OnRoleAssigned -= RoleAssigned;
             GameEvent.OnGameEnded -= OnGameEnd;
-
             base.OnDestroy();
         }
 
@@ -126,7 +123,6 @@ namespace _GAME.Scripts.Player
             }
 
             GameEvent.OnPlayerDeath += OnPlayerDeath;
-
             base.OnNetworkSpawn();
         }
 
@@ -134,7 +130,6 @@ namespace _GAME.Scripts.Player
         {
             base.OnNetworkDespawn();
             Debug.Log($"🔴 [OnNetworkDespawn] Player {OwnerClientId} - Unregistering callbacks");
-            // ✅ Fixed: Removed * syntax error
             _networkRole.OnValueChanged -= OnNetworkRoleChanged;
             if (modelSwitcher != null)
             {
@@ -147,24 +142,20 @@ namespace _GAME.Scripts.Player
 
         private void InitializeSystems()
         {
-            // Initialize systems
             _playerLocomotion = new PlayerLocomotion(playerConfig, characterController, this);
-            _animationController =
-                new PlayerLocomotionAnimator(animationSync.CurrentAnimator, _playerLocomotion, this);
+            _animationController = new PlayerLocomotionAnimator(animationSync.CurrentAnimator, _playerLocomotion, this);
         }
 
         private void SetupOwner()
         {
-            PlayerCamera.EnableTppCam();
-            // Owner có CharacterController để local movement
+            PlayerCamera.EnableCam();
             if (characterController) characterController.enabled = true;
             PlayerInput.SetOwner();
         }
 
         private void SetupNonOwner()
         {
-            PlayerCamera.DisableAllCams();
-            // Non-owners tắt CharacterController, để NetworkTransform sync
+            PlayerCamera.DisableCams();
             if (characterController) characterController.enabled = false;
         }
 
@@ -174,28 +165,29 @@ namespace _GAME.Scripts.Player
 
         private void Update()
         {
-            // CHỈ owner xử lý input và movement
             if (!IsLocalOwner) return;
 
             var inputData = GatherInput();
             _lastInputData = inputData;
 
-            // Local movement cho instant response
+            // ⭐ Xử lý rotation khi aiming TRƯỚC movement
+            if (_isAiming)
+            {
+                HandleAimingRotation();
+            }
+
             _playerLocomotion?.OnUpdate(inputData);
         }
 
         private void FixedUpdate()
         {
-            // CHỈ owner xử lý physics
             if (!IsLocalOwner) return;
             _playerLocomotion?.OnFixedUpdate(_lastInputData);
         }
 
         private void LateUpdate()
         {
-            // CHỈ owner update animation (NetworkAnimator sẽ sync)
             if (!IsLocalOwner) return;
-
             _animationController?.OnLateUpdate();
         }
 
@@ -218,7 +210,111 @@ namespace _GAME.Scripts.Player
 
         #endregion
 
-        #region Role System - COMPLETELY FIXED
+        #region Aiming System
+
+        /// <summary>
+        /// Bật chế độ ngắm
+        /// - Rotate character theo hướng camera
+        /// - Ngăn auto-rotation khi di chuyển
+        /// - Zoom camera in
+        /// </summary>
+        public void StartAiming()
+        {
+            if (!IsLocalOwner) return;
+            if (_isAiming) return; // Already aiming
+            
+            _isAiming = true;
+            
+            // Lấy hướng camera (bỏ trục Y để chỉ xoay trên mặt phẳng)
+            Vector3 cameraForward = PlayerCamera.GetCameraForward();
+            cameraForward.y = 0;
+            
+            if (cameraForward.sqrMagnitude > 0.01f)
+            {
+                cameraForward.Normalize();
+                _targetAimRotation = Quaternion.LookRotation(cameraForward);
+            }
+            else
+            {
+                _targetAimRotation = transform.rotation;
+            }
+            
+            // ⭐ Thông báo cho PlayerLocomotion ngăn auto-rotation
+            _playerLocomotion?.SetAimingMode(true);
+            
+            // ⭐ Zoom camera
+            PlayerCamera.SetAimingMode(true);
+            
+            Debug.Log($"🎯 [StartAiming] Player {OwnerClientId} entered aiming mode");
+        }
+
+        /// <summary>
+        /// Tắt chế độ ngắm
+        /// </summary>
+        public void StopAiming()
+        {
+            if (!IsLocalOwner) return;
+            if (!_isAiming) return; // Not aiming
+            
+            _isAiming = false;
+            
+            // ⭐ Cho phép PlayerLocomotion xoay tự do lại
+            _playerLocomotion?.SetAimingMode(false);
+            
+            // ⭐ Zoom out camera
+            PlayerCamera.SetAimingMode(false);
+            
+            Debug.Log($"🎯 [StopAiming] Player {OwnerClientId} exited aiming mode");
+        }
+
+        /// <summary>
+        /// Toggle aiming mode
+        /// </summary>
+        public void ToggleAiming()
+        {
+            if (_isAiming)
+                StopAiming();
+            else
+                StartAiming();
+        }
+
+        /// <summary>
+        /// Kiểm tra đang aiming không
+        /// </summary>
+        public bool IsAiming => _isAiming;
+
+        /// <summary>
+        /// Xử lý rotation khi aiming - character luôn quay theo camera
+        /// </summary>
+        private void HandleAimingRotation()
+        {
+            // Cập nhật target rotation liên tục theo camera
+            Vector3 cameraForward = PlayerCamera.GetCameraForward();
+            cameraForward.y = 0;
+            
+            if (cameraForward.sqrMagnitude < 0.01f) return;
+            
+            cameraForward.Normalize();
+            Quaternion newTargetRotation = Quaternion.LookRotation(cameraForward);
+            
+            // Chỉ update nếu góc thay đổi đủ lớn (tránh jitter)
+            float angleDifference = Quaternion.Angle(_targetAimRotation, newTargetRotation);
+            if (angleDifference > aimRotationThreshold)
+            {
+                _targetAimRotation = newTargetRotation;
+            }
+            
+            // Smooth rotation đến target
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation, 
+                _targetAimRotation, 
+                Time.deltaTime * aimRotationSpeed
+            );
+        }
+
+        #endregion
+
+        #region Role System
 
         private readonly NetworkVariable<Role> _networkRole = new NetworkVariable<Role>(
             Role.None,
@@ -226,9 +322,6 @@ namespace _GAME.Scripts.Player
             NetworkVariableWritePermission.Server
         );
 
-        /// <summary>
-        /// Public getter for current role
-        /// </summary>
         public Role CurrentRole => _networkRole.Value;
 
         private void RoleAssigned()
@@ -239,22 +332,13 @@ namespace _GAME.Scripts.Player
             SetRole(role);
         }
 
-
-        /// <summary>
-        /// Set player role - SERVER ONLY
-        /// This is the MAIN method that should be called by GameManager
-        /// </summary>
-        /// <summary>
-        /// Set player role - SERVER ONLY
-        /// </summary>
         public void SetRole(Role role)
         {
             Debug.Log($"🟡 [SetRole] Called for Player {OwnerClientId} with role {role} - IsServer: {IsServer}");
 
             if (!IsServer)
             {
-                Debug.LogWarning(
-                    $"❌ [SetRole] Can only be called on server! Player {OwnerClientId} attempted to set {role}");
+                Debug.LogWarning($"❌ [SetRole] Can only be called on server! Player {OwnerClientId} attempted to set {role}");
                 return;
             }
 
@@ -265,21 +349,13 @@ namespace _GAME.Scripts.Player
             }
 
             Debug.Log($"✅ [SetRole] SERVER - Setting Player {OwnerClientId} role: {_networkRole.Value} -> {role}");
-
-            // This should trigger OnNetworkRoleChanged callback
             _networkRole.Value = role;
-
-            // Verify the value was set
             Debug.Log($"✅ [SetRole] SERVER - NetworkVariable value after set: {_networkRole.Value}");
         }
 
-        /// <summary>
-        /// Network callback - triggered on ALL clients when role changes
-        /// </summary>
         private void OnNetworkRoleChanged(Role previousRole, Role newRole)
         {
-            Debug.Log(
-                $"🟢 [OnNetworkRoleChanged] CALLBACK TRIGGERED! Client {NetworkManager.Singleton.LocalClientId} - Player {OwnerClientId}: {previousRole} -> {newRole}");
+            Debug.Log($"🟢 [OnNetworkRoleChanged] CALLBACK TRIGGERED! Client {NetworkManager.Singleton.LocalClientId} - Player {OwnerClientId}: {previousRole} -> {newRole}");
             Debug.Log($"🟢 [OnNetworkRoleChanged] IsServer: {IsServer}, IsClient: {IsClient}");
 
             if (IsServer)
@@ -294,33 +370,10 @@ namespace _GAME.Scripts.Player
             }
         }
 
-        /// <summary>
-        /// Client-side handling of role changes
-        /// </summary>
         private void OnRoleChangedClientSide(Role previousRole, Role newRole)
         {
             Debug.Log($"🔷 [OnRoleChangedClientSide] Player {OwnerClientId} role changed to {newRole}");
-            // Add client-side logic here (UI updates, effects, etc.)
         }
-
-        // private void SpawnRoleObject(Role newRole)
-        // {
-        //     if (!IsServer) return; // Chỉ server mới spawn object
-        //     var prefab = playerRoleSO?.GetData(newRole).Prefab;
-        //     if (prefab == null) return;
-        //
-        //     var gO = Instantiate(prefab);
-        //
-        //     gO.OnNetworkSpawned += () =>
-        //     {
-        //         Debug.Log($"[PlayerController] Spawned role object for Player {OwnerClientId} as {newRole}");
-        //         gO.transform.SetParent(transform);
-        //         gO.transform.localPosition = Vector3.zero;
-        //         gO.SetRole(newRole);
-        //     };
-        //
-        //     gO.NetworkObject.SpawnWithOwnership(OwnerClientId);
-        // }
 
         private void SpawnRoleObject(Role newRole)
         {
@@ -339,8 +392,8 @@ namespace _GAME.Scripts.Player
             }
 
             var roleData = playerRoleSO.GetData(newRole);
-
             var prefab = roleData.Prefab;
+            
             if (prefab == null)
             {
                 Debug.LogError($"❌ [SpawnRoleObject] No prefab found for role {newRole}!");
@@ -349,7 +402,6 @@ namespace _GAME.Scripts.Player
 
             Debug.Log($"🟣 [SpawnRoleObject] Found prefab: {prefab.name} for role {newRole}");
 
-            // Check if prefab has NetworkObject
             if (prefab.GetComponent<NetworkObject>() == null)
             {
                 Debug.LogError($"❌ [SpawnRoleObject] Prefab {prefab.name} doesn't have NetworkObject component!");
@@ -378,11 +430,8 @@ namespace _GAME.Scripts.Player
 
             try
             {
-                // Spawn with ownership
                 gO.NetworkObject.SpawnWithOwnership(OwnerClientId);
-                Debug.Log(
-                    $"✅ [SpawnRoleObject] Successfully spawned {gO.name} for Player {OwnerClientId} as {newRole}");
-
+                Debug.Log($"✅ [SpawnRoleObject] Successfully spawned {gO.name} for Player {OwnerClientId} as {newRole}");
                 gO.SetRole(newRole);
                 Debug.Log($"✅ [SpawnRoleObject] Set role on spawned object");
             }
@@ -399,35 +448,55 @@ namespace _GAME.Scripts.Player
 
         #endregion
 
+        #region Event Handlers
+
         public void EnableSoulMode(bool enable)
         {
             if (!IsOwner) return;
             if (enable)
             {
-                playerCamera.DisableAllCams();
+                playerCamera.DisableCams();
                 PlayerInput?.Hide(null);
+                
+                // Tắt aiming khi vào soul mode
+                if (_isAiming)
+                {
+                    StopAiming();
+                }
             }
             else
             {
-                playerCamera.EnableTppCam();
+                playerCamera.EnableCam();
                 PlayerInput?.Show(null);
             }
         }
 
-        //Register Event
         private void OnPlayerDeath(string namePlayer, ulong pId)
         {
             if (pId != OwnerClientId) return;
             _playerLocomotion.SetFreezeMovement(true);
+            
+            // Tắt aiming khi chết
+            if (_isAiming)
+            {
+                StopAiming();
+            }
         }
 
         private void OnGameEnd(Role obj)
         {
             if (IsOwner)
             {
-                //Disable input 
                 PlayerInput?.Hide(null);
+                
+                // Tắt aiming khi game kết thúc
+                if (_isAiming)
+                {
+                    StopAiming();
+                }
             }
         }
+
+        #endregion
     }
 }

@@ -30,7 +30,8 @@ namespace _GAME.Scripts.HideAndSeek.Combat.Base
         // ✅ ĐỌC TỪ NETWORK VARIABLE
         public float BaseDamage => _networkDamage.Value;
 
-        public Action OnPreFire = null;
+        public Action<bool> OnPreFire = null;   //Has enable aim camera
+        public Action OnFire = null; 
 
         public virtual bool CanAttack => LocalCooldownReady;
 

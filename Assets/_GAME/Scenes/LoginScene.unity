@@ -539,14 +539,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.3882353, g: 0.7764706, b: 1, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 77e37f7fe73c7db4d9a1702eb4ad411b, type: 3}
+  m_Sprite: {fileID: 21300000, guid: d350a80be99e5e14a9e746025ebbdeb8, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -2195,12 +2195,28 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 584231597286229078, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 584231597286229078, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 584231597286229078, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 584231597286229078, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 584231597286229078, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 584231597286229078, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 817181577582373398, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
       propertyPath: m_AnchorMax.y
@@ -2685,7 +2701,19 @@ PrefabInstance:
     - target: {fileID: 7178050940997983197, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: 21300000, guid: 77e37f7fe73c7db4d9a1702eb4ad411b, type: 3}
+      objectReference: {fileID: 21300000, guid: d350a80be99e5e14a9e746025ebbdeb8, type: 3}
+    - target: {fileID: 7178050940997983197, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
+      propertyPath: m_Color.g
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7178050940997983197, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
+      propertyPath: m_Color.r
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7178050940997983197, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
+      propertyPath: m_PreserveAspect
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 7237609439086722610, guid: 3268bf3054520c44c8675dce50e96edd, type: 3}
       propertyPath: m_fontAsset
       value: 

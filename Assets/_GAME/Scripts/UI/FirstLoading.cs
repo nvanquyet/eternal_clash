@@ -12,6 +12,19 @@ namespace _GAME.Scripts.UI
     public class FirstLoading : MonoBehaviour
     {
         [SerializeField] private float timeOpening = 0.3f;
+        [SerializeField] private int maxFps = -1;
+        [SerializeField] private bool unlimitedFPS = false;
+        
+        
+        void Awake()
+        {
+            if (unlimitedFPS)
+            {
+                // Set target FPS (60, 90, 120 hoặc -1 = unlimited)
+                Application.targetFrameRate = maxFps; // Hoặc 120 nếu thiết bị hỗ trợ
+            }
+        }
+        
         // Start is called once before the first execution of Update after the MonoBehaviour is created
         void Start()
         {

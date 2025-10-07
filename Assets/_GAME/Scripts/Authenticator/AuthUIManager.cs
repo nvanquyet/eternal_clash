@@ -79,7 +79,7 @@ namespace _GAME.Scripts.Authenticator
                 PopupNotification.Instance.ShowPopup(false, "Confirm password does not match.");
                 return;
             }
-            OnRegisterRequested?.Invoke(emailRegisterInput.text, usernameRegisterInput.text,
+            OnRegisterRequested?.Invoke(usernameRegisterInput.text, emailRegisterInput.text,
                 passwordRegisterInput.text, confirmRegisterPasswordInput.text);
         }
 
